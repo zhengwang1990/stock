@@ -7,6 +7,7 @@ import os
 import re
 from tqdm import tqdm
 import json
+from tabulate import tabulate
 
 DATE_RANGE = 5
 
@@ -78,7 +79,8 @@ def simulate():
   sl = getSeriesLength('2y')
   dates = getSeriesDates('2y')
   serieses = {}
-  for ticker in tqdm(tickers):
+  print('Loading stock histories...')
+  for ticker in tqdm(tickers, bar_format='{percentage:3.0f}%|{bar:100}{r_bar}'):
     cache_name = 'json/%s.json' % (ticker,)
     if os.path.isfile(cache_name):
       with open(cache_name) as f:
@@ -94,9 +96,10 @@ def simulate():
     serieses[ticker] = series
   total_return = 1.0
   for cutoff in range(251, sl-1):
-    print('Date:', dates[cutoff+1])
+    print('='*100)
+    print('DATE:', dates[cutoff+1])
     buy_symbols = []
-    for ticker, series in serieses.items():
+    for ticker, series in tqdm(serieses.items(), bar_format='{percentage:3.0f}%|{bar:100}{r_bar}', leave=False):
       avg_return, is_buy = getBuySignal(series[:cutoff], series[cutoff])
       if is_buy:
         buy_symbols.append((avg_return, ticker))
@@ -108,16 +111,18 @@ def simulate():
     for i in range(max_symbol):
       ac += buy_symbols[i][0]
     day_gain = 0
+    trading_table = []
     for i in range(max_symbol):
       portion = buy_symbols[i][0] / ac
       ticker = buy_symbols[i][1]
       series = serieses[ticker]
       gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
-      print('%s: gain: %.2f%%'%(ticker, gain*100))
+      trading_table.append([ticker, '%.2f%%'%(portion*100,), '%.2f%%'%(gain*100,)])
       day_gain += gain * portion
-    print('Day gain: %.2f%%'%(day_gain*100,))
+    print(tabulate(trading_table, headers=['Symbol', 'Portfolio Portion', 'Gain'], tablefmt="grid"))
+    print('DAILY GAIN: %.2f%%'%(day_gain*100,))
     total_return *= (1 + day_gain)
-    print('Total gain: %.2f%%'%((total_return-1)*100,))
+    print('TOTAL GAIN: %.2f%%'%((total_return-1)*100,))
 
 def getSeriesLength(time):
   series = getSeries('AAPL', time=time)
