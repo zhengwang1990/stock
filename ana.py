@@ -76,8 +76,8 @@ def getAllSymbols():
 
 def simulate():
   tickers = getAllSymbols()
-  sl = getSeriesLength('2y')
-  dates = getSeriesDates('2y')
+  sl = getSeriesLength('5y')
+  dates = getSeriesDates('5y')
   serieses = {}
   print('Loading stock histories...')
   for ticker in tqdm(tickers, bar_format='{percentage:3.0f}%|{bar:100}{r_bar}'):
@@ -87,15 +87,27 @@ def simulate():
         series_json = f.read()
       series = np.array(json.loads(series_json))
     else:
-      series = getSeries(ticker, time='2y')
+      series = getSeries(ticker, time='5y')
       series_json = json.dumps(series.tolist())
       with open(cache_name, 'w') as f:
         f.write(series_json)
     if len(series) != sl:
       continue
     serieses[ticker] = series
+
+  to_del = []
+  for ticker, series in serieses.items():
+    if np.max(series) * 0.5 > series[-1]:
+      to_del.append(ticker)
+  for ticker in to_del:
+    del serieses[ticker]
+  print('Picked stocks: %d'%(len(serieses)))
+
   total_return = 1.0
-  for cutoff in range(251, sl-1):
+  start_point = 0
+  while '2018' not in dates[start_point]:
+    start_point += 1
+  for cutoff in range(start_point-1, sl-1):
     print('='*100)
     print('DATE:', dates[cutoff+1])
     buy_symbols = []
@@ -113,13 +125,13 @@ def simulate():
     day_gain = 0
     trading_table = []
     for i in range(max_symbol):
-      portion = buy_symbols[i][0] / ac
+      portion = 0.5 / max_symbol + 0.5 * buy_symbols[i][0] / ac
       ticker = buy_symbols[i][1]
       series = serieses[ticker]
       gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
       trading_table.append([ticker, '%.2f%%'%(portion*100,), '%.2f%%'%(gain*100,)])
       day_gain += gain * portion
-    print(tabulate(trading_table, headers=['Symbol', 'Portfolio Portion', 'Gain'], tablefmt="grid"))
+    print(tabulate(trading_table, headers=['Symbol', 'Portion', 'Gain'], tablefmt="grid"))
     print('DAILY GAIN: %.2f%%'%(day_gain*100,))
     total_return *= (1 + day_gain)
     print('TOTAL GAIN: %.2f%%'%((total_return-1)*100,))
