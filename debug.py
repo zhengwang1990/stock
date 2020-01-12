@@ -5,7 +5,7 @@ from common import *
 def plot_buy_points(ticker):
     series = get_series(ticker)
     pick_t, avg_return, threshold = get_picked_points(series)
-    print('=[ %s ]============================' % (ticker,))
+    print(get_header(ticker))
     print('Average return: %.2f%%' % (avg_return * 100,))
     print('Threshold: %.2f%%' % (threshold * 100,))
     t = range(len(series))
@@ -15,7 +15,7 @@ def plot_buy_points(ticker):
 
 
 def main():
-    plot_buy_points('FDBC')
+    plot_buy_points('SPY')
 
 
 if __name__ == '__main__':

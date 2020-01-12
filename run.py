@@ -1,27 +1,41 @@
-import sys
+import argparse
 from common import *
-from tqdm import tqdm
+from tabulate import tabulate
 
 
-def get_static_buy_symbols(tickers, output_file=None):
-    sl = get_series_length('1y')
-    buy_symbols = []
-    for ticker in tqdm(tickers, bar_format='{percentage:3.0f}%|{bar}{r_bar}', file=sys.stdout):
-        series = get_series(ticker, time='1y')
-        if len(series) != sl:
-            continue
-        avg_return, is_buy = get_buy_signal(series[:-1], series[-1])
-        if is_buy:
-            buy_symbols.append((avg_return, ticker))
+def get_static_buy_symbols(fund=None):
+    """"Gets stock symbols to buy from previous close."""
+    all_series = get_all_series(MAX_HISTORY_LOAD)
+    all_series = filter_all_series(all_series)
+    trading_list = get_buy_symbols(all_series, -1)
+    trading_table = []
+    cost = 0
 
-    output_file.write('%s, %.2f%%\n' % (ticker, avg_return * 100))
-    output_file.flush()
+    for ticker, proportion in trading_list:
+        trading_row = [ticker, '%.2f%%' % (proportion * 100,)]
+        if fund:
+            price = all_series[ticker][-1]
+            value = fund * proportion
+            n_shares = int(value / price)
+            share_cost = n_shares * price
+            cost += share_cost
+            trading_row.extend([price, share_cost, n_shares])
+        trading_table.append(trading_row)
+    headers = ['Symbol', 'Proportion']
+    if fund:
+        headers.extend(['Price', 'Cost', 'Quantity'])
+    if trading_table:
+        print(tabulate(trading_table, headers=headers, tablefmt='grid'))
+        if fund:
+            print('Fund: %.2f' % (fund,))
+            print('Actual Cost: %.2f' % (cost,))
+
 
 def main():
-    output_filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'outputs', 'run.txt')
-    with open(output_filename, 'w') as f:
-        symbols = get_all_symbols()
-        get_static_buy_symbols(symbols, output_file=f)
+    parser = argparse.ArgumentParser(description='Stock trading strategy.')
+    parser.add_argument('--fund', default=None, help='Total fund to trade')
+    args = parser.parse_args()
+    get_static_buy_symbols(args.fund)
 
 
 if __name__ == '__main__':
