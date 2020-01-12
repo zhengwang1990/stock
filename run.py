@@ -7,7 +7,8 @@ def get_static_buy_symbols(fund=None):
     """"Gets stock symbols to buy from previous close."""
     all_series = get_all_series(MAX_HISTORY_LOAD)
     all_series = filter_all_series(all_series)
-    trading_list = get_buy_symbols(all_series, -1)
+    buy_symbols = get_buy_symbols(all_series, -1)
+    trading_list = get_trading_list(buy_symbols)
     trading_table = []
     cost = 0
 
@@ -16,7 +17,7 @@ def get_static_buy_symbols(fund=None):
         if fund:
             price = all_series[ticker][-1]
             value = fund * proportion
-            n_shares = int(value / price)
+            n_shares = np.round(value / price)
             share_cost = n_shares * price
             cost += share_cost
             trading_row.extend([price, share_cost, n_shares])
@@ -29,6 +30,11 @@ def get_static_buy_symbols(fund=None):
         if fund:
             print('Fund: %.2f' % (fund,))
             print('Actual Cost: %.2f' % (cost,))
+
+
+def get_dynamic_buy_symbols(fund=None):
+    """"Gets stock symbols to buy from previous close."""
+    pass
 
 
 def main():

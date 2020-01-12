@@ -126,6 +126,10 @@ def get_buy_symbols(all_series, cutoff):
         avg_return, is_buy = get_buy_signal(series[cutoff-LOOK_BACK_DAY:cutoff], series[cutoff])
         if is_buy:
             buy_symbols.append((avg_return, ticker))
+    return buy_symbols
+
+
+def get_trading_list(buy_symbols):
     buy_symbols.sort(reverse=True)
     n_symbols = 0
     while n_symbols < min(5, len(buy_symbols)) and buy_symbols[n_symbols][0] >= 0.01:

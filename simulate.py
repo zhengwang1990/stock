@@ -13,7 +13,7 @@ def bi_print(message, output_file):
         output_file.flush()
 
 
-def simulate(start_date='2018', end_date=pd.datetime.today().date()):
+def simulate(start_date='2019', end_date=pd.datetime.today().date()):
     """Simulates trading operations and outputs gains."""
     file_dir = os.path.dirname(os.path.realpath(__file__))
     output_detail = open(os.path.join(file_dir, 'outputs', 'simulate_detail.txt'), 'w')
@@ -27,13 +27,16 @@ def simulate(start_date='2018', end_date=pd.datetime.today().date()):
     start_point, end_point = 0, series_length - 1
     while pd.to_datetime(start_date) > dates[start_point]:
         start_point += 1
+    if start_point - 1 < LOOK_BACK_DAY:
+        raise Exception('Start date must be no early than %s' % (dates[LOOK_BACK_DAY+1].date()))
     while pd.to_datetime(end_date) < dates[end_point]:
         end_point -= 1
     values = {'Total': ([dates[start_point-1]], [1.0])}
     for cutoff in range(start_point - 1, end_point):
         current_date = dates[cutoff + 1]
         bi_print(get_header(current_date.date()), output_detail)
-        trading_list = get_buy_symbols(all_series, cutoff)
+        buy_symbols = get_buy_symbols(all_series, cutoff)
+        trading_list = get_trading_list(buy_symbols)
         trading_table = []
         day_gain = 0
         for ticker, proportion in trading_list:
@@ -47,7 +50,7 @@ def simulate(start_date='2018', end_date=pd.datetime.today().date()):
         total_value = values['Total'][1][-1] * (1 + day_gain)
         values['Total'][0].append(current_date)
         values['Total'][1].append(total_value)
-        current_quarter = '%d-Q%d' % (current_date.year, current_date.month // 4 + 1)
+        current_quarter = '%d-Q%d' % (current_date.year, (current_date.month - 1) // 3 + 1)
         if current_quarter not in values:
             values[current_quarter] = ([dates[cutoff]], [1.0])
         values[current_quarter][0].append(current_date)
@@ -78,7 +81,7 @@ def simulate(start_date='2018', end_date=pd.datetime.today().date()):
 
 
 def main():
-    simulate(start_date='2017-01-01')
+    simulate(start_date='2016-01-12')
 
 
 if __name__ == '__main__':
