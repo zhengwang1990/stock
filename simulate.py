@@ -1,7 +1,7 @@
+import argparse
 import matplotlib.pyplot as plt
 from common import *
 from tabulate import tabulate
-from tqdm import tqdm
 
 
 def bi_print(message, output_file):
@@ -13,7 +13,7 @@ def bi_print(message, output_file):
         output_file.flush()
 
 
-def simulate(start_date='2019', end_date=pd.datetime.today().date()):
+def simulate(start_date=None, end_date=None):
     """Simulates trading operations and outputs gains."""
     file_dir = os.path.dirname(os.path.realpath(__file__))
     output_detail = open(os.path.join(file_dir, 'outputs', 'simulate_detail.txt'), 'w')
@@ -24,6 +24,8 @@ def simulate(start_date='2019', end_date=pd.datetime.today().date()):
     all_series = get_all_series(MAX_HISTORY_LOAD)
     all_series = filter_all_series(all_series)
 
+    start_date = start_date or dates[LOOK_BACK_DAY+1].date()
+    end_date = end_date or pd.datetime.today().date()
     start_point, end_point = 0, series_length - 1
     while pd.to_datetime(start_date) > dates[start_point]:
         start_point += 1
@@ -74,6 +76,9 @@ def simulate(start_date='2019', end_date=pd.datetime.today().date()):
         plt.plot(v[0], qqq_curve, label='QQQ')
         plt.plot(v[0], spy_curve, label='SPY')
         plt.legend()
+        plt.title(k)
+        if np.abs(v[1][-1]) > 50 * np.abs(qqq_curve[-1]):
+            plt.yscale('log')
         plt.savefig(os.path.join(file_dir, 'outputs', k + '.png'))
     gain_texts = [(k + ' Gain',  '%.2f%%' % ((v[1][-1] - 1) * 100,)) for k, v in values.items()]
     summary_table.extend(sorted(gain_texts))
@@ -81,7 +86,11 @@ def simulate(start_date='2019', end_date=pd.datetime.today().date()):
 
 
 def main():
-    simulate(start_date='2016-01-12')
+    parser = argparse.ArgumentParser(description='Stock trading strategy.')
+    parser.add_argument('--start_date', default=None, help='Start date of the simulation.')
+    parser.add_argument('--end_date', default=None, help='End date of the simulation.')
+    args = parser.parse_args()
+    simulate(args.start_date, args.end_date)
 
 
 if __name__ == '__main__':

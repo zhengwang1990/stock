@@ -123,7 +123,7 @@ def get_buy_symbols(all_series, cutoff):
     buy_symbols = []
     for ticker, series in tqdm(all_series.items(), ncols=80, bar_format='{percentage:3.0f}%|{bar}{r_bar}',
                                leave=False, file=sys.stdout):
-        avg_return, is_buy = get_buy_signal(series[cutoff-LOOK_BACK_DAY:cutoff], series[cutoff])
+        avg_return, is_buy = get_buy_signal(series[cutoff - LOOK_BACK_DAY:cutoff], series[cutoff])
         if is_buy:
             buy_symbols.append((avg_return, ticker))
     return buy_symbols
