@@ -51,9 +51,11 @@ def plotBuyPoints(ticker):
   plt.show()
 
 def getBuySignal(series, price):
+  if price >= series[-1]:
+    return 0, False
   _, avg_return, threshold = getPickedPoints(series)
   down_percent = (np.max(series[-DATE_RANGE:]) - price) / np.max(series[-DATE_RANGE:])
-  return avg_return, down_percent > threshold and price < series[-1]
+  return avg_return, down_percent > threshold
 
 def getStaticBuySymbols(tickers, f=None):
   sl = getSeriesLength('1y')
@@ -97,7 +99,7 @@ def simulate():
 
   to_del = []
   for ticker, series in serieses.items():
-    if np.max(series) * 0.5 > series[-1]:
+    if np.max(series) * 0.7 > series[-1]:
       to_del.append(ticker)
   for ticker in to_del:
     del serieses[ticker]
@@ -125,7 +127,7 @@ def simulate():
     day_gain = 0
     trading_table = []
     for i in range(max_symbol):
-      portion = 0.5 / max_symbol + 0.5 * buy_symbols[i][0] / ac
+      portion = 0.75 / max_symbol + 0.25 * buy_symbols[i][0] / ac
       ticker = buy_symbols[i][1]
       series = serieses[ticker]
       gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
