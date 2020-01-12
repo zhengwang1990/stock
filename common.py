@@ -6,6 +6,7 @@ import yfinance as yf
 
 DATE_RANGE = 5
 REFERENCE_SYMBOL = 'AAPL'
+LOOK_BACK_DAY = 250
 
 
 def get_series(ticker, time='1y'):

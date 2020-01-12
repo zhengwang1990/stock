@@ -6,7 +6,6 @@ from tqdm import tqdm
 
 MAX_HISTORY_LOAD = '5y'
 CACHE_DIR = 'cache'
-LOOK_BACK_DAY = 250
 
 
 def bi_print(message, output_file):
