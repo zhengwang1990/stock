@@ -17,7 +17,8 @@ class Trading(object):
         self.close_time = datetime.datetime.combine(datetime.datetime.now(self.tz).today(),
                                                     datetime.time(16, 0),
                                                     tzinfo=self.tz)
-        self.all_series = filter_all_series(get_all_series(MAX_HISTORY_LOAD))
+        all_series = get_all_series(MAX_HISTORY_LOAD)
+        self.all_series = filter_garbage_series(all_series)
         self.thresholds = {}
         self.avg_returns = {}
         self.down_percents = {}
@@ -28,7 +29,7 @@ class Trading(object):
             try:
                 price = get_real_time_price(ticker)
             except Exception as e:
-                print('\n%s: not able to get realtime price: %s' % (ticker, e))
+                print('\n%s: not able to get real time price: %s\n' % (ticker, e))
                 continue
             _, avg_return, threshold = get_picked_points(series[-LOOK_BACK_DAY:])
             self.thresholds[ticker] = threshold
@@ -38,6 +39,7 @@ class Trading(object):
             self.down_percents[ticker] = down_percent
             self.ordered_symbols.append((np.abs(down_percent - threshold), ticker))
         self.ordered_symbols.sort()
+        self.last_update = datetime.datetime.now()
 
         for args in [(10, 30), (100, 500), (None, 3600)]:
             t = threading.Thread(target=self.update_buy_symbols, args=args)
@@ -46,17 +48,23 @@ class Trading(object):
 
     def update_buy_symbols(self, first_n, sleep_secs):
         while True:
-            length = first_n or len(self.ordered_symbols)
+            length = min(first_n, len(self.ordered_symbols)) if first_n else len(self.ordered_symbols)
             for i in range(length):
                 self.update_ticker(i)
             with self.lock:
                 self.ordered_symbols.sort()
+            if not first_n:
+                self.last_update = datetime.datetime.now()
             time.sleep(sleep_secs)
 
     def update_ticker(self, pos):
         with self.lock:
             _, ticker = self.ordered_symbols[pos]
-            price = get_real_time_price(ticker)
+            try:
+                price = get_real_time_price(ticker)
+            except Exception as e:
+                print('\n%s: not able to get real time price: %s\n' % (ticker, e))
+                return
             self.prices[ticker] = price
             series = self.all_series[ticker]
             down_percent = (np.max(series[-DATE_RANGE:]) - price) / np.max(series[-DATE_RANGE:])
@@ -67,34 +75,61 @@ class Trading(object):
     def run(self):
         while True: #datetime.datetime.now(self.tz) < self.close_time:
             buy_symbols = []
-            for ticker, series in self.all_series.items():
+            for _, ticker in self.ordered_symbols:
+                series = self.all_series[ticker]
                 is_buy = self.prices[ticker] < series[-1] and self.down_percents[ticker] > self.thresholds[ticker]
                 if is_buy:
                     buy_symbols.append((self.avg_returns[ticker], ticker))
             trading_list = get_trading_list(buy_symbols)
+            print(get_header(datetime.datetime.now().strftime('%H:%M:%S')))
             print_trading_list(trading_list, self.prices, self.fund)
+            print('Last full update: %s' % (self.last_update.strftime('%H:%M:%S'),))
             time.sleep(30)
 
 
 def get_real_time_price(ticker):
+    return _get_real_time_price_from_yahoo(ticker)
+    #return _get_real_time_price_from_finnhub(ticker)
+
+
+def _get_real_time_price_from_yahoo(ticker):
+    url = 'https://finance.yahoo.com/quote/{}'.format(ticker)
+    r = requests.get(url)
+    c = r.content.decode('utf-8')
+    signal = '<span class="Trsdu(0.3s) Trsdu(0.3s) Fw(b) Fz(36px) Mb(-4px) D(b)" data-reactid="14">'
+    pos = c.find(signal)
+    s = ''
+    if pos >= 0:
+        pos += len(signal)
+        while c[pos] != '<':
+            s += c[pos]
+            pos += 1
+        return float(s)
+    else:
+        raise Exception('symbol not found ')
+
+
+def _get_real_time_price_from_finnhub(ticker):
     max_retry = 80
     urls = ['https://finnhub.io/api/v1/quote?symbol={}&token=bodp0tfrh5r95o03irlg',
-            'https://finnhub.io/api/v1/quote?symbol={}&token=bodr50vrh5r95o03j9e0']
-    for _ in range(max_retry):
-        response = requests.get(np.random.choice(urls).format(ticker))
+            'https://finnhub.io/api/v1/quote?symbol={}&token=bodr50vrh5r95o03j9e0',
+            'https://finnhub.io/api/v1/quote?symbol={}&token=bodt4dvrh5r95o03jma0']
+    for i in range(max_retry):
+        response = requests.get(urls[i % len(urls)].format(ticker))
         if response.ok:
             break
+        elif response.status_code == 500:
+            raise Exception(response.raw)
         else:
             time.sleep(1)
     else:
-        raise Exception('Timeout while requesting quote')
+        raise Exception('timeout while requesting quote')
     return response.json()['c']
 
 
 def get_static_trading_table(fund=None):
     """"Gets stock symbols to buy from previous close."""
-    all_series = get_all_series(MAX_HISTORY_LOAD)
-    all_series = filter_all_series(all_series)
+    all_series = filter_garbage_series(get_all_series(MAX_HISTORY_LOAD))
     buy_symbols = get_buy_symbols(all_series, -1)
     trading_list = get_trading_list(buy_symbols)
     price_list = {ticker: all_series[ticker][-1] for ticker, _ in trading_list}

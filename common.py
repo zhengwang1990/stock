@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import re
@@ -82,6 +83,7 @@ def get_all_series(time):
     dir_path = os.path.dirname(os.path.realpath(__file__))
     all_series = {}
     print('Loading stock histories...')
+    os.makedirs(os.path.join(dir_path, CACHE_DIR, get_prev_business_day()), exist_ok=True)
     for ticker in tqdm(tickers, ncols=80, bar_format='{percentage:3.0f}%|{bar}{r_bar}', file=sys.stdout):
         cache_name = os.path.join(dir_path, CACHE_DIR, get_prev_business_day(), 'cache-%s.json' % (ticker,))
         if os.path.isfile(cache_name):
@@ -99,15 +101,15 @@ def get_all_series(time):
     return all_series
 
 
-def filter_all_series(all_series):
+def filter_garbage_series(all_series):
     to_del = []
+    res = copy.copy(all_series)
     for ticker, series in all_series.items():
         if np.max(series) * 0.7 > series[-1]:
             to_del.append(ticker)
     for ticker in to_del:
-        del all_series[ticker]
-    print('Num of picked stocks: %d' % (len(all_series)))
-    return all_series
+        del res[ticker]
+    return res
 
 
 def get_prev_business_day():
