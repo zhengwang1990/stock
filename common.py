@@ -14,13 +14,26 @@ LOOK_BACK_DAY = 250
 CACHE_DIR = 'cache'
 MAX_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 3
+EXCLUSIONS = ('SENEB',)
 
 
 def get_series(ticker, time='1y'):
     """Gets close prices of a stock symbol as 1D numpy array."""
-    tk = yf.Ticker(ticker)
-    hist = tk.history(period=time, interval='1d')
-    return hist.get('Close')
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    os.makedirs(os.path.join(dir_path, CACHE_DIR, get_prev_business_day()), exist_ok=True)
+    cache_name = os.path.join(dir_path, CACHE_DIR, get_prev_business_day(), 'cache-%s.json' % (ticker,))
+    if os.path.isfile(cache_name):
+        with open(cache_name) as f:
+            series_json = f.read()
+        series = np.array(json.loads(series_json))
+    else:
+        tk = yf.Ticker(ticker)
+        hist = tk.history(period=time, interval='1d')
+        series = hist.get('Close')
+        series_json = json.dumps(series.tolist())
+        with open(cache_name, 'w') as f:
+            f.write(series_json)
+    return series
 
 
 def get_picked_points(series):
@@ -60,7 +73,8 @@ def get_all_symbols():
     res = []
     for f in os.listdir('data'):
         df = pd.read_csv(os.path.join('data', f))
-        res.extend([row.Symbol for row in df.itertuples() if re.match('^[A-Z]*$', row.Symbol)])
+        res.extend([row.Symbol for row in df.itertuples()
+                    if re.match('^[A-Z]*$', row.Symbol) and row.Symbol not in EXCLUSIONS])
     return res
 
 
@@ -80,21 +94,10 @@ def get_all_series(time):
     """Returns stock price history of all symbols."""
     tickers = get_all_symbols()
     series_length = get_series_length(time)
-    dir_path = os.path.dirname(os.path.realpath(__file__))
     all_series = {}
     print('Loading stock histories...')
-    os.makedirs(os.path.join(dir_path, CACHE_DIR, get_prev_business_day()), exist_ok=True)
     for ticker in tqdm(tickers, ncols=80, bar_format='{percentage:3.0f}%|{bar}{r_bar}', file=sys.stdout):
-        cache_name = os.path.join(dir_path, CACHE_DIR, get_prev_business_day(), 'cache-%s.json' % (ticker,))
-        if os.path.isfile(cache_name):
-            with open(cache_name) as f:
-                series_json = f.read()
-            series = np.array(json.loads(series_json))
-        else:
-            series = get_series(ticker, time=time)
-            series_json = json.dumps(series.tolist())
-            with open(cache_name, 'w') as f:
-                f.write(series_json)
+        series = get_series(ticker, time)
         if len(series) != series_length:
             continue
         all_series[ticker] = series
