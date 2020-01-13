@@ -170,7 +170,7 @@ def get_live_trading_table(fund=None):
 def main():
     parser = argparse.ArgumentParser(description='Stock trading strategy.')
     parser.add_argument('--fund', default=None, help='Total fund to trade.')
-    parser.add_argument('--mode', default='static', choices=['live', 'static'], help='Mode to run.')
+    parser.add_argument('--mode', default='live', choices=['live', 'static'], help='Mode to run.')
     args = parser.parse_args()
     if args.mode == 'live':
         get_live_trading_table(args.fund)
