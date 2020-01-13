@@ -29,7 +29,7 @@ class Trading(object):
             try:
                 price = get_real_time_price(ticker)
             except Exception as e:
-                print('\n%s: not able to get real time price: %s\n' % (ticker, e))
+                print('\n%s: not able to get real time price: %s' % (ticker, e))
                 continue
             _, avg_return, threshold = get_picked_points(series[-LOOK_BACK_DAY:])
             self.thresholds[ticker] = threshold
@@ -73,7 +73,7 @@ class Trading(object):
             self.ordered_symbols[pos] = (np.abs(down_percent - threshold), ticker)
 
     def run(self):
-        while True: #datetime.datetime.now(self.tz) < self.close_time:
+        while datetime.datetime.now(self.tz) < self.close_time:
             buy_symbols = []
             for _, ticker in self.ordered_symbols:
                 series = self.all_series[ticker]
@@ -89,24 +89,28 @@ class Trading(object):
 
 def get_real_time_price(ticker):
     return _get_real_time_price_from_yahoo(ticker)
-    #return _get_real_time_price_from_finnhub(ticker)
 
 
-def _get_real_time_price_from_yahoo(ticker):
-    url = 'https://finance.yahoo.com/quote/{}'.format(ticker)
+def _web_scraping(url, prefix):
     r = requests.get(url)
-    c = r.content.decode('utf-8')
-    signal = '<span class="Trsdu(0.3s) Trsdu(0.3s) Fw(b) Fz(36px) Mb(-4px) D(b)" data-reactid="14">'
-    pos = c.find(signal)
+    c = str(r.content)
+    pos = c.find(prefix)
     s = ''
     if pos >= 0:
-        pos += len(signal)
+        pos += len(prefix)
         while c[pos] != '<':
-            s += c[pos]
+            if c[pos] != ',':
+                s += c[pos]
             pos += 1
         return float(s)
     else:
         raise Exception('symbol not found ')
+
+
+def _get_real_time_price_from_yahoo(ticker):
+    url = 'https://finance.yahoo.com/quote/{}'.format(ticker)
+    prefix = '<span class="Trsdu(0.3s) Trsdu(0.3s) Fw(b) Fz(36px) Mb(-4px) D(b)" data-reactid="14">'
+    return _web_scraping(url, prefix)
 
 
 def _get_real_time_price_from_finnhub(ticker):
@@ -118,8 +122,6 @@ def _get_real_time_price_from_finnhub(ticker):
         response = requests.get(urls[i % len(urls)].format(ticker))
         if response.ok:
             break
-        elif response.status_code == 500:
-            raise Exception(response.raw)
         else:
             time.sleep(1)
     else:
