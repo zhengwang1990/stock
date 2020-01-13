@@ -41,7 +41,7 @@ class Trading(object):
         self.ordered_symbols.sort()
         self.last_update = datetime.datetime.now()
 
-        for args in [(10, 30), (100, 500), (None, 3600)]:
+        for args in [(10, 30), (100, 500), (None, 1800)]:
             t = threading.Thread(target=self.update_buy_symbols, args=args)
             t.daemon = True
             t.start()
