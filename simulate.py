@@ -53,11 +53,13 @@ def simulate(start_date=None, end_date=None):
         values['Total'][0].append(current_date)
         values['Total'][1].append(total_value)
         current_quarter = '%d-Q%d' % (current_date.year, (current_date.month - 1) // 3 + 1)
-        if current_quarter not in values:
-            values[current_quarter] = ([dates[cutoff]], [1.0])
-        values[current_quarter][0].append(current_date)
-        quarter_value = values[current_quarter][1][-1] * (1 + day_gain)
-        values[current_quarter][1].append(quarter_value)
+        current_year = '%d' % (current_date.year,)
+        for current_t in [current_quarter, current_year]:
+            if current_t not in values:
+                values[current_t] = ([dates[cutoff]], [1.0])
+            values[current_t][0].append(current_date)
+            t_value = values[current_t][1][-1] * (1 + day_gain)
+            values[current_t][1].append(t_value)
         bi_print('TOTAL GAIN: %.2f%%' % ((total_value - 1) * 100,), output_detail)
 
     bi_print(get_header('Summary'), output_summary)
@@ -77,7 +79,7 @@ def simulate(start_date=None, end_date=None):
         plt.plot(v[0], spy_curve, label='SPY')
         plt.legend()
         plt.title(k)
-        if np.abs(v[1][-1]) > 50 * np.abs(qqq_curve[-1]):
+        if np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1]):
             plt.yscale('log')
         plt.savefig(os.path.join(file_dir, 'outputs', k + '.png'))
     gain_texts = [(k + ' Gain',  '%.2f%%' % ((v[1][-1] - 1) * 100,)) for k, v in values.items()]

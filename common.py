@@ -12,6 +12,7 @@ REFERENCE_SYMBOL = 'AAPL'
 LOOK_BACK_DAY = 250
 CACHE_DIR = 'cache'
 MAX_HISTORY_LOAD = '5y'
+MAX_STOCK_PICK = 3
 
 
 def get_series(ticker, time='1y'):
@@ -132,7 +133,7 @@ def get_buy_symbols(all_series, cutoff):
 def get_trading_list(buy_symbols):
     buy_symbols.sort(reverse=True)
     n_symbols = 0
-    while n_symbols < min(5, len(buy_symbols)) and buy_symbols[n_symbols][0] >= 0.01:
+    while n_symbols < min(MAX_STOCK_PICK, len(buy_symbols)) and buy_symbols[n_symbols][0] >= 0.01:
         n_symbols += 1
     ac = 0
     for i in range(n_symbols):

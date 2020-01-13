@@ -48,50 +48,47 @@ class Trading(object):
         while True:
             length = first_n or len(self.ordered_symbols)
             for i in range(length):
-                _, ticker = self.ordered_symbols[i]
-                self.update_ticker(ticker)
-            self.ordered_symbols.sort()
+                self.update_ticker(i)
+            with self.lock:
+                self.ordered_symbols.sort()
             time.sleep(sleep_secs)
 
-    def update_ticker(self, ticker):
-        price = get_real_time_price(ticker)
+    def update_ticker(self, pos):
         with self.lock:
+            _, ticker = self.ordered_symbols[pos]
+            price = get_real_time_price(ticker)
             self.prices[ticker] = price
             series = self.all_series[ticker]
             down_percent = (np.max(series[-DATE_RANGE:]) - price) / np.max(series[-DATE_RANGE:])
             self.down_percents[ticker] = down_percent
             threshold = self.thresholds[ticker]
-            self.ordered_symbols[ticker] = (np.abs(down_percent - threshold), ticker)
+            self.ordered_symbols[pos] = (np.abs(down_percent - threshold), ticker)
 
     def run(self):
-        while datetime.datetime.now(self.tz) < self.close_time:
+        while True: #datetime.datetime.now(self.tz) < self.close_time:
             buy_symbols = []
             for ticker, series in self.all_series.items():
-                is_buy = self.price[ticker] < series[-1] and self.down_percents[ticker] > self.thresholds[ticker]
+                is_buy = self.prices[ticker] < series[-1] and self.down_percents[ticker] > self.thresholds[ticker]
                 if is_buy:
-                    self.update_ticker(ticker)
-                    is_buy_confirm = (self.price[ticker] < series[-1] and
-                                      self.down_percents[ticker] > self.thresholds[ticker])
-                    if is_buy_confirm:
-                        buy_symbols.append((self.avg_returns[ticker], ticker))
+                    buy_symbols.append((self.avg_returns[ticker], ticker))
             trading_list = get_trading_list(buy_symbols)
             print_trading_list(trading_list, self.prices, self.fund)
             time.sleep(30)
 
 
 def get_real_time_price(ticker):
-    #tk = yf.Ticker(ticker)
-    #return tk.info['ask'] * (np.random.random() + 0.5)
-    max_retry = 60
+    max_retry = 80
+    urls = ['https://finnhub.io/api/v1/quote?symbol={}&token=bodp0tfrh5r95o03irlg',
+            'https://finnhub.io/api/v1/quote?symbol={}&token=bodr50vrh5r95o03j9e0']
     for _ in range(max_retry):
-        response = requests.get('https://finnhub.io/api/v1/quote?symbol=AAPL&token=bodp0tfrh5r95o03irlg')
+        response = requests.get(np.random.choice(urls).format(ticker))
         if response.ok:
             break
         else:
             time.sleep(1)
     else:
         raise Exception('Timeout while requesting quote')
-    return response.json()['c'] * (np.random.random() + 0.5)
+    return response.json()['c']
 
 
 def get_static_trading_table(fund=None):
@@ -135,7 +132,7 @@ def get_live_trading_table(fund=None):
 
 def main():
     parser = argparse.ArgumentParser(description='Stock trading strategy.')
-    parser.add_argument('--fund', default=10000, help='Total fund to trade.')
+    parser.add_argument('--fund', default=None, help='Total fund to trade.')
     parser.add_argument('--mode', default='live', choices=['live', 'static'], help='Mode to run.')
     args = parser.parse_args()
     if args.mode == 'live':
