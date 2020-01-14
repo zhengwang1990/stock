@@ -16,7 +16,7 @@ CACHE_DIR = 'cache'
 MAX_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 3
 GARBAGE_FILTER_THRESHOLD = 0.7
-VOLUME_FILTER_THRESHOLD = 20000
+VOLUME_FILTER_THRESHOLD = 10000
 
 
 def get_series(ticker, time='1y'):
@@ -98,7 +98,7 @@ def get_all_series(time):
         series = get_series(ticker, time)
         if len(series) != series_length:
             continue
-        all_series[ticker] = series
+        all_series[ticker] = np.array(series)
     return all_series
 
 
@@ -184,7 +184,7 @@ def web_scraping(url, prefixes):
         s = ''
         while c[pos] > '9' or c[pos] < '0':
             pos += 1
-        while c[pos] <= '9' and c[pos] >= '0' or c[pos] == '.':
+        while '9' >= c[pos] >= '0' or c[pos] == '.':
             s += c[pos]
             pos += 1
         return s

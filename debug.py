@@ -15,19 +15,8 @@ def plot_buy_points(ticker):
 
 
 def main():
-    #plot_buy_points('SPY')
-    symbols = filter_garbage_series(get_all_series(MAX_HISTORY_LOAD)).keys()
-    volumes = []
-    for i, symbol in enumerate(symbols):
-      try:
-        volume = yf.Ticker(symbol).info['volume']
-      except Exception:
-        volume = -1
-      print(i, symbol, volume)
-      volumes.append((volume, symbol))
-    volumes.sort()
-    for volume, symbol in volumes:
-      print(symbol, volume)
+    plot_buy_points('SRPT')
+
 
 if __name__ == '__main__':
     main()

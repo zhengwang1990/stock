@@ -114,7 +114,8 @@ def _get_real_time_price_from_finnhub(ticker):
 
 def get_static_trading_table(fund=None):
     """"Gets stock symbols to buy from previous close."""
-    all_series = filter_garbage_series(get_all_series(MAX_HISTORY_LOAD))
+    all_series = filter_low_volume_series(
+        filter_garbage_series(get_all_series(MAX_HISTORY_LOAD)))
     buy_symbols = get_buy_symbols(all_series, -1)
     trading_list = get_trading_list(buy_symbols)
     price_list = {ticker: all_series[ticker][-1] for ticker, _ in trading_list}
@@ -155,7 +156,7 @@ def main():
     parser.add_argument('--fund', default=None, help='Total fund to trade.')
     parser.add_argument('--mode', default='live', choices=['live', 'static'], help='Mode to run.')
     args = parser.parse_args()
-    fund = float(args.fund)
+    fund = float(args.fund) if args.fund else None
     if args.mode == 'live':
         get_live_trading_table(fund)
     elif args.mode == 'static':
