@@ -131,8 +131,8 @@ def print_trading_list(trading_list, price_list, down_percent_list, threshold_li
     for ticker, proportion in trading_list:
         trading_row = [ticker, '%.2f%%' % (proportion * 100,)]
         price = price_list[ticker]
-        trading_row.extend([price, '%.2f%%' % (-down_percent_list[ticker] * 100,),
-                            '%.2f%%' % (-threshold_list[ticker] * 100,)])
+        trading_row.extend(['%.2f%%' % (-down_percent_list[ticker] * 100,),
+                            '%.2f%%' % (-threshold_list[ticker] * 100,), price])
         if fund:
             value = fund * proportion
             n_shares = np.round(value / price)
@@ -140,7 +140,7 @@ def print_trading_list(trading_list, price_list, down_percent_list, threshold_li
             cost += share_cost
             trading_row.extend([share_cost, n_shares])
         trading_table.append(trading_row)
-    headers = ['Symbol', 'Proportion', 'Price', '%d Day Change' % (DATE_RANGE,), 'Threshold']
+    headers = ['Symbol', 'Proportion', '%d Day Change' % (DATE_RANGE,), 'Threshold', 'Price']
     if fund:
         headers.extend(['Cost', 'Quantity'])
     if trading_table:
