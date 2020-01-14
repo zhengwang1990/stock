@@ -1,6 +1,5 @@
 import argparse
 import datetime
-import requests
 import threading
 import time
 import pytz
@@ -17,8 +16,8 @@ class Trading(object):
         self.close_time = datetime.datetime.combine(datetime.datetime.now(self.tz).today(),
                                                     datetime.time(16, 0),
                                                     tzinfo=self.tz)
-        all_series = get_all_series(MAX_HISTORY_LOAD)
-        self.all_series = filter_garbage_series(all_series)
+        self.all_series = filter_low_volume_series(
+            filter_garbage_series(get_all_series(MAX_HISTORY_LOAD)))
         self.thresholds = {}
         self.avg_returns = {}
         self.down_percents = {}
@@ -41,7 +40,7 @@ class Trading(object):
         self.ordered_symbols.sort()
         self.last_update = datetime.datetime.now()
 
-        for args in [(10, 30), (100, 500), (None, 1800)]:
+        for args in [(10, 50), (100, 500), (None, 1000)]:
             t = threading.Thread(target=self.update_buy_symbols, args=args)
             t.daemon = True
             t.start()
@@ -84,33 +83,17 @@ class Trading(object):
             print(get_header(datetime.datetime.now().strftime('%H:%M:%S')))
             print_trading_list(trading_list, self.prices, self.fund)
             print('Last full update: %s' % (self.last_update.strftime('%H:%M:%S'),))
-            time.sleep(30)
+            time.sleep(60)
 
 
 def get_real_time_price(ticker):
     return _get_real_time_price_from_yahoo(ticker)
 
 
-def _web_scraping(url, prefix):
-    r = requests.get(url)
-    c = str(r.content)
-    pos = c.find(prefix)
-    s = ''
-    if pos >= 0:
-        pos += len(prefix)
-        while c[pos] != '<':
-            if c[pos] != ',':
-                s += c[pos]
-            pos += 1
-        return float(s)
-    else:
-        raise Exception('symbol not found ')
-
-
 def _get_real_time_price_from_yahoo(ticker):
     url = 'https://finance.yahoo.com/quote/{}'.format(ticker)
-    prefix = '<span class="Trsdu(0.3s) Trsdu(0.3s) Fw(b) Fz(36px) Mb(-4px) D(b)" data-reactid="14">'
-    return _web_scraping(url, prefix)
+    prefixes = ['currentPrice', 'regularMarketPrice']
+    return float(web_scraping(url, prefixes))
 
 
 def _get_real_time_price_from_finnhub(ticker):
@@ -172,10 +155,11 @@ def main():
     parser.add_argument('--fund', default=None, help='Total fund to trade.')
     parser.add_argument('--mode', default='live', choices=['live', 'static'], help='Mode to run.')
     args = parser.parse_args()
+    fund = float(args.fund)
     if args.mode == 'live':
-        get_live_trading_table(args.fund)
+        get_live_trading_table(fund)
     elif args.mode == 'static':
-        get_static_trading_table(args.fund)
+        get_static_trading_table(fund)
     else:
         raise Exception('Unknown mode')
 

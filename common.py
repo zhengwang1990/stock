@@ -2,6 +2,7 @@ import copy
 import json
 import os
 import re
+import requests
 import sys
 import numpy as np
 import pandas as pd
@@ -14,25 +15,23 @@ LOOK_BACK_DAY = 250
 CACHE_DIR = 'cache'
 MAX_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 3
-EXCLUSIONS = ('SENEB',)
+GARBAGE_FILTER_THRESHOLD = 0.7
+VOLUME_FILTER_THRESHOLD = 20000
 
 
 def get_series(ticker, time='1y'):
     """Gets close prices of a stock symbol as 1D numpy array."""
     dir_path = os.path.dirname(os.path.realpath(__file__))
     os.makedirs(os.path.join(dir_path, CACHE_DIR, get_prev_business_day()), exist_ok=True)
-    cache_name = os.path.join(dir_path, CACHE_DIR, get_prev_business_day(), 'cache-%s.json' % (ticker,))
+    cache_name = os.path.join(dir_path, CACHE_DIR, get_prev_business_day(), 'series-%s.csv' % (ticker,))
     if os.path.isfile(cache_name):
-        with open(cache_name) as f:
-            series_json = f.read()
-        series = np.array(json.loads(series_json))
+        df = pd.read_csv(cache_name, index_col=0, parse_dates=True)
+        series = df.get('Close')
     else:
         tk = yf.Ticker(ticker)
         hist = tk.history(period=time, interval='1d')
         series = hist.get('Close')
-        series_json = json.dumps(series.tolist())
-        with open(cache_name, 'w') as f:
-            f.write(series_json)
+        series.to_csv(cache_name, header=True)
     return series
 
 
@@ -73,8 +72,7 @@ def get_all_symbols():
     res = []
     for f in os.listdir('data'):
         df = pd.read_csv(os.path.join('data', f))
-        res.extend([row.Symbol for row in df.itertuples()
-                    if re.match('^[A-Z]*$', row.Symbol) and row.Symbol not in EXCLUSIONS])
+        res.extend([row.Symbol for row in df.itertuples() if re.match('^[A-Z]*$', row.Symbol)])
     return res
 
 
@@ -105,13 +103,33 @@ def get_all_series(time):
 
 
 def filter_garbage_series(all_series):
-    to_del = []
-    res = copy.copy(all_series)
+    res = {}
     for ticker, series in all_series.items():
-        if np.max(series) * 0.7 > series[-1]:
-            to_del.append(ticker)
-    for ticker in to_del:
-        del res[ticker]
+        if np.max(series) * GARBAGE_FILTER_THRESHOLD <= series[-1]:
+            res[ticker] = series
+    return res
+
+
+def filter_low_volume_series(all_series):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    volume_cache_file = os.path.join(dir_path, 'data', 'volumes.json')
+    with open(volume_cache_file) as f:
+        volumes = json.loads(f.read())
+    res = {}
+    overwrite = False
+    for ticker, series in all_series.items():
+        if ticker in volumes:
+            volume = volumes[ticker]
+        else:
+            url = 'https://finance.yahoo.com/quote/{}'.format(ticker)
+            prefixes = ['regularMarketVolume']
+            volume = int(web_scraping(url, prefixes))
+            overwrite = True
+        if volume >= VOLUME_FILTER_THRESHOLD:
+            res[ticker] = series
+    if overwrite:
+        with open(volume_cache_file, 'w') as f:
+            f.write(json.dumps(volumes))
     return res
 
 
@@ -149,3 +167,26 @@ def get_trading_list(buy_symbols):
         ticker = buy_symbols[i][1]
         trading_list.append((ticker, proportion))
     return trading_list
+
+
+def web_scraping(url, prefixes):
+    r = requests.get(url)
+    if not r.ok:
+        # retry once
+        r = requests.get(url)
+    c = str(r.content)
+    pos = -1
+    for prefix in prefixes:
+        pos = c.find(prefix)
+        if pos >= 0:
+            break
+    if pos >= 0:
+        s = ''
+        while c[pos] > '9' or c[pos] < '0':
+            pos += 1
+        while c[pos] <= '9' and c[pos] >= '0' or c[pos] == '.':
+            s += c[pos]
+            pos += 1
+        return s
+    else:
+        raise Exception('symbol not found ')

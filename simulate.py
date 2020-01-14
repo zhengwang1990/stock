@@ -21,7 +21,8 @@ def simulate(start_date=None, end_date=None):
 
     dates = get_series_dates(MAX_HISTORY_LOAD)
     series_length = len(dates)
-    all_series = filter_garbage_series(get_all_series(MAX_HISTORY_LOAD))
+    all_series = filter_low_volume_series(
+        filter_garbage_series(get_all_series(MAX_HISTORY_LOAD)))
 
     start_date = start_date or dates[LOOK_BACK_DAY+1].date()
     end_date = end_date or pd.datetime.today().date()
