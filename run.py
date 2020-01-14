@@ -81,7 +81,7 @@ class Trading(object):
                     buy_symbols.append((self.avg_returns[ticker], ticker))
             trading_list = get_trading_list(buy_symbols)
             print(get_header(datetime.datetime.now().strftime('%H:%M:%S')))
-            print_trading_list(trading_list, self.prices, self.fund)
+            print_trading_list(trading_list, self.prices, self.down_percents, self.thresholds, self.fund)
             print('Last full update: %s' % (self.last_update.strftime('%H:%M:%S'),))
             time.sleep(60)
 
@@ -119,25 +119,30 @@ def get_static_trading_table(fund=None):
     buy_symbols = get_buy_symbols(all_series, -1)
     trading_list = get_trading_list(buy_symbols)
     price_list = {ticker: all_series[ticker][-1] for ticker, _ in trading_list}
-    print_trading_list(trading_list, price_list, fund)
+    down_percent_list = {ticker: (np.max(all_series[ticker][-1-DATE_RANGE:-1]) - all_series[ticker][-1]) / np.max(all_series[ticker][-1-DATE_RANGE:-1])
+                         for ticker, _ in trading_list}
+    threshold_list = {ticker: get_picked_points(all_series[ticker][-1-LOOK_BACK_DAY:-1])[2] for ticker, _ in trading_list}
+    print_trading_list(trading_list, price_list, down_percent_list, threshold_list, fund)
 
 
-def print_trading_list(trading_list, price_list=[], fund=None):
+def print_trading_list(trading_list, price_list, down_percent_list, threshold_list, fund=None):
     trading_table = []
     cost = 0
     for ticker, proportion in trading_list:
         trading_row = [ticker, '%.2f%%' % (proportion * 100,)]
+        price = price_list[ticker]
+        trading_row.extend([price, '%.2f%%' % (-down_percent_list[ticker] * 100,),
+                            '%.2f%%' % (-threshold_list[ticker] * 100,)])
         if fund:
-            price = price_list[ticker]
             value = fund * proportion
             n_shares = np.round(value / price)
             share_cost = n_shares * price
             cost += share_cost
-            trading_row.extend([price, share_cost, n_shares])
+            trading_row.extend([share_cost, n_shares])
         trading_table.append(trading_row)
-    headers = ['Symbol', 'Proportion']
+    headers = ['Symbol', 'Proportion', 'Price', '%d Day Change' % (DATE_RANGE,), 'Threshold']
     if fund:
-        headers.extend(['Price', 'Cost', 'Quantity'])
+        headers.extend(['Cost', 'Quantity'])
     if trading_table:
         print(tabulate(trading_table, headers=headers, tablefmt='grid'))
         if fund:
