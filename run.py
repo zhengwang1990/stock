@@ -1,8 +1,6 @@
 import argparse
-import datetime
 import threading
 import time
-import pytz
 from common import *
 from tabulate import tabulate
 
@@ -12,10 +10,7 @@ class Trading(object):
     def __init__(self, fund):
         self.fund = fund
         self.lock = threading.RLock()
-        self.tz = pytz.timezone('America/New_York')
-        self.close_time = datetime.datetime.combine(datetime.datetime.now(self.tz).today(),
-                                                    datetime.time(16, 0),
-                                                    tzinfo=self.tz)
+        self.pool = futures.ThreadPoolExecutor(max_workers=MAX_THREADS)
         self.all_series = filter_low_volume_series(
             filter_garbage_series(get_all_series(MAX_HISTORY_LOAD)))
         self.thresholds = {}
@@ -23,56 +18,64 @@ class Trading(object):
         self.down_percents = {}
         self.prices = {}
         self.ordered_symbols = []
-        for ticker, series in tqdm(self.all_series.items(), ncols=80, bar_format='{percentage:3.0f}%|{bar}{r_bar}',
-                                   leave=False, file=sys.stdout):
-            try:
-                price = get_real_time_price(ticker)
-            except Exception as e:
-                print('\n%s: not able to get real time price: %s' % (ticker, e))
-                continue
+
+        self.update_prices(self.all_series.keys(), use_tqdm=True)
+        self.last_update = datetime.datetime.now()
+
+        for ticker, series in self.all_series.items():
             _, avg_return, threshold = get_picked_points(series[-LOOK_BACK_DAY:])
             self.thresholds[ticker] = threshold
             self.avg_returns[ticker] = avg_return
-            self.prices[ticker] = price
-            down_percent = (np.max(series[-DATE_RANGE:]) - price) / np.max(series[-DATE_RANGE:])
-            self.down_percents[ticker] = down_percent
-            self.ordered_symbols.append((np.abs(down_percent - threshold), ticker))
-        self.ordered_symbols.sort()
+
+        self.update_ordered_symbols()
         self.last_update = datetime.datetime.now()
 
-        for args in [(10, 50), (100, 500), (None, 1000)]:
-            t = threading.Thread(target=self.update_buy_symbols, args=args)
+        for args in [(10, 60), (100, 600), (len(self.ordered_symbols), 2400)]:
+            t = threading.Thread(target=self.update_stats, args=args)
             t.daemon = True
             t.start()
 
-    def update_buy_symbols(self, first_n, sleep_secs):
+    def update_stats(self, length, sleep_secs):
         while True:
-            length = min(first_n, len(self.ordered_symbols)) if first_n else len(self.ordered_symbols)
-            for i in range(length):
-                self.update_ticker(i)
             with self.lock:
-                self.ordered_symbols.sort()
-            if not first_n:
+                symbols = [symbol for _, symbol in self.ordered_symbols[:length]]
+            self.update_prices(symbols)
+            self.update_ordered_symbols()
+            if length == len(self.ordered_symbols):
                 self.last_update = datetime.datetime.now()
             time.sleep(sleep_secs)
 
-    def update_ticker(self, pos):
-        with self.lock:
-            _, ticker = self.ordered_symbols[pos]
-            try:
-                price = get_real_time_price(ticker)
-            except Exception as e:
-                print('\n%s: not able to get real time price: %s\n' % (ticker, e))
-                return
-            self.prices[ticker] = price
+    def update_prices(self, tickers, use_tqdm=False):
+        threads = []
+        for ticker in tickers:
+             t = self.pool.submit(get_real_time_price, ticker)
+             threads.append(t)
+        iterator = tqdm(threads, ncols=80) if use_tqdm else threads
+        for t in iterator:
+             ticker, price = t.result()
+             if price:
+                 self.prices[ticker] = price
+
+    def update_ordered_symbols(self):
+        tmp_ordered_symbols = []
+        for ticker, series in self.all_series.items():
+            if ticker not in self.prices:
+                continue
             series = self.all_series[ticker]
+            price = self.prices[ticker]
             down_percent = (np.max(series[-DATE_RANGE:]) - price) / np.max(series[-DATE_RANGE:])
             self.down_percents[ticker] = down_percent
             threshold = self.thresholds[ticker]
-            self.ordered_symbols[pos] = (np.abs(down_percent - threshold), ticker)
+            tmp_ordered_symbols.append((np.abs(down_percent - threshold), ticker))
+        tmp_ordered_symbols.sort()
+        with self.lock:
+            self.ordered_symbols = tmp_ordered_symbols
 
     def run(self):
-        while datetime.datetime.now(self.tz) < self.close_time:
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        output_path = os.path.join(dir_path, 'outputs', get_business_day(0) + '.txt')
+        output_file = open(output_path, 'w')
+        while get_time_now() < 16:
             buy_symbols = []
             for _, ticker in self.ordered_symbols:
                 series = self.all_series[ticker]
@@ -80,9 +83,9 @@ class Trading(object):
                 if is_buy:
                     buy_symbols.append((self.avg_returns[ticker], ticker))
             trading_list = get_trading_list(buy_symbols)
-            print(get_header(datetime.datetime.now().strftime('%H:%M:%S')))
-            print_trading_list(trading_list, self.prices, self.down_percents, self.thresholds, self.fund)
-            print('Last full update: %s' % (self.last_update.strftime('%H:%M:%S'),))
+            bi_print(get_header(datetime.datetime.now().strftime('%H:%M:%S')))
+            print_trading_list(trading_list, self.prices, self.down_percents, self.thresholds, self.fund, output_file)
+            bi_print('Last full update: %s' % (self.last_update.strftime('%H:%M:%S'),))
             time.sleep(60)
 
 
@@ -92,24 +95,13 @@ def get_real_time_price(ticker):
 
 def _get_real_time_price_from_yahoo(ticker):
     url = 'https://finance.yahoo.com/quote/{}'.format(ticker)
-    prefixes = ['currentPrice', 'regularMarketPrice']
-    return float(web_scraping(url, prefixes))
-
-
-def _get_real_time_price_from_finnhub(ticker):
-    max_retry = 80
-    urls = ['https://finnhub.io/api/v1/quote?symbol={}&token=bodp0tfrh5r95o03irlg',
-            'https://finnhub.io/api/v1/quote?symbol={}&token=bodr50vrh5r95o03j9e0',
-            'https://finnhub.io/api/v1/quote?symbol={}&token=bodt4dvrh5r95o03jma0']
-    for i in range(max_retry):
-        response = requests.get(urls[i % len(urls)].format(ticker))
-        if response.ok:
-            break
-        else:
-            time.sleep(1)
-    else:
-        raise Exception('timeout while requesting quote')
-    return response.json()['c']
+    prefixes = ['"currentPrice"', '"regularMarketPrice"']
+    try:
+        price = float(web_scraping(url, prefixes))
+    except Exception as e:
+        print(e)
+        price = None
+    return ticker, price
 
 
 def get_static_trading_table(fund=None):
@@ -125,7 +117,8 @@ def get_static_trading_table(fund=None):
     print_trading_list(trading_list, price_list, down_percent_list, threshold_list, fund)
 
 
-def print_trading_list(trading_list, price_list, down_percent_list, threshold_list, fund=None):
+def print_trading_list(trading_list, price_list, down_percent_list, threshold_list,
+                       fund=None, output_file=None):
     trading_table = []
     cost = 0
     for ticker, proportion in trading_list:
@@ -144,10 +137,10 @@ def print_trading_list(trading_list, price_list, down_percent_list, threshold_li
     if fund:
         headers.extend(['Cost', 'Quantity'])
     if trading_table:
-        print(tabulate(trading_table, headers=headers, tablefmt='grid'))
+        bi_print(tabulate(trading_table, headers=headers, tablefmt='grid'), output_file)
         if fund:
-            print('Fund: %.2f' % (fund,))
-            print('Actual Cost: %.2f' % (cost,))
+            bi_print('Fund: %.2f' % (fund,), output_file)
+            bi_print('Actual Cost: %.2f' % (cost,), output_file)
 
 
 def get_live_trading_table(fund=None):

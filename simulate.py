@@ -4,15 +4,6 @@ from common import *
 from tabulate import tabulate
 
 
-def bi_print(message, output_file):
-    """Prints to both stdout and a file."""
-    print(message)
-    if output_file:
-        output_file.write(message)
-        output_file.write('\n')
-        output_file.flush()
-
-
 def simulate(start_date=None, end_date=None):
     """Simulates trading operations and outputs gains."""
     file_dir = os.path.dirname(os.path.realpath(__file__))
@@ -65,8 +56,8 @@ def simulate(start_date=None, end_date=None):
     bi_print(get_header('Summary'), output_summary)
     summary_table = [['Time Range', '%s ~ %s' % (dates[start_point].date(), dates[end_point].date())]]
     pd.plotting.register_matplotlib_converters()
-    qqq = get_series('QQQ', time=MAX_HISTORY_LOAD)
-    spy = get_series('SPY', time=MAX_HISTORY_LOAD)
+    qqq = get_series('QQQ', time=MAX_HISTORY_LOAD)[1]
+    spy = get_series('SPY', time=MAX_HISTORY_LOAD)[1]
     for k, v in values.items():
         plt.figure(figsize=(15, 7))
         plt.plot(v[0], v[1], label='My Portfolio')

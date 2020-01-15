@@ -3,7 +3,7 @@ from common import *
 
 
 def plot_buy_points(ticker):
-    series = get_series(ticker)[-LOOK_BACK_DAY:]
+    series = get_series(ticker)[-LOOK_BACK_DAY:][1]
     pick_t, avg_return, threshold = get_picked_points(series)
     print(get_header(ticker))
     print('Average return: %.2f%%' % (avg_return * 100,))

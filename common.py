@@ -1,4 +1,5 @@
 import copy
+import datetime
 import json
 import os
 import re
@@ -6,7 +7,9 @@ import requests
 import sys
 import numpy as np
 import pandas as pd
+import pytz
 import yfinance as yf
+from concurrent import futures
 from tqdm import tqdm
 
 DATE_RANGE = 5
@@ -17,13 +20,22 @@ MAX_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 3
 GARBAGE_FILTER_THRESHOLD = 0.7
 VOLUME_FILTER_THRESHOLD = 10000
+MAX_THREADS = 5
+# These stocks are delisted
+EXCLUSIONS = ('IBO', 'ZTEST', 'ZNWAA', 'CBO', 'CBX', 'CTEST')
+
+def get_time_now():
+    tz = pytz.timezone('America/New_York')
+    dt_now = datetime.datetime.now(tz)
+    time_now = dt_now.hour + dt_now.minute / 60
+    return time_now
 
 
 def get_series(ticker, time='1y'):
     """Gets close prices of a stock symbol as 1D numpy array."""
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    os.makedirs(os.path.join(dir_path, CACHE_DIR, get_prev_business_day()), exist_ok=True)
-    cache_name = os.path.join(dir_path, CACHE_DIR, get_prev_business_day(), 'series-%s.csv' % (ticker,))
+    os.makedirs(os.path.join(dir_path, CACHE_DIR, get_business_day(1)), exist_ok=True)
+    cache_name = os.path.join(dir_path, CACHE_DIR, get_business_day(1), 'series-%s.csv' % (ticker,))
     if os.path.isfile(cache_name):
         df = pd.read_csv(cache_name, index_col=0, parse_dates=True)
         series = df.get('Close')
@@ -31,8 +43,10 @@ def get_series(ticker, time='1y'):
         tk = yf.Ticker(ticker)
         hist = tk.history(period=time, interval='1d')
         series = hist.get('Close')
+        if 9.5 < get_time_now() < 16:
+          series = series.drop(datetime.datetime.today().date())
         series.to_csv(cache_name, header=True)
-    return series
+    return ticker, series
 
 
 def get_picked_points(series):
@@ -70,14 +84,18 @@ def get_buy_signal(series, price):
 
 def get_all_symbols():
     res = []
-    for f in os.listdir('data'):
-        df = pd.read_csv(os.path.join('data', f))
-        res.extend([row.Symbol for row in df.itertuples() if re.match('^[A-Z]*$', row.Symbol)])
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    for f in os.listdir(os.path.join(dir_path, 'data')):
+        if f.endswith('csv'):
+            df = pd.read_csv(os.path.join('data', f))
+            res.extend([row.Symbol for row in df.itertuples()
+                        if re.match('^[A-Z]*$', row.Symbol) and
+                        row.Symbol not in EXCLUSIONS])
     return res
 
 
 def get_series_length(time):
-    series = get_series(REFERENCE_SYMBOL, time=time)
+    series = get_series(REFERENCE_SYMBOL, time=time)[1]
     return len(series)
 
 
@@ -93,12 +111,18 @@ def get_all_series(time):
     tickers = get_all_symbols()
     series_length = get_series_length(time)
     all_series = {}
+    pool = futures.ThreadPoolExecutor(max_workers=MAX_THREADS)
     print('Loading stock histories...')
-    for ticker in tqdm(tickers, ncols=80, bar_format='{percentage:3.0f}%|{bar}{r_bar}', file=sys.stdout):
-        series = get_series(ticker, time)
+    threads = []
+    for ticker in tickers:
+        t = pool.submit(get_series, ticker, time)
+        threads.append(t)
+    for t in tqdm(threads, ncols=80, file=sys.stdout):
+        ticker, series = t.result()
         if len(series) != series_length:
             continue
         all_series[ticker] = np.array(series)
+    pool.shutdown()
     return all_series
 
 
@@ -118,13 +142,7 @@ def filter_low_volume_series(all_series):
     res = {}
     overwrite = False
     for ticker, series in all_series.items():
-        if ticker in volumes:
-            volume = volumes[ticker]
-        else:
-            url = 'https://finance.yahoo.com/quote/{}'.format(ticker)
-            prefixes = ['regularMarketVolume']
-            volume = int(web_scraping(url, prefixes))
-            overwrite = True
+        volume = volumes.get(ticker, VOLUME_FILTER_THRESHOLD)
         if volume >= VOLUME_FILTER_THRESHOLD:
             res[ticker] = series
     if overwrite:
@@ -133,8 +151,8 @@ def filter_low_volume_series(all_series):
     return res
 
 
-def get_prev_business_day():
-    day = pd.datetime.today() - pd.tseries.offsets.BDay(1)
+def get_business_day(offset):
+    day = pd.datetime.today() - pd.tseries.offsets.BDay(offset)
     return '%4d-%02d-%02d' % (day.year, day.month, day.day)
 
 
@@ -145,8 +163,7 @@ def get_header(title):
 
 def get_buy_symbols(all_series, cutoff):
     buy_symbols = []
-    for ticker, series in tqdm(all_series.items(), ncols=80, bar_format='{percentage:3.0f}%|{bar}{r_bar}',
-                               leave=False, file=sys.stdout):
+    for ticker, series in tqdm(all_series.items(), ncols=80, leave=False, file=sys.stdout):
         avg_return, is_buy = get_buy_signal(series[cutoff - LOOK_BACK_DAY:cutoff], series[cutoff])
         if is_buy:
             buy_symbols.append((avg_return, ticker))
@@ -189,4 +206,13 @@ def web_scraping(url, prefixes):
             pos += 1
         return s
     else:
-        raise Exception('symbol not found ')
+        raise Exception('%s not found in %s' % (prefixes, url))
+
+
+def bi_print(message, output_file):
+    """Prints to both stdout and a file."""
+    print(message)
+    if output_file:
+        output_file.write(message)
+        output_file.write('\n')
+        output_file.flush()
