@@ -4,6 +4,7 @@ import json
 import os
 import re
 import requests
+import retrying
 import sys
 import numpy as np
 import pandas as pd
@@ -189,11 +190,10 @@ def get_trading_list(buy_symbols):
     return trading_list
 
 
+@retrying.retry(stop_max_attempt_number=3,
+                retry_on_exception=lambda e: isinstance(requests.exceptions.Timeout))
 def web_scraping(url, prefixes):
-    r = requests.get(url, timeout=10)
-    if not r.ok:
-        # retry once
-        r = requests.get(url, timeout=10)
+    r = requests.get(url, timeout=3)
     c = str(r.content)
     pos = -1
     for prefix in prefixes:
