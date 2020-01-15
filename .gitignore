@@ -2,3 +2,4 @@ cache/*
 outputs/*
 __pycache__
 stock.egg-info
+cron.sh
