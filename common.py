@@ -191,7 +191,7 @@ def get_trading_list(buy_symbols):
 
 
 @retrying.retry(stop_max_attempt_number=3,
-                retry_on_exception=lambda e: isinstance(requests.exceptions.Timeout))
+                retry_on_exception=lambda e: isinstance(e, requests.exceptions.Timeout))
 def web_scraping(url, prefixes):
     r = requests.get(url, timeout=3)
     c = str(r.content)
