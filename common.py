@@ -209,7 +209,7 @@ def web_scraping(url, prefixes):
             pos += 1
         return s
     else:
-        raise Exception('%s not found in %s' % (prefixes, url))
+        raise Exception('[status %d] %s not found in %s' % (r.status_code, prefixes, url))
 
 
 def bi_print(message, output_file):
