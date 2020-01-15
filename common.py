@@ -18,11 +18,12 @@ LOOK_BACK_DAY = 250
 CACHE_DIR = 'cache'
 MAX_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 3
-GARBAGE_FILTER_THRESHOLD = 0.7
+GARBAGE_FILTER_THRESHOLD = 0.5
 VOLUME_FILTER_THRESHOLD = 10000
 MAX_THREADS = 5
-# These stocks are delisted
+# These stocks are de-listed
 EXCLUSIONS = ('IBO', 'ZTEST', 'ZNWAA', 'CBO', 'CBX', 'CTEST')
+
 
 def get_time_now():
     tz = pytz.timezone('America/New_York')
