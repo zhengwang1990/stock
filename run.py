@@ -20,7 +20,6 @@ class Trading(object):
         self.ordered_symbols = []
 
         self.update_prices(self.all_series.keys(), use_tqdm=True)
-        self.last_update = datetime.datetime.now()
 
         for ticker, series in self.all_series.items():
             _, avg_return, threshold = get_picked_points(series[-LOOK_BACK_DAY:])
@@ -28,9 +27,11 @@ class Trading(object):
             self.avg_returns[ticker] = avg_return
 
         self.update_ordered_symbols()
-        self.last_update = datetime.datetime.now()
 
-        for args in [(10, 60), (100, 600), (len(self.ordered_symbols), 2400)]:
+        update_frequencies = [(10, 60), (100, 600), (len(self.ordered_symbols), 2400)]
+        self.last_updates = {update_frequencies[-1][1]: datetime.datetime.now()}
+
+        for args in update_frequencies:
             t = threading.Thread(target=self.update_stats, args=args)
             t.daemon = True
             t.start()
@@ -41,8 +42,7 @@ class Trading(object):
                 symbols = [symbol for _, symbol in self.ordered_symbols[:length]]
             self.update_prices(symbols)
             self.update_ordered_symbols()
-            if length == len(self.ordered_symbols):
-                self.last_update = datetime.datetime.now()
+            self.last_updates[sleep_secs] = datetime.datetime.now()
             time.sleep(sleep_secs)
 
     def update_prices(self, tickers, use_tqdm=False):
@@ -83,10 +83,11 @@ class Trading(object):
                 if is_buy:
                     buy_symbols.append((self.avg_returns[ticker], ticker))
             trading_list = get_trading_list(buy_symbols)
-            bi_print(get_header(datetime.datetime.now().strftime('%H:%M:%S')))
+            bi_print(get_header(datetime.datetime.now().strftime('%H:%M:%S')), output_file)
             print_trading_list(trading_list, self.prices, self.down_percents, self.thresholds, self.fund, output_file)
-            bi_print('Last full update: %s' % (self.last_update.strftime('%H:%M:%S'),))
-            time.sleep(60)
+            bi_print('Last updates: %s' % (
+                [second_to_string(update_freq) + ': ' + update_time.strftime('%H:%M:%S') for update_freq, update_time in self.last_updates.items()],), output_file)
+            time.sleep(100)
 
 
 def get_real_time_price(ticker):
@@ -147,6 +148,15 @@ def get_live_trading_table(fund=None):
     """"Gets stock symbols to buy from previous close."""
     trading = Trading(fund)
     trading.run()
+
+
+def second_to_string(secs):
+    if secs < 60:
+        return str(secs) + 's'
+    elif secs < 3600:
+        return str(secs // 60) + 'm'
+    else:
+        return str(secs // 3600) + 'h'
 
 
 def main():

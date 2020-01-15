@@ -45,7 +45,9 @@ def get_series(ticker, time='1y'):
         hist = tk.history(period=time, interval='1d')
         series = hist.get('Close')
         if 9.5 < get_time_now() < 16:
-          series = series.drop(datetime.datetime.today().date())
+          drop_key = datetime.datetime.today().date()
+          if drop_key in series.index:
+            series = series.drop(drop_key)
         series.to_csv(cache_name, header=True)
     return ticker, series
 
@@ -188,10 +190,10 @@ def get_trading_list(buy_symbols):
 
 
 def web_scraping(url, prefixes):
-    r = requests.get(url)
+    r = requests.get(url, timeout=10)
     if not r.ok:
         # retry once
-        r = requests.get(url)
+        r = requests.get(url, timeout=10)
     c = str(r.content)
     pos = -1
     for prefix in prefixes:
