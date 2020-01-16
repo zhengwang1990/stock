@@ -23,7 +23,7 @@ GARBAGE_FILTER_THRESHOLD = 0.5
 VOLUME_FILTER_THRESHOLD = 10000
 MAX_THREADS = 5
 # These stocks are de-listed
-EXCLUSIONS = ('ACTTW', 'ALACW', 'BNTCW', 'IBO', 'ZTEST', 'ZNWAA', 'CBO', 'CBX', 'CTEST', 'TACOW')
+EXCLUSIONS = ('ACTTW', 'ALACW', 'BNTCW', 'CBO', 'CBX', 'CTEST', 'FTACW', 'IBO', 'TACOW', 'ZNWAA', 'ZTEST')
 
 
 def get_time_now():
@@ -91,7 +91,7 @@ def get_all_symbols():
     dir_path = os.path.dirname(os.path.realpath(__file__))
     for f in os.listdir(os.path.join(dir_path, 'data')):
         if f.endswith('csv'):
-            df = pd.read_csv(os.path.join('data', f))
+            df = pd.read_csv(os.path.join(dir_path, 'data', f))
             res.extend([row.Symbol for row in df.itertuples()
                         if re.match('^[A-Z]*$', row.Symbol) and
                         row.Symbol not in EXCLUSIONS])
@@ -188,8 +188,7 @@ def get_trading_list(buy_symbols):
     return trading_list
 
 
-@retrying.retry(stop_max_attempt_number=3,
-                retry_on_exception=lambda e: isinstance(e, requests.exceptions.Timeout))
+@retrying.retry(stop_max_attempt_number=3, wait_fixed=500)
 def web_scraping(url, prefixes):
     r = requests.get(url, timeout=3)
     c = str(r.content)
