@@ -23,7 +23,7 @@ GARBAGE_FILTER_THRESHOLD = 0.5
 VOLUME_FILTER_THRESHOLD = 10000
 MAX_THREADS = 5
 # These stocks are de-listed
-EXCLUSIONS = ('IBO', 'ZTEST', 'ZNWAA', 'CBO', 'CBX', 'CTEST')
+EXCLUSIONS = ('ACTTW', 'ALACW', 'BNTCW', 'IBO', 'ZTEST', 'ZNWAA', 'CBO', 'CBX', 'CTEST', 'TACOW')
 
 
 def get_time_now():
