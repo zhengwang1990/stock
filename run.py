@@ -8,6 +8,7 @@ from tabulate import tabulate
 class Trading(object):
 
     def __init__(self, fund):
+        self.active = True
         self.fund = fund
         self.lock = threading.RLock()
         self.pool = futures.ThreadPoolExecutor(max_workers=MAX_THREADS)
@@ -48,10 +49,14 @@ class Trading(object):
     def update_prices(self, tickers, use_tqdm=False):
         threads = []
         for ticker in tickers:
+             if not self.active:
+                 return
              t = self.pool.submit(get_real_time_price, ticker)
              threads.append(t)
         iterator = tqdm(threads, ncols=80) if use_tqdm else threads
         for t in iterator:
+             if not self.active:
+                 return
              ticker, price = t.result()
              if price:
                  self.prices[ticker] = price
@@ -88,6 +93,8 @@ class Trading(object):
             bi_print('Last updates: %s' % (
                 [second_to_string(update_freq) + ': ' + update_time.strftime('%H:%M:%S') for update_freq, update_time in self.last_updates.items()],), output_file)
             time.sleep(100)
+        self.active = False
+        time.sleep(1)
 
 
 def get_real_time_price(ticker):

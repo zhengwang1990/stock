@@ -104,10 +104,8 @@ def get_series_length(time):
 
 
 def get_series_dates(time):
-    tk = yf.Ticker(REFERENCE_SYMBOL)
-    hist = tk.history(period=time, interval='1d')
-    dates = [p.Index for p in hist.itertuples()]
-    return dates
+    series = get_series(REFERENCE_SYMBOL, time=time)[1]
+    return series.index
 
 
 def get_all_series(time):

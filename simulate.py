@@ -55,6 +55,10 @@ def simulate(start_date=None, end_date=None):
 
     bi_print(get_header('Summary'), output_summary)
     summary_table = [['Time Range', '%s ~ %s' % (dates[start_point].date(), dates[end_point].date())]]
+    gain_texts = [(k + ' Gain',  '%.2f%%' % ((v[1][-1] - 1) * 100,)) for k, v in values.items()]
+    summary_table.extend(sorted(gain_texts))
+    bi_print(tabulate(summary_table, tablefmt='grid'), output_summary)
+
     pd.plotting.register_matplotlib_converters()
     qqq = get_series('QQQ', time=MAX_HISTORY_LOAD)[1]
     spy = get_series('SPY', time=MAX_HISTORY_LOAD)[1]
@@ -73,9 +77,6 @@ def simulate(start_date=None, end_date=None):
         if np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1]):
             plt.yscale('log')
         plt.savefig(os.path.join(file_dir, 'outputs', k + '.png'))
-    gain_texts = [(k + ' Gain',  '%.2f%%' % ((v[1][-1] - 1) * 100,)) for k, v in values.items()]
-    summary_table.extend(sorted(gain_texts))
-    bi_print(tabulate(summary_table, tablefmt='grid'), output_summary)
 
 
 def main():
