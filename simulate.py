@@ -15,20 +15,23 @@ def simulate(start_date=None, end_date=None):
     all_series = filter_low_volume_series(
         filter_garbage_series(get_all_series(MAX_HISTORY_LOAD)))
 
-    start_date = start_date or dates[LOOK_BACK_DAY+1].date()
+    start_date = start_date or dates[LOOK_BACK_DAY + 1].date()
     end_date = end_date or pd.datetime.today().date()
     start_point, end_point = 0, series_length - 1
     while pd.to_datetime(start_date) > dates[start_point]:
         start_point += 1
     if start_point - 1 < LOOK_BACK_DAY:
-        raise Exception('Start date must be no early than %s' % (dates[LOOK_BACK_DAY+1].date()))
+        raise Exception('Start date must be no early than %s' % (dates[LOOK_BACK_DAY + 1].date()))
     while pd.to_datetime(end_date) < dates[end_point]:
         end_point -= 1
-    values = {'Total': ([dates[start_point-1]], [1.0])}
+    values = {'Total': ([dates[start_point - 1]], [1.0])}
+    stats_cols = ['Symbol', 'Date', 'Average Return', 'Threshold', 'Down Percent', 'Gain']
+    stats = pd.DataFrame(columns=stats_cols)
     for cutoff in range(start_point - 1, end_point):
         current_date = dates[cutoff + 1]
         bi_print(get_header(current_date.date()), output_detail)
         buy_symbols = get_buy_symbols(all_series, cutoff)
+        stats = append_stats(stats, buy_symbols, current_date, all_series, cutoff)
         trading_list = get_trading_list(buy_symbols)
         trading_table = []
         day_gain = 0
@@ -55,9 +58,11 @@ def simulate(start_date=None, end_date=None):
 
     bi_print(get_header('Summary'), output_summary)
     summary_table = [['Time Range', '%s ~ %s' % (dates[start_point].date(), dates[end_point].date())]]
-    gain_texts = [(k + ' Gain',  '%.2f%%' % ((v[1][-1] - 1) * 100,)) for k, v in values.items()]
+    gain_texts = [(k + ' Gain', '%.2f%%' % ((v[1][-1] - 1) * 100,)) for k, v in values.items()]
     summary_table.extend(sorted(gain_texts))
     bi_print(tabulate(summary_table, tablefmt='grid'), output_summary)
+
+    stats.to_csv(os.path.join(file_dir, 'outputs', 'simulate_stats.csv'), index=False)
 
     pd.plotting.register_matplotlib_converters()
     qqq = get_series('QQQ', time=MAX_HISTORY_LOAD)[1]
@@ -67,7 +72,7 @@ def simulate(start_date=None, end_date=None):
         plt.plot(v[0], v[1], label='My Portfolio')
         qqq_curve = [qqq.get(dt) for dt in v[0]]
         spy_curve = [spy.get(dt) for dt in v[0]]
-        for i in range(len(v[0])-1, -1, -1):
+        for i in range(len(v[0]) - 1, -1, -1):
             qqq_curve[i] /= qqq_curve[0]
             spy_curve[i] /= spy_curve[0]
         plt.plot(v[0], qqq_curve, label='QQQ')
@@ -77,6 +82,19 @@ def simulate(start_date=None, end_date=None):
         if np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1]):
             plt.yscale('log')
         plt.savefig(os.path.join(file_dir, 'outputs', k + '.png'))
+
+
+def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
+    for _, symbol in buy_symbols:
+        series = all_series[symbol]
+        _, avg_return, threshold = get_picked_points(series[cutoff - LOOK_BACK_DAY:cutoff])
+        day_range_max = np.max(series[cutoff - DATE_RANGE:cutoff])
+        down_percent = (day_range_max - series[cutoff]) / day_range_max
+        gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
+        stats = stats.append({'Symbol': symbol, 'Date': current_date, 'Average Return': avg_return,
+                              'Threshold': threshold, 'Down Percent': down_percent, 'Gain': gain},
+                             ignore_index=True)
+    return stats
 
 
 def main():

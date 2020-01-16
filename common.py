@@ -46,9 +46,9 @@ def get_series(ticker, time='1y'):
         hist = tk.history(period=time, interval='1d')
         series = hist.get('Close')
         if 9.5 < get_time_now() < 16:
-          drop_key = datetime.datetime.today().date()
-          if drop_key in series.index:
-            series = series.drop(drop_key)
+            drop_key = datetime.datetime.today().date()
+            if drop_key in series.index:
+                series = series.drop(drop_key)
         series.to_csv(cache_name, header=True)
     return ticker, series
 
