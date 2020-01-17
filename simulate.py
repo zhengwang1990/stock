@@ -97,6 +97,7 @@ def simulate(start_date=None, end_date=None):
         if np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1]):
             plt.yscale('log')
         plt.savefig(os.path.join(file_dir, OUTPUTS_DIR, k + '.png'))
+        plt.Close()
 
 
 def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
