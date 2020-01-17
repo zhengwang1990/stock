@@ -33,24 +33,21 @@ def load_data():
         if row.Threshold <= 0:
             continue
         x_value = [getattr(row, key) for key in keys]
-        x_value.extend([row.Day_Range_Change - row.Threshold,
-                        row.Day_Range_Change / row.Threshold])
         y_value = row.Gain / 5 if np.abs(row.Gain) < 5 else np.sign(row.Gain)
         y_value = (y_value + 1) / 2
         x.append(x_value)
         y.append(y_value)
-    x = np.array(x)
-    y = np.array(y)
+
     return x, y
 
 
 def get_model():
     df = read_df()
-    xdim = len(df.columns) - 1
+    x_dim = len(df.columns) - 3
     model = keras.Sequential([
-        keras.layers.Input(shape=(xdim,)),
-        keras.layers.Dense(20, activation='tanh',
-                           input_shape=(xdim,),
+        keras.layers.Input(shape=(x_dim,)),
+        keras.layers.Dense(20, activation='relu',
+                           input_shape=(x_dim,),
                            kernel_regularizer=keras.regularizers.l1_l2(l1=0.01, l2=0.01)),
         keras.layers.Dense(40, activation='tanh'),
         keras.layers.Dense(20, activation='tanh'),
@@ -65,14 +62,15 @@ def get_model():
 
 
 def train_model(x, y, model):
-    earlystopping = keras.callbacks.EarlyStopping(
+    early_stopping = keras.callbacks.EarlyStopping(
         monitor='loss', patience=5, restore_best_weights=True)
-    model.fit(x, y, epochs=100, callbacks=[earlystopping])
+    model.fit(x, y, epochs=100, callbacks=[early_stopping])
     dir_path = os.path.dirname(os.path.realpath(__file__))
     model.save(os.path.join(dir_path, OUTPUTS_DIR, 'model.hdf5'))
 
 
 def load_model():
+    dir_path = os.path.dirname(os.path.realpath(__file__))
     model = keras.models.load_model(os.path.join(dir_path, OUTPUTS_DIR, 'model.hdf5'))
     return model
 

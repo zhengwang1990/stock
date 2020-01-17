@@ -11,8 +11,13 @@ def get_rsi(series, n=14):
     down = np.zeros_like(delta)
     up[delta > 0] = delta[delta > 0]
     down[delta < 0] = -delta[delta < 0]
-    rs = np.mean(up) / np.mean(down)
-    rsi = 100 - 100/(1 + rs)
+    avg_up = np.mean(up)
+    avg_down = np.mean(down)
+    if avg_down == 0:
+        rsi = 50.0 if avg_up == 0 else 100
+    else:
+        rs = avg_up / avg_down
+        rsi = 100 - 100 / (1 + rs)
     return rsi
 
 
@@ -97,7 +102,7 @@ def simulate(start_date=None, end_date=None):
         if np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1]):
             plt.yscale('log')
         plt.savefig(os.path.join(file_dir, OUTPUTS_DIR, k + '.png'))
-        plt.Close()
+        plt.close()
 
 
 def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
