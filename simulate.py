@@ -4,6 +4,18 @@ from common import *
 from tabulate import tabulate
 
 
+def get_rsi(series, n=14):
+    prices = series[-n:]
+    delta = np.diff(prices)
+    up = np.zeros_like(delta)
+    down = np.zeros_like(delta)
+    up[delta > 0] = delta[delta > 0]
+    down[delta < 0] = -delta[delta < 0]
+    rs = np.mean(up) / np.mean(down)
+    rsi = 100 - 100/(1 + rs)
+    return rsi
+
+
 def simulate(start_date=None, end_date=None):
     """Simulates trading operations and outputs gains."""
     file_dir = os.path.dirname(os.path.realpath(__file__))
@@ -27,7 +39,7 @@ def simulate(start_date=None, end_date=None):
     values = {'Total': ([dates[start_point - 1]], [1.0])}
     stats_cols = ['Symbol', 'Date', 'Average_Return', 'Threshold', 'Today_Change',
                   'Day_Range_Change', 'Threshold_Diff', 'Threshold_Quotient',
-                  'Price', 'Variance', 'Price_Year_Max', 'Price_Year_Min', 'Gain']
+                  'Price', 'Variance', 'Price_Year_Max', 'Price_Year_Min', 'RSI', 'Gain']
     stats = pd.DataFrame(columns=stats_cols)
     # Buy on cutoff day, sell on cutoff + 1 day
     for cutoff in range(start_point - 1, end_point):
@@ -96,9 +108,10 @@ def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
         day_range_change = (day_range_max - price) / day_range_max
         today_change = (series[cutoff - 1] - price) / series[cutoff - 1]
         gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
-        all_changes = ((sereis[cutoff - LOOK_BACK_DAY + 1:cutoff + 1]
+        all_changes = ((series[cutoff - LOOK_BACK_DAY + 1:cutoff + 1]
                         - series[cutoff - LOOK_BACK_DAY:cutoff])
                        / series[cutoff - LOOK_BACK_DAY:cutoff]) * 100
+        rsi = get_rsi(series[cutoff - LOOK_BACK_DAY:cutoff])
         stats = stats.append({'Symbol': symbol, 'Date': current_date, 'Average_Return': avg_return * 100,
                               'Threshold': threshold * 100, 'Today_Change': today_change * 100,
                               'Day_Range_Change': day_range_change * 100,
@@ -108,6 +121,7 @@ def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
                               'Variance': np.var(all_changes),
                               'Price_Year_Max': np.max(series[cutoff - LOOK_BACK_DAY:cutoff]),
                               'Price_Year_Min': np.min(series[cutoff - LOOK_BACK_DAY:cutoff]),
+                              'RSI': rsi,
                               'Gain': gain * 100},
                              ignore_index=True)
     return stats

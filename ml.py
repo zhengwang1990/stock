@@ -3,6 +3,7 @@ import pandas as pd
 import tensorflow.keras as keras
 import matplotlib.pyplot as plt
 from common import *
+from tabulate import tabulate
 
 
 def read_df():
@@ -67,21 +68,40 @@ def train_model(x, y, model):
   earlystopping = keras.callbacks.EarlyStopping(
       monitor='loss', patience=5, restore_best_weights=True)
   model.fit(x, y, epochs=100, callbacks=[earlystopping])
-  model.save('model.hdf5')
+  dir_path = os.path.dirname(os.path.realpath(__file__))
+  model.save(os.path.join(dir_path, OUTPUTS_DIR, 'model.hdf5'))
 
 
 def load_model():
-  model = keras.models.load_model('model.hdf5')
+  model = keras.models.load_model(os.path.join(dir_path, OUTPUTS_DIR, 'model.hdf5'))
   return model
 
 
 def predict(x, y, model):
   pred = model.predict(x)
-  print(pred)
+  tp, tn, fp, fn = 0, 0, 0, 0
+  for pi, yi in zip(pred, y):
+    if pi >= 0.5:
+      if yi >= 0.5:
+        tp += 1
+      else:
+        fp += 1
+    else:
+      if yi > 0.5:
+        fn += 1
+      else:
+        tn += 1
+  output = [['Precision:', tp / (tp + fp)],
+            ['Recall:', tp / (tp + fn)],
+            ['Accuracy:', (tp + tn) / (tp + tn + fp + fn)]]
+  print(tabulate(output, tablefmt='grid'))
+
   plt.figure()
   plt.plot(pred, y, 'o', markersize=3)
   plt.xlabel('Predicted')
   plt.ylabel('Truth')
+  plt.plot([np.min(pred), np.max(pred)], [0.5, 0.5], '--')
+  plt.plot([0.5, 0.5], [0, 1], '--')
   plt.show()
 
 
