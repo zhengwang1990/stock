@@ -91,7 +91,7 @@ class Trading(object):
 
     def run(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        output_path = os.path.join(dir_path, 'outputs', get_business_day(0) + '.txt')
+        output_path = os.path.join(dir_path, OUTPUTS_DIR, get_business_day(0) + '.txt')
         output_file = open(output_path, 'a')
         while get_time_now() < 16:
             buy_symbols = []

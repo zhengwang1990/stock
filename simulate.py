@@ -7,8 +7,8 @@ from tabulate import tabulate
 def simulate(start_date=None, end_date=None):
     """Simulates trading operations and outputs gains."""
     file_dir = os.path.dirname(os.path.realpath(__file__))
-    output_detail = open(os.path.join(file_dir, 'outputs', 'simulate_detail.txt'), 'w')
-    output_summary = open(os.path.join(file_dir, 'outputs', 'simulate_summary.txt'), 'w')
+    output_detail = open(os.path.join(file_dir, OUTPUTS_DIR, 'simulate_detail.txt'), 'w')
+    output_summary = open(os.path.join(file_dir, OUTPUTS_DIR, 'simulate_summary.txt'), 'w')
 
     dates = get_series_dates(MAX_HISTORY_LOAD)
     series_length = len(dates)
@@ -25,8 +25,11 @@ def simulate(start_date=None, end_date=None):
     while pd.to_datetime(end_date) < dates[end_point]:
         end_point -= 1
     values = {'Total': ([dates[start_point - 1]], [1.0])}
-    stats_cols = ['Symbol', 'Date', 'Average Return', 'Threshold', 'Down Percent', 'Gain']
+    stats_cols = ['Symbol', 'Date', 'Average_Return', 'Threshold', 'Today_Change',
+                  'Day_Range_Change', 'Threshold_Diff', 'Threshold_Quotient',
+                  'Price', 'Variance', 'Price_Year_Max', 'Price_Year_Min', 'Gain']
     stats = pd.DataFrame(columns=stats_cols)
+    # Buy on cutoff day, sell on cutoff + 1 day
     for cutoff in range(start_point - 1, end_point):
         current_date = dates[cutoff + 1]
         bi_print(get_header(current_date.date()), output_detail)
@@ -62,7 +65,7 @@ def simulate(start_date=None, end_date=None):
     summary_table.extend(sorted(gain_texts))
     bi_print(tabulate(summary_table, tablefmt='grid'), output_summary)
 
-    stats.to_csv(os.path.join(file_dir, 'outputs', 'simulate_stats.csv'), index=False)
+    stats.to_csv(os.path.join(file_dir, OUTPUTS_DIR, 'simulate_stats.csv'), index=False)
 
     pd.plotting.register_matplotlib_converters()
     qqq = get_series('QQQ', time=MAX_HISTORY_LOAD)[1]
@@ -81,7 +84,7 @@ def simulate(start_date=None, end_date=None):
         plt.title(k)
         if np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1]):
             plt.yscale('log')
-        plt.savefig(os.path.join(file_dir, 'outputs', k + '.png'))
+        plt.savefig(os.path.join(file_dir, OUTPUTS_DIR, k + '.png'))
 
 
 def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
@@ -89,10 +92,23 @@ def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
         series = all_series[symbol]
         _, avg_return, threshold = get_picked_points(series[cutoff - LOOK_BACK_DAY:cutoff])
         day_range_max = np.max(series[cutoff - DATE_RANGE:cutoff])
-        down_percent = (day_range_max - series[cutoff]) / day_range_max
+        price = series[cutoff]
+        day_range_change = (day_range_max - price) / day_range_max
+        today_change = (series[cutoff - 1] - price) / series[cutoff - 1]
         gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
-        stats = stats.append({'Symbol': symbol, 'Date': current_date, 'Average Return': avg_return,
-                              'Threshold': threshold, 'Down Percent': down_percent, 'Gain': gain},
+        all_changes = ((sereis[cutoff - LOOK_BACK_DAY + 1:cutoff + 1]
+                        - series[cutoff - LOOK_BACK_DAY:cutoff])
+                       / series[cutoff - LOOK_BACK_DAY:cutoff]) * 100
+        stats = stats.append({'Symbol': symbol, 'Date': current_date, 'Average_Return': avg_return * 100,
+                              'Threshold': threshold * 100, 'Today_Change': today_change * 100,
+                              'Day_Range_Change': day_range_change * 100,
+                              'Threshold_Diff': (day_range_change - threshold) * 100,
+                              'Threshold_Quotient': day_range_change / threshold,
+                              'Price': price,
+                              'Variance': np.var(all_changes),
+                              'Price_Year_Max': np.max(series[cutoff - LOOK_BACK_DAY:cutoff]),
+                              'Price_Year_Min': np.min(series[cutoff - LOOK_BACK_DAY:cutoff]),
+                              'Gain': gain * 100},
                              ignore_index=True)
     return stats
 

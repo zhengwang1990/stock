@@ -17,6 +17,8 @@ DATE_RANGE = 5
 REFERENCE_SYMBOL = 'AAPL'
 LOOK_BACK_DAY = 250
 CACHE_DIR = 'cache'
+DATA_DIR = 'data'
+OUTPUTS_DIR = 'outputs'
 MAX_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 3
 GARBAGE_FILTER_THRESHOLD = 0.5
@@ -89,9 +91,9 @@ def get_buy_signal(series, price):
 def get_all_symbols():
     res = []
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    for f in os.listdir(os.path.join(dir_path, 'data')):
+    for f in os.listdir(os.path.join(dir_path, DATA_DIR)):
         if f.endswith('csv'):
-            df = pd.read_csv(os.path.join(dir_path, 'data', f))
+            df = pd.read_csv(os.path.join(dir_path, DATA_DIR, f))
             res.extend([row.Symbol for row in df.itertuples()
                         if re.match('^[A-Z]*$', row.Symbol) and
                         row.Symbol not in EXCLUSIONS])
