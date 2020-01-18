@@ -4,9 +4,12 @@ import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 import matplotlib.pyplot as plt
 from common import *
+from sklearn.model_selection import train_test_split
 from tabulate import tabulate
 
-DATA_FILE = 'simulate_stats.csv'
+DATA_FILE = 'simulate_stats0.csv'
+
+MODELS_DIR = os.path.join(OUTPUTS_DIR, 'models')
 
 def read_df():
     dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -38,27 +41,15 @@ def load_data():
         y.append(y_value)
     x = np.array(x)
     y = np.array(y)
-    return x, y
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, random_state=0)
+    return x_train, x_test, y_train, y_test
 
 
 def precision_favored_loss(y_true, y_pred):
-    #s_pred = K.sign(y_pred)
-    #s_true = K.sign(y_true)
-    s_pred = y_pred
-    s_true = y_true
-    tp = K.mean((1 + s_pred) * (1 + s_true))
-    fp = K.mean((1 + s_pred) * (1 - s_true))
-    fn = K.mean((1 - s_pred) * (1 + s_true))
-    precision = tp / (tp + fp + 1E-7)
-    recall = tp / (tp + fn + 1E-7)
-    #loss = 1 - precision + K.exp(1 - recall * 100)
+    fp = K.mean((1 + y_pred) * (1 - y_true))
+    fn = K.mean((1 - y_pred) * (1 + y_true))
     loss = K.pow(fp, 3) + K.pow(fn, 2)
     return loss
-
-
-def return_favored_loss(y_true, y_pred):
-    sign = K.sign(y_pred * y_true)
-    return ((1 - sign) / 2) * K.abs(y_true)
 
 
 def get_model():
@@ -66,31 +57,30 @@ def get_model():
     x_dim = len(df.columns) - 3
     model = keras.Sequential([
         keras.layers.Input(shape=(x_dim,)),
-        keras.layers.Dense(20, activation='relu',
+        keras.layers.Dense(40, activation='relu',
                            input_shape=(x_dim,)),
-        keras.layers.Dense(50, activation='relu'),
-        keras.layers.Dense(20, activation='relu'),
+        keras.layers.Dense(100, activation='relu'),
+        keras.layers.Dense(40, activation='relu'),
         keras.layers.Dense(1, activation='tanh')
     ])
-    model.compile(optimizer='adam', loss=precision_favored_loss, metrics=['mae'])
+    model.compile(optimizer='adam', loss=precision_favored_loss)
     model.summary()
     return model
 
 
 def train_model(x, y, model):
     early_stopping = keras.callbacks.EarlyStopping(
-        monitor='loss', patience=5, restore_best_weights=True)
+        monitor='loss', patience=10, restore_best_weights=True)
     model.fit(x, y, epochs=100, callbacks=[early_stopping])
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    model.save(os.path.join(dir_path, OUTPUTS_DIR, 'model.hdf5'))
+    model.save(os.path.join(dir_path, MODELS_DIR, 'model.hdf5'))
 
 
-def load_model():
+def load_model(name):
     dir_path = os.path.dirname(os.path.realpath(__file__))
     model = keras.models.load_model(
-        os.path.join(dir_path, OUTPUTS_DIR, 'model.hdf5'),
-        custom_objects={'precision_favored_loss': precision_favored_loss,
-                        'return_favored_loss': return_favored_loss})
+        os.path.join(dir_path, MODELS_DIR, name),
+        custom_objects={'precision_favored_loss': precision_favored_loss})
     return model
 
 
@@ -125,11 +115,13 @@ def predict(x, y, model):
     precision_50, recall_50, accuracy_50 = get_measures(p, y, boundary_50)
     precision_90, recall_90, accuracy_90 = get_measures(p, y, boundary_90)
     precision_95, recall_95, accuracy_95 = get_measures(p, y, boundary_95)
-    precision_default = len(y[y > 0]) / len(y)
+    precision_buy_all = len(y[y > 0]) / len(y)
+    precision_model, recall_model, accuracy_model = get_measures(p, y, 0)
     output = [['Precision_50:', precision_50],
               ['Precision_90:', precision_90],
               ['Precision_95:', precision_95],
-              ['Default Precision:', precision_default]]
+              ['Buy All Precision:', precision_buy_all],
+              ['Model Precision:', precision_model]]
     print(tabulate(output, tablefmt='grid'))
 
     ind = np.random.choice(len(p), 500)
@@ -138,6 +130,7 @@ def predict(x, y, model):
     plt.xlabel('Predicted')
     plt.ylabel('Truth')
     plt.plot([np.min(p), np.max(p)], [0, 0], '--')
+    plt.plot([0, 0], [np.min(y), np.max(y)], '--')
     plt.plot([boundary_50, boundary_50], [np.min(y), np.max(y)], '--')
     plt.plot([boundary_90, boundary_90], [np.min(y), np.max(y)], '--')
     plt.plot([boundary_95, boundary_95], [np.min(y), np.max(y)], '--')
@@ -145,11 +138,11 @@ def predict(x, y, model):
 
 
 def main():
-    x, y = load_data()
+    x_train, x_test, y_train, y_test = load_data()
     model = get_model()
-    train_model(x, y, model)
-    #model = load_model()
-    predict(x, y, model)
+    train_model(x_train, y_train, model)
+    #model = load_model('model_precision_630958.hdf5')
+    predict(x_test, y_test, model)
 
 
 if __name__ == '__main__':

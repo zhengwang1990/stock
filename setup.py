@@ -9,5 +9,5 @@ setup(
     author='zhengwang',
     author_email='zheng.wang.rice@gmail.com',
     description='A stock trading strategy',
-    install_requires=['tqdm', 'matplotlib', 'tabulate', 'yfinance', 'pandas', 'requests', 'pytz', 'numpy', 'retrying', 'tensorflow']
+    install_requires=['tqdm', 'matplotlib', 'tabulate', 'yfinance', 'pandas', 'requests', 'pytz', 'numpy', 'retrying', 'tensorflow', 'sklearn']
 )

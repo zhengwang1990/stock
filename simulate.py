@@ -42,12 +42,14 @@ def simulate(start_date=None, end_date=None):
     while pd.to_datetime(end_date) < dates[end_point]:
         end_point -= 1
     values = {'Total': ([dates[start_point - 1]], [1.0])}
-    stats_cols = ['Symbol', 'Date', 'Average_Return', 'Threshold', 'Today_Change',
-                  'Yesterday_Change',
+    stats_cols = ['Symbol', 'Date', 'Average_Return', 'Threshold',
+                  'Average_Return_Day_Rank', 'Average_Return_Top_Three',
+                  'Today_Change', 'Yesterday_Change',
                   'Day_Range_Change', 'Threshold_Diff', 'Threshold_Quotient',
                   'Price', 'Change_Average', 'Change_Variance',
                   'Price_Year_Max', 'Price_Year_Min', 'RSI', 'Gain']
     stats = pd.DataFrame(columns=stats_cols)
+    gain_trades, loss_trades = 0, 0
     # Buy on cutoff day, sell on cutoff + 1 day
     for cutoff in range(start_point - 1, end_point):
         current_date = dates[cutoff + 1]
@@ -62,6 +64,10 @@ def simulate(start_date=None, end_date=None):
             gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
             trading_table.append([ticker, '%.2f%%' % (proportion * 100,), '%.2f%%' % (gain * 100,)])
             day_gain += gain * proportion
+            if gain >= 0:
+              gain_trades += 1
+            else:
+              loss_trades += 1
         if trading_table:
             bi_print(tabulate(trading_table, headers=['Symbol', 'Proportion', 'Gain'], tablefmt='grid'), output_detail)
         bi_print('DAILY GAIN: %.2f%%' % (day_gain * 100,), output_detail)
@@ -77,6 +83,9 @@ def simulate(start_date=None, end_date=None):
             t_value = values[current_t][1][-1] * (1 + day_gain)
             values[current_t][1].append(t_value)
         bi_print('TOTAL GAIN: %.2f%%' % ((total_value - 1) * 100,), output_detail)
+        bi_print('# Gain Trades: %d' % (gain_trades,), output_detail)
+        bi_print('# Loss Trades: %d' % (loss_trades,), output_detail)
+        bi_print('Precision: %.2f%%' % (gain_trades / (gain_trades + loss_trades) * 100,), output_detail)
 
     bi_print(get_header('Summary'), output_summary)
     summary_table = [['Time Range', '%s ~ %s' % (dates[start_point].date(), dates[end_point].date())]]
@@ -108,6 +117,15 @@ def simulate(start_date=None, end_date=None):
 
 
 def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
+    stat_values = get_stat_values(buy_symbols, current_date, all_series, cutoff)
+    for stat in stat_values:
+        stats = stats.append(stat, ignore_index=True)
+    return stats
+
+def get_stat_values(buy_symbols, current_date, all_series, cutoff):
+    res = []
+    avg_return_day_rank = 0
+    buy_symbols.sort(reverse=True)
     for _, symbol in buy_symbols:
         series = all_series[symbol]
         _, avg_return, threshold = get_picked_points(series[cutoff - LOOK_BACK_DAY:cutoff])
@@ -123,23 +141,26 @@ def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
                         - series[cutoff - LOOK_BACK_DAY:cutoff])
                        / series[cutoff - LOOK_BACK_DAY:cutoff]) * 100
         rsi = get_rsi(series[cutoff - LOOK_BACK_DAY:cutoff])
-        stats = stats.append({'Symbol': symbol, 'Date': current_date,
-                              'Average_Return': avg_return,
-                              'Threshold': threshold,
-                              'Yesterday_Change': yesterday_change,
-                              'Today_Change': today_change,
-                              'Day_Range_Change': day_range_change,
-                              'Threshold_Diff': day_range_change - threshold,
-                              'Threshold_Quotient': day_range_change / threshold,
-                              'Price': price,
-                              'Change_Average': np.mean(all_changes),
-                              'Change_Variance': np.var(all_changes),
-                              'Price_Year_Max': np.max(series[cutoff - LOOK_BACK_DAY:cutoff]),
-                              'Price_Year_Min': np.min(series[cutoff - LOOK_BACK_DAY:cutoff]),
-                              'RSI': rsi,
-                              'Gain': gain * 100},
-                             ignore_index=True)
-    return stats
+        avg_return_day_rank += 1
+        stat = {'Symbol': symbol, 'Date': current_date,
+                'Average_Return': avg_return,
+                'Threshold': threshold,
+                'Yesterday_Change': yesterday_change,
+                'Today_Change': today_change,
+                'Day_Range_Change': day_range_change,
+                'Threshold_Diff': day_range_change - threshold,
+                'Threshold_Quotient': day_range_change / threshold,
+                'Price': price,
+                'Change_Average': np.mean(all_changes),
+                'Change_Variance': np.var(all_changes),
+                'Price_Year_Max': np.max(series[cutoff - LOOK_BACK_DAY:cutoff]),
+                'Price_Year_Min': np.min(series[cutoff - LOOK_BACK_DAY:cutoff]),
+                'RSI': rsi,
+                'Average_Return_Day_Rank': avg_return_day_rank,
+                'Average_Return_Top_Three': int(avg_return_day_rank <= 3),
+                'Gain': gain * 100}
+        res.append(stat)
+    return res
 
 
 def main():
