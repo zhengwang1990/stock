@@ -7,7 +7,7 @@ from common import *
 from sklearn.model_selection import train_test_split
 from tabulate import tabulate
 
-DATA_FILE = 'simulate_stats0.csv'
+DATA_FILE = 'simulate_stats.csv'
 
 MODELS_DIR = os.path.join(OUTPUTS_DIR, 'models')
 
@@ -46,9 +46,9 @@ def load_data():
 
 
 def precision_favored_loss(y_true, y_pred):
-    fp = K.mean((1 + y_pred) * (1 - y_true))
-    fn = K.mean((1 - y_pred) * (1 + y_true))
-    loss = K.pow(fp, 3) + K.pow(fn, 2)
+    fp = (1 + y_pred) * (1 - y_true)
+    fn = (1 - y_pred) * (1 + y_true)
+    loss = K.mean(2 * K.pow(fp, 3) + K.pow(fn, 3))
     return loss
 
 
@@ -57,10 +57,10 @@ def get_model():
     x_dim = len(df.columns) - 3
     model = keras.Sequential([
         keras.layers.Input(shape=(x_dim,)),
-        keras.layers.Dense(40, activation='relu',
+        keras.layers.Dense(20, activation='relu',
                            input_shape=(x_dim,)),
         keras.layers.Dense(100, activation='relu'),
-        keras.layers.Dense(40, activation='relu'),
+        keras.layers.Dense(20, activation='relu'),
         keras.layers.Dense(1, activation='tanh')
     ])
     model.compile(optimizer='adam', loss=precision_favored_loss)
@@ -68,10 +68,12 @@ def get_model():
     return model
 
 
-def train_model(x, y, model):
+def train_model(x_train, x_test, y_train, y_test, model):
     early_stopping = keras.callbacks.EarlyStopping(
-        monitor='loss', patience=10, restore_best_weights=True)
-    model.fit(x, y, epochs=100, callbacks=[early_stopping])
+        monitor='val_loss', patience=10, restore_best_weights=True)
+    model.fit(x_train, y_train, batch_size=256, epochs=500,
+              validation_data=(x_test, y_test),
+              callbacks=[early_stopping])
     dir_path = os.path.dirname(os.path.realpath(__file__))
     model.save(os.path.join(dir_path, MODELS_DIR, 'model.hdf5'))
 
@@ -104,7 +106,7 @@ def get_measures(p, y, boundary):
     return precision, recall, accuracy
 
 
-def predict(x, y, model):
+def predict(x, y, model, plot=False):
     boundary = 0
     p = model.predict(x)
     #chosen_precision, chosen_recall, chosen_accuracy, chosen_boundary = 0, 0, 0, 0
@@ -124,25 +126,28 @@ def predict(x, y, model):
               ['Model Precision:', precision_model]]
     print(tabulate(output, tablefmt='grid'))
 
-    ind = np.random.choice(len(p), 500)
-    plt.figure()
-    plt.plot(p[ind], y[ind], 'o', markersize=3)
-    plt.xlabel('Predicted')
-    plt.ylabel('Truth')
-    plt.plot([np.min(p), np.max(p)], [0, 0], '--')
-    plt.plot([0, 0], [np.min(y), np.max(y)], '--')
-    plt.plot([boundary_50, boundary_50], [np.min(y), np.max(y)], '--')
-    plt.plot([boundary_90, boundary_90], [np.min(y), np.max(y)], '--')
-    plt.plot([boundary_95, boundary_95], [np.min(y), np.max(y)], '--')
-    plt.show()
+    if plot:
+      plt.figure()
+      plt.plot(p, y, 'o', markersize=3)
+      plt.xlabel('Predicted')
+      plt.ylabel('Truth')
+      plt.plot([np.min(p), np.max(p)], [0, 0], '--')
+      plt.plot([0, 0], [np.min(y), np.max(y)], '--')
+      plt.plot([boundary_50, boundary_50], [np.min(y), np.max(y)], '--')
+      plt.plot([boundary_90, boundary_90], [np.min(y), np.max(y)], '--')
+      plt.plot([boundary_95, boundary_95], [np.min(y), np.max(y)], '--')
+      plt.show()
 
 
 def main():
     x_train, x_test, y_train, y_test = load_data()
     model = get_model()
-    train_model(x_train, y_train, model)
+    train_model(x_train, x_test, y_train, y_test, model)
     #model = load_model('model_precision_630958.hdf5')
-    predict(x_test, y_test, model)
+    print(get_header('Training Split'))
+    predict(x_train, y_train, model)
+    print(get_header('Testing Split'))
+    predict(x_test, y_test, model, plot=True)
 
 
 if __name__ == '__main__':
