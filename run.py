@@ -97,7 +97,7 @@ class Trading(object):
             buy_symbols = []
             for ticker in self.ordered_symbols:
                 series = self.all_series[ticker]
-                is_buy = self.prices[ticker] < series[-1] and self.down_percents[ticker] > self.thresholds[ticker]
+                is_buy = self.prices[ticker] < series[-1] and self.down_percents[ticker] > self.thresholds[ticker] > 0
                 if is_buy:
                     buy_symbols.append((self.avg_returns[ticker], ticker))
             trading_list = get_trading_list(buy_symbols)

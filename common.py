@@ -85,7 +85,7 @@ def get_buy_signal(series, price):
         return 0, False
     _, avg_return, threshold = get_picked_points(series)
     down_percent = (np.max(series[-DATE_RANGE:]) - price) / np.max(series[-DATE_RANGE:])
-    return avg_return, down_percent > threshold
+    return avg_return, down_percent > threshold > 0
 
 
 def get_all_symbols():

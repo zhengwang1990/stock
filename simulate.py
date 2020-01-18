@@ -43,8 +43,10 @@ def simulate(start_date=None, end_date=None):
         end_point -= 1
     values = {'Total': ([dates[start_point - 1]], [1.0])}
     stats_cols = ['Symbol', 'Date', 'Average_Return', 'Threshold', 'Today_Change',
+                  'Yesterday_Change',
                   'Day_Range_Change', 'Threshold_Diff', 'Threshold_Quotient',
-                  'Price', 'Variance', 'Price_Year_Max', 'Price_Year_Min', 'RSI', 'Gain']
+                  'Price', 'Change_Average', 'Change_Variance',
+                  'Price_Year_Max', 'Price_Year_Min', 'RSI', 'Gain']
     stats = pd.DataFrame(columns=stats_cols)
     # Buy on cutoff day, sell on cutoff + 1 day
     for cutoff in range(start_point - 1, end_point):
@@ -109,22 +111,29 @@ def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
     for _, symbol in buy_symbols:
         series = all_series[symbol]
         _, avg_return, threshold = get_picked_points(series[cutoff - LOOK_BACK_DAY:cutoff])
+        avg_return *= 100
+        threshold *= 100
         day_range_max = np.max(series[cutoff - DATE_RANGE:cutoff])
         price = series[cutoff]
-        day_range_change = (day_range_max - price) / day_range_max
-        today_change = (series[cutoff - 1] - price) / series[cutoff - 1]
+        day_range_change = (day_range_max - price) / day_range_max * 100
+        today_change = (series[cutoff - 1] - price) / series[cutoff - 1] * 100
+        yesterday_change = (series[cutoff - 2] - series[cutoff - 1]) / series[cutoff - 2] * 100
         gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
         all_changes = ((series[cutoff - LOOK_BACK_DAY + 1:cutoff + 1]
                         - series[cutoff - LOOK_BACK_DAY:cutoff])
                        / series[cutoff - LOOK_BACK_DAY:cutoff]) * 100
         rsi = get_rsi(series[cutoff - LOOK_BACK_DAY:cutoff])
-        stats = stats.append({'Symbol': symbol, 'Date': current_date, 'Average_Return': avg_return * 100,
-                              'Threshold': threshold * 100, 'Today_Change': today_change * 100,
-                              'Day_Range_Change': day_range_change * 100,
-                              'Threshold_Diff': (day_range_change - threshold) * 100,
+        stats = stats.append({'Symbol': symbol, 'Date': current_date,
+                              'Average_Return': avg_return,
+                              'Threshold': threshold,
+                              'Yesterday_Change': yesterday_change,
+                              'Today_Change': today_change,
+                              'Day_Range_Change': day_range_change,
+                              'Threshold_Diff': day_range_change - threshold,
                               'Threshold_Quotient': day_range_change / threshold,
                               'Price': price,
-                              'Variance': np.var(all_changes),
+                              'Change_Average': np.mean(all_changes),
+                              'Change_Variance': np.var(all_changes),
                               'Price_Year_Max': np.max(series[cutoff - LOOK_BACK_DAY:cutoff]),
                               'Price_Year_Min': np.min(series[cutoff - LOOK_BACK_DAY:cutoff]),
                               'RSI': rsi,
