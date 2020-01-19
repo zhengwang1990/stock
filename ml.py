@@ -110,19 +110,20 @@ def predict(x, y, model, plot=False):
     p = model.predict(x)
     #chosen_precision, chosen_recall, chosen_accuracy, chosen_boundary = 0, 0, 0, 0
     #for boundary in tqdm(np.arange(np.min(p), np.max(p), 0.001), ncols=80):
-    boundary_50 = np.percentile(p, 50)
+    boundary_70 = np.percentile(p, 70)
     boundary_90 = np.percentile(p, 90)
     boundary_95 = np.percentile(p, 95)
-    precision_50, recall_50, accuracy_50 = get_measures(p, y, boundary_50)
+    precision_70, recall_70, accuracy_70 = get_measures(p, y, boundary_70)
     precision_90, recall_90, accuracy_90 = get_measures(p, y, boundary_90)
     precision_95, recall_95, accuracy_95 = get_measures(p, y, boundary_95)
     precision_buy_all = len(y[y > 0]) / len(y)
     precision_model, recall_model, accuracy_model = get_measures(p, y, 0)
-    output = [['Precision_50:', precision_50],
+    output = [['Precision_70:', precision_70],
               ['Precision_90:', precision_90],
               ['Precision_95:', precision_95],
               ['Buy All Precision:', precision_buy_all],
               ['Model Precision:', precision_model],
+              ['Boundary_70:', boundary_70],
               ['Boundary_90:', boundary_90]]
     print(tabulate(output, tablefmt='grid'))
 
@@ -133,7 +134,7 @@ def predict(x, y, model, plot=False):
       plt.ylabel('Truth')
       plt.plot([np.min(p), np.max(p)], [0, 0], '--')
       plt.plot([0, 0], [np.min(y), np.max(y)], '--')
-      plt.plot([boundary_50, boundary_50], [np.min(y), np.max(y)], '--')
+      plt.plot([boundary_70, boundary_70], [np.min(y), np.max(y)], '--')
       plt.plot([boundary_90, boundary_90], [np.min(y), np.max(y)], '--')
       plt.plot([boundary_95, boundary_95], [np.min(y), np.max(y)], '--')
       plt.show()
