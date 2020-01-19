@@ -200,7 +200,7 @@ def get_buy_symbols(all_series, prices, cutoff=None, model=None):
         ml_feature = get_ml_feature(series_year, price, rankings)
         if model:
             x = [ml_feature[key] for key in ML_FEATURES]
-            weight = model.predict(np.array([x]))[0] + 0.05
+            weight = model.predict(np.array([x]))[0] + 0.0513861
         else:
             weight = tuple[1]
         buy_symbols.append((ticker, weight, ml_feature))
