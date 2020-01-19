@@ -19,6 +19,7 @@ LOOK_BACK_DAY = 250
 CACHE_DIR = 'cache'
 DATA_DIR = 'data'
 OUTPUTS_DIR = 'outputs'
+MODELS_DIR = 'models'
 MAX_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 3
 GARBAGE_FILTER_THRESHOLD = 0.5
@@ -167,7 +168,7 @@ def get_header(title):
     return header_left + '=' * (80 - len(header_left))
 
 
-def get_buy_symbols(all_series, prices, cutoff=None, ml_model=None):
+def get_buy_symbols(all_series, prices, cutoff=None, model=None):
     buy_infos = []
     for ticker, series in tqdm(all_series.items(), ncols=80, leave=False, file=sys.stdout):
         if not cutoff:
@@ -196,17 +197,17 @@ def get_buy_symbols(all_series, prices, cutoff=None, ml_model=None):
             series_year = all_series[ticker][cutoff - LOOK_BACK_DAY:cutoff]
         price = prices[ticker]
         rankings = {'Average_Return': avg_return_ranking[ticker]}
-        ml_feature = get_ml_feature(ticker, series_year, price, rankings)
-        if ml_model:
+        ml_feature = get_ml_feature(series_year, price, rankings)
+        if model:
             x = [ml_feature[key] for key in ML_FEATURES]
-            weight = ml_model.predict(np.array([x]))[0]
+            weight = model.predict(np.array([x]))[0]
         else:
             weight = tuple[1]
         buy_symbols.append((ticker, weight, ml_feature))
     return buy_symbols
 
 
-def get_ml_feature(ticker, series, price, rankings):
+def get_ml_feature(series, price, rankings):
     _, avg_return, threshold = get_picked_points(series)
     avg_return *= 100
     threshold *= 100
@@ -236,7 +237,7 @@ def get_ml_feature(ticker, series, price, rankings):
 
 
 def get_trading_list(buy_symbols):
-    buy_symbols.sort(key=lambda s:s[1], reverse=True)
+    buy_symbols.sort(key=lambda s: s[1], reverse=True)
     n_symbols = 0
     while n_symbols < min(MAX_STOCK_PICK, len(buy_symbols)) and buy_symbols[n_symbols][1] >= 0:
         n_symbols += 1

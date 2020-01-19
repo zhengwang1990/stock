@@ -1,4 +1,5 @@
 import argparse
+import ml
 import threading
 import time
 from common import *
@@ -7,9 +8,10 @@ from tabulate import tabulate
 
 class Trading(object):
 
-    def __init__(self, fund):
+    def __init__(self, fund=None, model_name=''):
         self.active = True
         self.fund = fund
+        self.model = ml.load_model(model_name) if model_name else None
         self.lock = threading.RLock()
         self.all_series = filter_low_volume_series(
             filter_garbage_series(get_all_series(MAX_HISTORY_LOAD)))
@@ -56,17 +58,17 @@ class Trading(object):
         threads = []
         with futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as pool:
             for ticker in tickers:
-                 if not self.active:
-                     return
-                 t = pool.submit(get_real_time_price, ticker)
-                 threads.append(t)
+                if not self.active:
+                    return
+                t = pool.submit(get_real_time_price, ticker)
+                threads.append(t)
             iterator = tqdm(threads, ncols=80) if use_tqdm else threads
             for t in iterator:
-                 if not self.active:
-                     return
-                 ticker, price = t.result()
-                 if price:
-                     self.prices[ticker] = price
+                if not self.active:
+                    return
+                ticker, price = t.result()
+                if price:
+                    self.prices[ticker] = price
         with self.lock:
             with open(self.price_cache_file, 'w') as f:
                 f.write(json.dumps(self.prices))
@@ -80,7 +82,6 @@ class Trading(object):
             price = self.prices[ticker]
             down_percent = (np.max(series[-DATE_RANGE:]) - price) / np.max(series[-DATE_RANGE:])
             self.down_percents[ticker] = down_percent
-            threshold = self.thresholds[ticker]
             tmp_ordered_symbols.append(ticker)
         tmp_ordered_symbols.sort(
             key=lambda ticker: min(np.abs(self.down_percents[ticker] - self.thresholds[ticker]),
@@ -96,14 +97,16 @@ class Trading(object):
         while get_time_now() < 16:
             buy_symbols = get_buy_symbols(self.all_series, self.prices)
             trading_list = get_trading_list(buy_symbols)
-            today_change_list = {ticker: (self.prices[ticker] - self.all_series[ticker][-1]) / self.all_series[ticker][-1]
-                                 for ticker, _ in trading_list}
+            today_change_list = {
+                ticker: (self.prices[ticker] - self.all_series[ticker][-1]) / self.all_series[ticker][-1]
+                for ticker, _ in trading_list}
             bi_print(get_header(datetime.datetime.now().strftime('%H:%M:%S')), output_file)
-            print_trading_list(trading_list, self.prices, today_change_list, self.down_percents, self.thresholds, self.fund, output_file)
+            print_trading_list(trading_list, self.prices, today_change_list, self.down_percents, self.thresholds,
+                               self.fund, output_file)
             bi_print('Last updates: %s' % (
                 [second_to_string(update_freq) + ': ' + update_time.strftime('%H:%M:%S')
                  for update_freq, update_time in
-                 sorted(self.last_updates.items(), key=lambda t:t[0])],), output_file)
+                 sorted(self.last_updates.items(), key=lambda t: t[0])],), output_file)
             time.sleep(100)
         self.active = False
         time.sleep(1)
@@ -124,18 +127,20 @@ def _get_real_time_price_from_yahoo(ticker):
     return ticker, price
 
 
-def get_static_trading_table(fund=None):
+def get_static_trading_table(fund=None, model_name=None):
     """"Gets stock symbols to buy from previous close."""
+    model = ml.load_model(model_name) if model_name else None
     all_series = filter_low_volume_series(
         filter_garbage_series(get_all_series(MAX_HISTORY_LOAD)))
     price_list = {ticker: series[-1] for ticker, series in all_series.items()}
-    buy_symbols = get_buy_symbols(all_series, price_list, cutoff=-1)
+    buy_symbols = get_buy_symbols(all_series, price_list, cutoff=-1, model=model)
     trading_list = get_trading_list(buy_symbols)
     today_change_list = {ticker: (all_series[ticker][-1] - all_series[ticker][-2]) / all_series[ticker][-2]
                          for ticker, _ in trading_list}
-    down_percent_list = {ticker: (np.max(all_series[ticker][-1-DATE_RANGE:-1]) - all_series[ticker][-1]) / np.max(all_series[ticker][-1-DATE_RANGE:-1])
+    down_percent_list = {ticker: (np.max(all_series[ticker][-1 - DATE_RANGE:-1]) - all_series[ticker][-1]) / np.max(
+        all_series[ticker][-1 - DATE_RANGE:-1])
                          for ticker, _ in trading_list}
-    threshold_list = {ticker: get_picked_points(all_series[ticker][-1-LOOK_BACK_DAY:-1])[2]
+    threshold_list = {ticker: get_picked_points(all_series[ticker][-1 - LOOK_BACK_DAY:-1])[2]
                       for ticker, _ in trading_list}
     print_trading_list(trading_list, price_list, today_change_list, down_percent_list, threshold_list, fund)
 
@@ -187,12 +192,13 @@ def main():
     parser = argparse.ArgumentParser(description='Stock trading strategy.')
     parser.add_argument('--fund', default=None, help='Total fund to trade.')
     parser.add_argument('--mode', default='live', choices=['live', 'static'], help='Mode to run.')
+    parser.add_argument('--model', default='model_p739534.hdf5', help='Machine learning model for prediction.')
     args = parser.parse_args()
     fund = float(args.fund) if args.fund else None
     if args.mode == 'live':
-        get_live_trading_table(fund)
+        get_live_trading_table(fund, args.model)
     elif args.mode == 'static':
-        get_static_trading_table(fund)
+        get_static_trading_table(fund, args.model)
     else:
         raise Exception('Unknown mode')
 

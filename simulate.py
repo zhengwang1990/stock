@@ -1,15 +1,16 @@
 import argparse
 import matplotlib.pyplot as plt
+import ml
 from common import *
 from tabulate import tabulate
 
 
-
-def simulate(start_date=None, end_date=None):
+def simulate(start_date=None, end_date=None, model_name=None):
     """Simulates trading operations and outputs gains."""
     file_dir = os.path.dirname(os.path.realpath(__file__))
     output_detail = open(os.path.join(file_dir, OUTPUTS_DIR, 'simulate_detail.txt'), 'w')
     output_summary = open(os.path.join(file_dir, OUTPUTS_DIR, 'simulate_summary.txt'), 'w')
+    model = ml.load_model(model_name) if model_name else None
 
     dates = get_series_dates(MAX_HISTORY_LOAD)
     series_length = len(dates)
@@ -34,7 +35,7 @@ def simulate(start_date=None, end_date=None):
         current_date = dates[cutoff + 1]
         bi_print(get_header(current_date.date()), output_detail)
         prices = {ticker: series[cutoff] for ticker, series in all_series.items()}
-        buy_symbols = get_buy_symbols(all_series, prices, cutoff=cutoff)
+        buy_symbols = get_buy_symbols(all_series, prices, cutoff=cutoff, model=model)
         stats = append_stats(stats, buy_symbols, current_date, all_series, cutoff)
         trading_list = get_trading_list(buy_symbols)
         trading_table = []
@@ -45,9 +46,9 @@ def simulate(start_date=None, end_date=None):
             trading_table.append([ticker, '%.2f%%' % (proportion * 100,), '%.2f%%' % (gain * 100,)])
             day_gain += gain * proportion
             if gain >= 0:
-              gain_trades += 1
+                gain_trades += 1
             else:
-              loss_trades += 1
+                loss_trades += 1
         if trading_table:
             bi_print(tabulate(trading_table, headers=['Symbol', 'Proportion', 'Gain'], tablefmt='grid'), output_detail)
         total_value = values['Total'][1][-1] * (1 + day_gain)
@@ -100,7 +101,7 @@ def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
         stat_value = ml_feature
         stat_value['Symbol'] = symbol
         stat_value['Date'] = current_date
-        stat_value['Gain'] = (series[cutoff + 1] - series[cutoff]) /  series[cutoff] * 100
+        stat_value['Gain'] = (series[cutoff + 1] - series[cutoff]) / series[cutoff] * 100
         stats = stats.append(stat_value, ignore_index=True)
     return stats
 
@@ -109,8 +110,9 @@ def main():
     parser = argparse.ArgumentParser(description='Stock trading strategy.')
     parser.add_argument('--start_date', default=None, help='Start date of the simulation.')
     parser.add_argument('--end_date', default=None, help='End date of the simulation.')
+    parser.add_argument('--model', default='model_p739534.hdf5', help='Machine learning model for prediction.')
     args = parser.parse_args()
-    simulate(args.start_date, args.end_date)
+    simulate(args.start_date, args.end_date, args.model)
 
 
 if __name__ == '__main__':
