@@ -23,7 +23,7 @@ MODELS_DIR = 'models'
 MAX_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 3
 GARBAGE_FILTER_THRESHOLD = 0.5
-VOLUME_FILTER_THRESHOLD = 10000
+VOLUME_FILTER_THRESHOLD = 100000
 MAX_THREADS = 5
 # These stocks are de-listed
 EXCLUSIONS = ('ACTTW', 'ALACW', 'BNTCW', 'CBO', 'CBX', 'CTEST', 'FTACW', 'IBO', 'TACOW', 'ZNWAA', 'ZTEST')
@@ -186,7 +186,7 @@ def get_buy_symbols(all_series, prices, cutoff=None, model=None):
 
     avg_return_ranking = {tuple[0]: rank + 1
                           for rank, tuple
-                          in enumerate(sorted(buy_infos, key=lambda s:s[1], reverse=True))}
+                          in enumerate(sorted(buy_infos, key=lambda s: s[1], reverse=True))}
 
     buy_symbols = []
     for tuple in buy_infos:
@@ -200,6 +200,7 @@ def get_buy_symbols(all_series, prices, cutoff=None, model=None):
         ml_feature = get_ml_feature(series_year, price, rankings)
         if model:
             x = [ml_feature[key] for key in ML_FEATURES]
+            # 90% boundary
             weight = model.predict(np.array([x]))[0] + 0.0513861
         else:
             weight = tuple[1]

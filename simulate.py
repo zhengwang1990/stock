@@ -64,7 +64,7 @@ def simulate(start_date=None, end_date=None, model_name=None):
             values[current_t][1].append(t_value)
         bi_print('DAILY GAIN: %.2f%%, TOTAL GAIN: %.2f%%' % (day_gain * 100, (total_value - 1) * 100), output_detail)
         bi_print('NUM GAIN TRADES: %d, NUM LOSS TRADES: %d, PRECISION: %.2f%%' % (
-            gain_trades, loss_trades, gain_trades / (gain_trades + loss_trades) * 100), output_detail)
+            gain_trades, loss_trades, gain_trades / (gain_trades + loss_trades + 1E-7) * 100), output_detail)
 
     bi_print(get_header('Summary'), output_summary)
     summary_table = [['Time Range', '%s ~ %s' % (dates[start_point].date(), dates[end_point].date())]]
