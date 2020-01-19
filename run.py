@@ -149,8 +149,8 @@ def print_trading_list(trading_list, price_list, today_change_list, down_percent
                        fund=None, output_file=None):
     trading_table = []
     cost = 0
-    for ticker, proportion in trading_list:
-        trading_row = [ticker, '%.2f%%' % (proportion * 100,)]
+    for ticker, proportion, weight in trading_list:
+        trading_row = [ticker, '%.2f%%' % (proportion * 100,), weight]
         price = price_list[ticker]
         change = today_change_list[ticker]
         trading_row.extend(['%.2f%%' % (change * 100,),
@@ -163,7 +163,7 @@ def print_trading_list(trading_list, price_list, today_change_list, down_percent
             cost += share_cost
             trading_row.extend([share_cost, n_shares])
         trading_table.append(trading_row)
-    headers = ['Symbol', 'Proportion', 'Today Change', '%d Day Change' % (DATE_RANGE,), 'Threshold', 'Price']
+    headers = ['Symbol', 'Proportion', 'Weight', 'Today Change', '%d Day Change' % (DATE_RANGE,), 'Threshold', 'Price']
     if fund:
         headers.extend(['Cost', 'Quantity'])
     if trading_table:

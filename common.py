@@ -239,7 +239,7 @@ def get_ml_feature(series, price, rankings):
 def get_trading_list(buy_symbols):
     buy_symbols.sort(key=lambda s: s[1], reverse=True)
     n_symbols = 0
-    while n_symbols < min(MAX_STOCK_PICK, len(buy_symbols)) and buy_symbols[n_symbols][1] >= 0:
+    while n_symbols < min(MAX_STOCK_PICK, len(buy_symbols)) and buy_symbols[n_symbols][1] > 0:
         n_symbols += 1
     ac = 0
     for i in range(n_symbols):
@@ -247,9 +247,10 @@ def get_trading_list(buy_symbols):
     trading_list = []
     common_share = 0.75
     for i in range(n_symbols):
-        proportion = common_share / n_symbols + (1 - common_share) * buy_symbols[i][1] / ac
         ticker = buy_symbols[i][0]
-        trading_list.append((ticker, proportion))
+        weight = buy_symbols[i][1]
+        proportion = common_share / n_symbols + (1 - common_share) * weight / ac
+        trading_list.append((ticker, proportion, weight))
     return trading_list
 
 

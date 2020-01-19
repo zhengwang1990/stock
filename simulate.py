@@ -40,17 +40,17 @@ def simulate(start_date=None, end_date=None, model_name=None):
         trading_list = get_trading_list(buy_symbols)
         trading_table = []
         day_gain = 0
-        for ticker, proportion in trading_list:
+        for ticker, proportion, weight in trading_list:
             series = all_series[ticker]
             gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
-            trading_table.append([ticker, '%.2f%%' % (proportion * 100,), '%.2f%%' % (gain * 100,)])
+            trading_table.append([ticker, '%.2f%%' % (proportion * 100,), weight, '%.2f%%' % (gain * 100,)])
             day_gain += gain * proportion
             if gain >= 0:
                 gain_trades += 1
             else:
                 loss_trades += 1
         if trading_table:
-            bi_print(tabulate(trading_table, headers=['Symbol', 'Proportion', 'Gain'], tablefmt='grid'), output_detail)
+            bi_print(tabulate(trading_table, headers=['Symbol', 'Proportion', 'Weight', 'Gain'], tablefmt='grid'), output_detail)
         total_value = values['Total'][1][-1] * (1 + day_gain)
         values['Total'][0].append(current_date)
         values['Total'][1].append(total_value)
