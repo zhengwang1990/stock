@@ -1,5 +1,6 @@
 cache/*
 outputs/*
+models/*
 __pycache__
 stock.egg-info
 cron.sh

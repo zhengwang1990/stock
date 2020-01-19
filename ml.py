@@ -7,9 +7,9 @@ from common import *
 from sklearn.model_selection import train_test_split
 from tabulate import tabulate
 
-DATA_FILE = 'simulate_stats0.csv'
+DATA_FILE = 'simulate_stats.csv'
 
-MODELS_DIR = os.path.join(OUTPUTS_DIR, 'models')
+MODELS_DIR = 'models'
 
 def read_df():
     dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -142,9 +142,9 @@ def predict(x, y, model, plot=False):
 
 def train_once():
     x_train, x_test, y_train, y_test = load_data()
-    #model = get_model()
-    #train_model(x_train, x_test, y_train, y_test, model)
-    model = load_model('model_p716887.hdf5')
+    model = get_model()
+    train_model(x_train, x_test, y_train, y_test, model)
+    #model = load_model('model_p716887.hdf5')
     print(get_header('Training Split'))
     predict(x_train, y_train, model)
     print(get_header('Testing Split'))
@@ -167,6 +167,7 @@ def train_loop():
 
 def main():
     train_loop()
+    #train_once()
 
 
 if __name__ == '__main__':
