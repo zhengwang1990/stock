@@ -41,6 +41,8 @@ def simulate(start_date=None, end_date=None, model_name=None):
         trading_table = []
         day_gain = 0
         for ticker, proportion, weight in trading_list:
+            if proportion == 0:
+                continue
             series = all_series[ticker]
             gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
             trading_table.append([ticker, '%.2f%%' % (proportion * 100,), weight, '%.2f%%' % (gain * 100,)])

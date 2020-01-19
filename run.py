@@ -95,11 +95,11 @@ class Trading(object):
         output_path = os.path.join(dir_path, OUTPUTS_DIR, get_business_day(0) + '.txt')
         output_file = open(output_path, 'a')
         while get_time_now() < 16:
-            buy_symbols = get_buy_symbols(self.all_series, self.prices)
+            buy_symbols = get_buy_symbols(self.all_series, self.prices, model=self.model)
             trading_list = get_trading_list(buy_symbols)
             today_change_list = {
                 ticker: (self.prices[ticker] - self.all_series[ticker][-1]) / self.all_series[ticker][-1]
-                for ticker, _ in trading_list}
+                for ticker, _, _ in trading_list}
             bi_print(get_header(datetime.datetime.now().strftime('%H:%M:%S')), output_file)
             print_trading_list(trading_list, self.prices, today_change_list, self.down_percents, self.thresholds,
                                self.fund, output_file)
@@ -136,12 +136,12 @@ def get_static_trading_table(fund=None, model_name=None):
     buy_symbols = get_buy_symbols(all_series, price_list, cutoff=-1, model=model)
     trading_list = get_trading_list(buy_symbols)
     today_change_list = {ticker: (all_series[ticker][-1] - all_series[ticker][-2]) / all_series[ticker][-2]
-                         for ticker, _ in trading_list}
+                         for ticker, _, _ in trading_list}
     down_percent_list = {ticker: (np.max(all_series[ticker][-1 - DATE_RANGE:-1]) - all_series[ticker][-1]) / np.max(
         all_series[ticker][-1 - DATE_RANGE:-1])
-                         for ticker, _ in trading_list}
+                         for ticker, _, _ in trading_list}
     threshold_list = {ticker: get_picked_points(all_series[ticker][-1 - LOOK_BACK_DAY:-1])[2]
-                      for ticker, _ in trading_list}
+                      for ticker, _, _ in trading_list}
     print_trading_list(trading_list, price_list, today_change_list, down_percent_list, threshold_list, fund)
 
 
@@ -149,7 +149,12 @@ def print_trading_list(trading_list, price_list, today_change_list, down_percent
                        fund=None, output_file=None):
     trading_table = []
     cost = 0
+    max_non_buy_print = 3
     for ticker, proportion, weight in trading_list:
+        if proportion == 0:
+            max_non_buy_print -= 1
+            if max_non_buy_print < 0:
+                continue
         trading_row = [ticker, '%.2f%%' % (proportion * 100,), weight]
         price = price_list[ticker]
         change = today_change_list[ticker]
@@ -173,12 +178,6 @@ def print_trading_list(trading_list, price_list, today_change_list, down_percent
             bi_print('Actual Cost: %.2f' % (cost,), output_file)
 
 
-def get_live_trading_table(fund=None):
-    """"Gets stock symbols to buy from previous close."""
-    trading = Trading(fund)
-    trading.run()
-
-
 def second_to_string(secs):
     if secs < 60:
         return str(secs) + 's'
@@ -196,7 +195,8 @@ def main():
     args = parser.parse_args()
     fund = float(args.fund) if args.fund else None
     if args.mode == 'live':
-        get_live_trading_table(fund, args.model)
+        trading = Trading(fund, args.model)
+        trading.run()
     elif args.mode == 'static':
         get_static_trading_table(fund, args.model)
     else:

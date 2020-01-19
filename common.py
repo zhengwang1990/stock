@@ -247,10 +247,13 @@ def get_trading_list(buy_symbols):
         ac += buy_symbols[i][1]
     trading_list = []
     common_share = 0.75
-    for i in range(n_symbols):
+    for i in range(len(buy_symbols)):
         ticker = buy_symbols[i][0]
         weight = buy_symbols[i][1]
-        proportion = common_share / n_symbols + (1 - common_share) * weight / ac
+        if i < n_symbols:
+            proportion = common_share / n_symbols + (1 - common_share) * weight / ac
+        else:
+            proportion = 0
         trading_list.append((ticker, proportion, weight))
     return trading_list
 
