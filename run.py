@@ -84,7 +84,7 @@ class Trading(object):
             tmp_ordered_symbols.append(ticker)
         tmp_ordered_symbols.sort(
             key=lambda ticker: min(np.abs(self.down_percents[ticker] - self.thresholds[ticker]),
-                                   np.abs((self.all_series[ticker][-1] - price) / self.all_series[ticker][-1])
+                                   np.abs((price - self.all_series[ticker][-1]) / self.all_series[ticker][-1])
                                    + float(self.down_percents[ticker] < self.thresholds[ticker])))
         with self.lock:
             self.ordered_symbols = tmp_ordered_symbols
@@ -94,15 +94,12 @@ class Trading(object):
         output_path = os.path.join(dir_path, OUTPUTS_DIR, get_business_day(0) + '.txt')
         output_file = open(output_path, 'a')
         while get_time_now() < 16:
-            buy_symbols = []
-            for ticker in self.ordered_symbols:
-                series = self.all_series[ticker]
-                is_buy = self.prices[ticker] < series[-1] and self.down_percents[ticker] > self.thresholds[ticker] > 0
-                if is_buy:
-                    buy_symbols.append((self.avg_returns[ticker], ticker))
+            buy_symbols = get_buy_symbols(self.all_series, self.prices)
             trading_list = get_trading_list(buy_symbols)
+            today_change_list = {ticker: (self.prices[ticker] - self.all_series[ticker][-1]) / self.all_series[ticker][-1]
+                                 for ticker, _ in trading_list}
             bi_print(get_header(datetime.datetime.now().strftime('%H:%M:%S')), output_file)
-            print_trading_list(trading_list, self.prices, self.down_percents, self.thresholds, self.all_series, self.fund, output_file)
+            print_trading_list(trading_list, self.prices, today_change_list, self.down_percents, self.thresholds, self.fund, output_file)
             bi_print('Last updates: %s' % (
                 [second_to_string(update_freq) + ': ' + update_time.strftime('%H:%M:%S')
                  for update_freq, update_time in
@@ -131,23 +128,26 @@ def get_static_trading_table(fund=None):
     """"Gets stock symbols to buy from previous close."""
     all_series = filter_low_volume_series(
         filter_garbage_series(get_all_series(MAX_HISTORY_LOAD)))
-    buy_symbols = get_buy_symbols(all_series, -1)
+    price_list = {ticker: series[-1] for ticker, series in all_series.items()}
+    buy_symbols = get_buy_symbols(all_series, price_list, cutoff=-1)
     trading_list = get_trading_list(buy_symbols)
-    price_list = {ticker: all_series[ticker][-1] for ticker, _ in trading_list}
+    today_change_list = {ticker: (all_series[ticker][-1] - all_series[ticker][-2]) / all_series[ticker][-2]
+                         for ticker, _ in trading_list}
     down_percent_list = {ticker: (np.max(all_series[ticker][-1-DATE_RANGE:-1]) - all_series[ticker][-1]) / np.max(all_series[ticker][-1-DATE_RANGE:-1])
                          for ticker, _ in trading_list}
-    threshold_list = {ticker: get_picked_points(all_series[ticker][-1-LOOK_BACK_DAY:-1])[2] for ticker, _ in trading_list}
-    print_trading_list(trading_list, price_list, down_percent_list, threshold_list, all_series, fund)
+    threshold_list = {ticker: get_picked_points(all_series[ticker][-1-LOOK_BACK_DAY:-1])[2]
+                      for ticker, _ in trading_list}
+    print_trading_list(trading_list, price_list, today_change_list, down_percent_list, threshold_list, fund)
 
 
-def print_trading_list(trading_list, price_list, down_percent_list, threshold_list, all_series,
+def print_trading_list(trading_list, price_list, today_change_list, down_percent_list, threshold_list,
                        fund=None, output_file=None):
     trading_table = []
     cost = 0
     for ticker, proportion in trading_list:
         trading_row = [ticker, '%.2f%%' % (proportion * 100,)]
         price = price_list[ticker]
-        change = (price - all_series[ticker][-1]) / all_series[ticker][-1]
+        change = today_change_list[ticker]
         trading_row.extend(['%.2f%%' % (change * 100,),
                             '%.2f%%' % (-down_percent_list[ticker] * 100,),
                             '%.2f%%' % (-threshold_list[ticker] * 100,), price])

@@ -26,6 +26,12 @@ VOLUME_FILTER_THRESHOLD = 10000
 MAX_THREADS = 5
 # These stocks are de-listed
 EXCLUSIONS = ('ACTTW', 'ALACW', 'BNTCW', 'CBO', 'CBX', 'CTEST', 'FTACW', 'IBO', 'TACOW', 'ZNWAA', 'ZTEST')
+ML_FEATURES = ['Average_Return', 'Threshold',
+               'Average_Return_Day_Rank', 'Average_Return_Top_Three',
+               'Today_Change', 'Yesterday_Change',
+               'Day_Range_Change', 'Threshold_Diff', 'Threshold_Quotient',
+               'Price', 'Change_Average', 'Change_Variance',
+               'Price_Year_Max', 'Price_Year_Min', 'RSI']
 
 
 def get_time_now():
@@ -56,6 +62,10 @@ def get_series(ticker, time='1y'):
 
 
 def get_picked_points(series):
+    """Gets threshold for best return of a series.
+
+    This function uses full information of the sereis without truncation.
+    """
     down_t = np.array([i + 1 for i in range(DATE_RANGE - 1, len(series) - 1) if series[i] >= series[i + 1]])
     down_percent = [(np.max(series[i - DATE_RANGE:i]) - series[i]) / np.max(series[i - DATE_RANGE:i]) for i in down_t]
     pick_ti = sorted(range(len(down_percent)), key=lambda i: down_percent[i], reverse=True)
@@ -78,14 +88,6 @@ def get_picked_points(series):
     threshold = down_percent[threshold_i]
     pick_t = down_t[pick_ti[:n_pick]]
     return pick_t, max_avg_gain, threshold
-
-
-def get_buy_signal(series, price):
-    if price >= series[-1]:
-        return 0, False
-    _, avg_return, threshold = get_picked_points(series)
-    down_percent = (np.max(series[-DATE_RANGE:]) - price) / np.max(series[-DATE_RANGE:])
-    return avg_return, down_percent > threshold > 0
 
 
 def get_all_symbols():
@@ -165,27 +167,87 @@ def get_header(title):
     return header_left + '=' * (80 - len(header_left))
 
 
-def get_buy_symbols(all_series, cutoff):
-    buy_symbols = []
+def get_buy_symbols(all_series, prices, cutoff=None, ml_model=None):
+    buy_infos = []
     for ticker, series in tqdm(all_series.items(), ncols=80, leave=False, file=sys.stdout):
-        avg_return, is_buy = get_buy_signal(series[cutoff - LOOK_BACK_DAY:cutoff], series[cutoff])
-        if is_buy:
-            buy_symbols.append((avg_return, ticker))
+        if not cutoff:
+            series_year = series[-LOOK_BACK_DAY:]
+        else:
+            series_year = series[cutoff - LOOK_BACK_DAY:cutoff]
+        price = prices[ticker]
+        if price >= series_year[-1]:
+            continue
+        _, avg_return, threshold = get_picked_points(series_year)
+        day_range_max = np.max(series_year[-DATE_RANGE:])
+        down_percent = (day_range_max - price) / day_range_max
+        if down_percent > threshold > 0 and avg_return > 0.01:
+            buy_infos.append((ticker, avg_return))
+
+    avg_return_ranking = {tuple[0]: rank + 1
+                          for rank, tuple
+                          in enumerate(sorted(buy_infos, key=lambda s:s[1], reverse=True))}
+
+    buy_symbols = []
+    for tuple in buy_infos:
+        ticker = tuple[0]
+        if not cutoff:
+            series_year = all_series[ticker][-LOOK_BACK_DAY:]
+        else:
+            series_year = all_series[ticker][cutoff - LOOK_BACK_DAY:cutoff]
+        price = prices[ticker]
+        rankings = {'Average_Return': avg_return_ranking[ticker]}
+        ml_feature = get_ml_feature(ticker, series_year, price, rankings)
+        if ml_model:
+            x = [ml_feature[key] for key in ML_FEATURES]
+            weight = ml_model.predict(np.array([x]))[0]
+        else:
+            weight = tuple[1]
+        buy_symbols.append((ticker, weight, ml_feature))
     return buy_symbols
 
 
+def get_ml_feature(ticker, series, price, rankings):
+    _, avg_return, threshold = get_picked_points(series)
+    avg_return *= 100
+    threshold *= 100
+    day_range_max = np.max(series[-DATE_RANGE:])
+    day_range_change = (day_range_max - price) / day_range_max * 100
+    today_change = (price - series[-1]) / series[-1] * 100
+    yesterday_change = (series[-1] - series[-2]) / series[-2] * 100
+    all_changes = ((series[1:] - series[:-1]) / series[:-1]) * 100
+    rsi = get_rsi(series)
+    avg_return_day_rank = rankings['Average_Return']
+    feature = {'Average_Return': avg_return,
+               'Threshold': threshold,
+               'Yesterday_Change': yesterday_change,
+               'Today_Change': today_change,
+               'Day_Range_Change': day_range_change,
+               'Threshold_Diff': day_range_change - threshold,
+               'Threshold_Quotient': day_range_change / threshold,
+               'Price': price,
+               'Change_Average': np.mean(all_changes),
+               'Change_Variance': np.var(all_changes),
+               'Price_Year_Max': np.max(series),
+               'Price_Year_Min': np.min(series),
+               'RSI': rsi,
+               'Average_Return_Day_Rank': avg_return_day_rank,
+               'Average_Return_Top_Three': int(avg_return_day_rank <= 3)}
+    return feature
+
+
 def get_trading_list(buy_symbols):
-    buy_symbols.sort(reverse=True)
+    buy_symbols.sort(key=lambda s:s[1], reverse=True)
     n_symbols = 0
-    while n_symbols < min(MAX_STOCK_PICK, len(buy_symbols)) and buy_symbols[n_symbols][0] >= 0.01:
+    while n_symbols < min(MAX_STOCK_PICK, len(buy_symbols)) and buy_symbols[n_symbols][1] >= 0:
         n_symbols += 1
     ac = 0
     for i in range(n_symbols):
-        ac += buy_symbols[i][0]
+        ac += buy_symbols[i][1]
     trading_list = []
+    common_share = 0.75
     for i in range(n_symbols):
-        proportion = 0.75 / n_symbols + 0.25 * buy_symbols[i][0] / ac
-        ticker = buy_symbols[i][1]
+        proportion = common_share / n_symbols + (1 - common_share) * buy_symbols[i][1] / ac
+        ticker = buy_symbols[i][0]
         trading_list.append((ticker, proportion))
     return trading_list
 
@@ -218,3 +280,20 @@ def bi_print(message, output_file):
         output_file.write(message)
         output_file.write('\n')
         output_file.flush()
+
+
+def get_rsi(series, n=14):
+    prices = series[-n:]
+    delta = np.diff(prices)
+    up = np.zeros_like(delta)
+    down = np.zeros_like(delta)
+    up[delta > 0] = delta[delta > 0]
+    down[delta < 0] = -delta[delta < 0]
+    avg_up = np.mean(up)
+    avg_down = np.mean(down)
+    if avg_down == 0:
+        rsi = 50.0 if avg_up == 0 else 100
+    else:
+        rs = avg_up / avg_down
+        rsi = 100 - 100 / (1 + rs)
+    return rsi

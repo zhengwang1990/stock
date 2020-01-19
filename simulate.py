@@ -4,22 +4,6 @@ from common import *
 from tabulate import tabulate
 
 
-def get_rsi(series, n=14):
-    prices = series[-n:]
-    delta = np.diff(prices)
-    up = np.zeros_like(delta)
-    down = np.zeros_like(delta)
-    up[delta > 0] = delta[delta > 0]
-    down[delta < 0] = -delta[delta < 0]
-    avg_up = np.mean(up)
-    avg_down = np.mean(down)
-    if avg_down == 0:
-        rsi = 50.0 if avg_up == 0 else 100
-    else:
-        rs = avg_up / avg_down
-        rsi = 100 - 100 / (1 + rs)
-    return rsi
-
 
 def simulate(start_date=None, end_date=None):
     """Simulates trading operations and outputs gains."""
@@ -42,19 +26,15 @@ def simulate(start_date=None, end_date=None):
     while pd.to_datetime(end_date) < dates[end_point]:
         end_point -= 1
     values = {'Total': ([dates[start_point - 1]], [1.0])}
-    stats_cols = ['Symbol', 'Date', 'Average_Return', 'Threshold',
-                  'Average_Return_Day_Rank', 'Average_Return_Top_Three',
-                  'Today_Change', 'Yesterday_Change',
-                  'Day_Range_Change', 'Threshold_Diff', 'Threshold_Quotient',
-                  'Price', 'Change_Average', 'Change_Variance',
-                  'Price_Year_Max', 'Price_Year_Min', 'RSI', 'Gain']
+    stats_cols = ['Symbol', 'Date'] + ML_FEATURES + ['Gain']
     stats = pd.DataFrame(columns=stats_cols)
     gain_trades, loss_trades = 0, 0
     # Buy on cutoff day, sell on cutoff + 1 day
     for cutoff in range(start_point - 1, end_point):
         current_date = dates[cutoff + 1]
         bi_print(get_header(current_date.date()), output_detail)
-        buy_symbols = get_buy_symbols(all_series, cutoff)
+        prices = {ticker: series[cutoff] for ticker, series in all_series.items()}
+        buy_symbols = get_buy_symbols(all_series, prices, cutoff=cutoff)
         stats = append_stats(stats, buy_symbols, current_date, all_series, cutoff)
         trading_list = get_trading_list(buy_symbols)
         trading_table = []
@@ -70,7 +50,6 @@ def simulate(start_date=None, end_date=None):
               loss_trades += 1
         if trading_table:
             bi_print(tabulate(trading_table, headers=['Symbol', 'Proportion', 'Gain'], tablefmt='grid'), output_detail)
-        bi_print('DAILY GAIN: %.2f%%' % (day_gain * 100,), output_detail)
         total_value = values['Total'][1][-1] * (1 + day_gain)
         values['Total'][0].append(current_date)
         values['Total'][1].append(total_value)
@@ -82,10 +61,9 @@ def simulate(start_date=None, end_date=None):
             values[current_t][0].append(current_date)
             t_value = values[current_t][1][-1] * (1 + day_gain)
             values[current_t][1].append(t_value)
-        bi_print('TOTAL GAIN: %.2f%%' % ((total_value - 1) * 100,), output_detail)
-        bi_print('# Gain Trades: %d' % (gain_trades,), output_detail)
-        bi_print('# Loss Trades: %d' % (loss_trades,), output_detail)
-        bi_print('Precision: %.2f%%' % (gain_trades / (gain_trades + loss_trades) * 100,), output_detail)
+        bi_print('DAILY GAIN: %.2f%%, TOTAL GAIN: %.2f%%' % (day_gain * 100, (total_value - 1) * 100), output_detail)
+        bi_print('NUM GAIN TRADES: %d, NUM LOSS TRADES: %d, PRECISION: %.2f%%' % (
+            gain_trades, loss_trades, gain_trades / (gain_trades + loss_trades) * 100), output_detail)
 
     bi_print(get_header('Summary'), output_summary)
     summary_table = [['Time Range', '%s ~ %s' % (dates[start_point].date(), dates[end_point].date())]]
@@ -117,50 +95,14 @@ def simulate(start_date=None, end_date=None):
 
 
 def append_stats(stats, buy_symbols, current_date, all_series, cutoff):
-    stat_values = get_stat_values(buy_symbols, current_date, all_series, cutoff)
-    for stat in stat_values:
-        stats = stats.append(stat, ignore_index=True)
-    return stats
-
-def get_stat_values(buy_symbols, current_date, all_series, cutoff):
-    res = []
-    avg_return_day_rank = 0
-    buy_symbols.sort(reverse=True)
-    for _, symbol in buy_symbols:
+    for symbol, _, ml_feature in buy_symbols:
         series = all_series[symbol]
-        _, avg_return, threshold = get_picked_points(series[cutoff - LOOK_BACK_DAY:cutoff])
-        avg_return *= 100
-        threshold *= 100
-        day_range_max = np.max(series[cutoff - DATE_RANGE:cutoff])
-        price = series[cutoff]
-        day_range_change = (day_range_max - price) / day_range_max * 100
-        today_change = (series[cutoff - 1] - price) / series[cutoff - 1] * 100
-        yesterday_change = (series[cutoff - 2] - series[cutoff - 1]) / series[cutoff - 2] * 100
-        gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
-        all_changes = ((series[cutoff - LOOK_BACK_DAY + 1:cutoff + 1]
-                        - series[cutoff - LOOK_BACK_DAY:cutoff])
-                       / series[cutoff - LOOK_BACK_DAY:cutoff]) * 100
-        rsi = get_rsi(series[cutoff - LOOK_BACK_DAY:cutoff])
-        avg_return_day_rank += 1
-        stat = {'Symbol': symbol, 'Date': current_date,
-                'Average_Return': avg_return,
-                'Threshold': threshold,
-                'Yesterday_Change': yesterday_change,
-                'Today_Change': today_change,
-                'Day_Range_Change': day_range_change,
-                'Threshold_Diff': day_range_change - threshold,
-                'Threshold_Quotient': day_range_change / threshold,
-                'Price': price,
-                'Change_Average': np.mean(all_changes),
-                'Change_Variance': np.var(all_changes),
-                'Price_Year_Max': np.max(series[cutoff - LOOK_BACK_DAY:cutoff]),
-                'Price_Year_Min': np.min(series[cutoff - LOOK_BACK_DAY:cutoff]),
-                'RSI': rsi,
-                'Average_Return_Day_Rank': avg_return_day_rank,
-                'Average_Return_Top_Three': int(avg_return_day_rank <= 3),
-                'Gain': gain * 100}
-        res.append(stat)
-    return res
+        stat_value = ml_feature
+        stat_value['Symbol'] = symbol
+        stat_value['Date'] = current_date
+        stat_value['Gain'] = (series[cutoff + 1] - series[cutoff]) /  series[cutoff] * 100
+        stats = stats.append(stat_value, ignore_index=True)
+    return stats
 
 
 def main():
