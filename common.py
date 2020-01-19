@@ -159,7 +159,7 @@ def filter_low_volume_series(all_series):
 
 
 def get_business_day(offset):
-    day = pd.datetime.today() - pd.tseries.offsets.BDay(offset)
+    day = pd.datetime.today() - pd.tseries.offsets.BDay(offset) if offset else pd.datetime.today()
     return '%4d-%02d-%02d' % (day.year, day.month, day.day)
 
 
