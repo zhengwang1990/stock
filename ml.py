@@ -122,7 +122,8 @@ def predict(x, y, model, plot=False):
               ['Precision_90:', precision_90],
               ['Precision_95:', precision_95],
               ['Buy All Precision:', precision_buy_all],
-              ['Model Precision:', precision_model]]
+              ['Model Precision:', precision_model],
+              ['Boundary_90:', boundary_90]]
     print(tabulate(output, tablefmt='grid'))
 
     if plot:
@@ -143,7 +144,7 @@ def train_once():
     x_train, x_test, y_train, y_test = load_data()
     #model = get_model()
     #train_model(x_train, x_test, y_train, y_test, model)
-    model = load_model('model_p716887.hdf5')
+    model = load_model('model_p739534.hdf5')
     print(get_header('Training Split'))
     predict(x_train, y_train, model)
     print(get_header('Testing Split'))
@@ -165,7 +166,8 @@ def train_loop():
 
 
 def main():
-    train_loop()
+    #train_loop()
+    train_once()
 
 
 if __name__ == '__main__':
