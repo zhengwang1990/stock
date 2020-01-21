@@ -97,6 +97,7 @@ class Trading(object):
         while get_time_now() < 16:
             buy_symbols = get_buy_symbols(self.all_series, self.prices, model=self.model)
             trading_list = get_trading_list(buy_symbols)
+            self.update_prices([ticker for ticker, _, _ in trading_list])
             today_change_list = {
                 ticker: (self.prices[ticker] - self.all_series[ticker][-1]) / self.all_series[ticker][-1]
                 for ticker, _, _ in trading_list}
@@ -151,10 +152,9 @@ def print_trading_list(trading_list, price_list, today_change_list, down_percent
     cost = 0
     max_non_buy_print = 3
     for ticker, proportion, weight in trading_list:
-        if proportion == 0:
-            max_non_buy_print -= 1
-            if max_non_buy_print < 0:
-                continue
+        max_non_buy_print -= 1
+        if proportion == 0 and max_non_buy_print < 0:
+            continue
         trading_row = [ticker, '%.2f%%' % (proportion * 100,), weight]
         price = price_list[ticker]
         change = today_change_list[ticker]
