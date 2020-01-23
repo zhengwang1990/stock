@@ -45,6 +45,9 @@ def simulate(start_date=None, end_date=None, model_name=None):
                 continue
             series = all_series[ticker]
             gain = (series[cutoff + 1] - series[cutoff]) / series[cutoff]
+            if gain >= 1:
+                # > 100% gain might caused by stock split. Do not calculate.
+                continue
             trading_table.append([ticker, '%.2f%%' % (proportion * 100,), weight, '%.2f%%' % (gain * 100,)])
             day_gain += gain * proportion
             if gain >= 0:
@@ -112,7 +115,7 @@ def main():
     parser = argparse.ArgumentParser(description='Stock trading strategy.')
     parser.add_argument('--start_date', default=None, help='Start date of the simulation.')
     parser.add_argument('--end_date', default=None, help='End date of the simulation.')
-    parser.add_argument('--model', default='model_p739534.hdf5', help='Machine learning model for prediction.')
+    parser.add_argument('--model', default='model_p695783.hdf5', help='Machine learning model for prediction.')
     args = parser.parse_args()
     simulate(args.start_date, args.end_date, args.model)
 

@@ -20,7 +20,7 @@ CACHE_DIR = 'cache'
 DATA_DIR = 'data'
 OUTPUTS_DIR = 'outputs'
 MODELS_DIR = 'models'
-MAX_HISTORY_LOAD = '5y'
+MAX_HISTORY_LOAD = '10y'
 MAX_STOCK_PICK = 3
 GARBAGE_FILTER_THRESHOLD = 0.5
 VOLUME_FILTER_THRESHOLD = 100000
@@ -29,10 +29,12 @@ MAX_THREADS = 5
 EXCLUSIONS = ('ACTTW', 'ALACW', 'BNTCW', 'CBO', 'CBX', 'CTEST', 'FTACW', 'IBO', 'TACOW', 'ZNWAA', 'ZTEST')
 ML_FEATURES = ['Average_Return', 'Threshold',
                'Average_Return_Day_Rank', 'Average_Return_Top_Three',
+               'Down_Percent_Day_Rank', 'Down_Percent_Top_Three',
                'Today_Change', 'Yesterday_Change',
                'Day_Range_Change', 'Threshold_Diff', 'Threshold_Quotient',
                'Price', 'Change_Average', 'Change_Variance',
-               'Price_Year_Max', 'Price_Year_Min', 'RSI']
+               'Price_Year_Max', 'Price_Year_Min', 'RSI',
+               'Price_Average_12', 'Price_Average_26', 'MACD']
 
 
 def get_time_now():
@@ -138,6 +140,7 @@ def filter_garbage_series(all_series):
     for ticker, series in all_series.items():
         if np.max(series) * GARBAGE_FILTER_THRESHOLD <= series[-1]:
             res[ticker] = series
+    print('%d / %d stock symbols remaining after garbage filter' % (len(res), len(all_series)))
     return res
 
 
@@ -155,6 +158,7 @@ def filter_low_volume_series(all_series):
     if overwrite:
         with open(volume_cache_file, 'w') as f:
             f.write(json.dumps(volumes))
+    print('%d / %d stock symbols remaining after volume filter' % (len(res), len(all_series)))
     return res
 
 
@@ -181,12 +185,15 @@ def get_buy_symbols(all_series, prices, cutoff=None, model=None):
         _, avg_return, threshold = get_picked_points(series_year)
         day_range_max = np.max(series_year[-DATE_RANGE:])
         down_percent = (day_range_max - price) / day_range_max
-        if down_percent > threshold > 0 and avg_return > 0.01:
-            buy_infos.append((ticker, avg_return))
+        if down_percent > threshold > 0:
+            buy_infos.append((ticker, avg_return, down_percent))
 
     avg_return_ranking = {tuple[0]: rank + 1
                           for rank, tuple
                           in enumerate(sorted(buy_infos, key=lambda s: s[1], reverse=True))}
+    down_percent_ranking = {tuple[0]: rank + 1
+                            for rank, tuple
+                            in enumerate(sorted(buy_infos, key=lambda s: s[2], reverse=True))}
 
     buy_symbols = []
     for tuple in buy_infos:
@@ -196,12 +203,13 @@ def get_buy_symbols(all_series, prices, cutoff=None, model=None):
         else:
             series_year = all_series[ticker][cutoff - LOOK_BACK_DAY:cutoff]
         price = prices[ticker]
-        rankings = {'Average_Return': avg_return_ranking[ticker]}
+        rankings = {'Average_Return': avg_return_ranking[ticker],
+                    'Down_Percent': down_percent_ranking[ticker]}
         ml_feature = get_ml_feature(series_year, price, rankings)
         if model:
             x = [ml_feature[key] for key in ML_FEATURES]
             # 90% boundary
-            weight = model.predict(np.array([x]))[0] + 0.0513861
+            weight = model.predict(np.array([x]))[0] + 0.025
         else:
             weight = tuple[1]
         buy_symbols.append((ticker, weight, ml_feature))
@@ -219,6 +227,9 @@ def get_ml_feature(series, price, rankings):
     all_changes = ((series[1:] - series[:-1]) / series[:-1]) * 100
     rsi = get_rsi(series)
     avg_return_day_rank = rankings['Average_Return']
+    down_percent_day_rank = rankings['Down_Percent']
+    price_average_12 = np.average(series[-12:])
+    price_average_26 = np.average(series[-26:])
     feature = {'Average_Return': avg_return,
                'Threshold': threshold,
                'Yesterday_Change': yesterday_change,
@@ -233,7 +244,12 @@ def get_ml_feature(series, price, rankings):
                'Price_Year_Min': np.min(series),
                'RSI': rsi,
                'Average_Return_Day_Rank': avg_return_day_rank,
-               'Average_Return_Top_Three': int(avg_return_day_rank <= 3)}
+               'Average_Return_Top_Three': int(avg_return_day_rank <= 3),
+               'Down_Percent_Day_Rank': down_percent_day_rank,
+               'Down_Percent_Top_Three': int(down_percent_day_rank <= 3),
+               'Price_Average_12': price_average_12,
+               'Price_Average_26': price_average_26,
+               'MACD': price_average_12 - price_average_26}
     return feature
 
 

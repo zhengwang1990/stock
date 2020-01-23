@@ -191,7 +191,7 @@ def main():
     parser = argparse.ArgumentParser(description='Stock trading strategy.')
     parser.add_argument('--fund', default=None, help='Total fund to trade.')
     parser.add_argument('--mode', default='live', choices=['live', 'static'], help='Mode to run.')
-    parser.add_argument('--model', default='model_p739534.hdf5', help='Machine learning model for prediction.')
+    parser.add_argument('--model', default='model_p695783.hdf5', help='Machine learning model for prediction.')
     args = parser.parse_args()
     fund = float(args.fund) if args.fund else None
     if args.mode == 'live':

@@ -7,7 +7,7 @@ from common import *
 from sklearn.model_selection import train_test_split
 from tabulate import tabulate
 
-DATA_FILE = 'simulate_stats.csv'
+DATA_FILE = 'simulate_stats1.csv'
 
 
 def read_df():
@@ -35,7 +35,7 @@ def load_data():
     x, y = [], []
     for row in df.itertuples():
         x_value = [getattr(row, key) for key in keys]
-        y_value = row.Gain / 3 if np.abs(row.Gain) < 3 else np.sign(row.Gain)
+        y_value = row.Gain / 5 if np.abs(row.Gain) < 5 else np.sign(row.Gain)
         x.append(x_value)
         y.append(y_value)
     x = np.array(x)
@@ -145,7 +145,7 @@ def train_once():
     x_train, x_test, y_train, y_test = load_data()
     #model = get_model()
     #train_model(x_train, x_test, y_train, y_test, model)
-    model = load_model('model_p739534.hdf5')
+    model = load_model('model_p695783.hdf5')
     print(get_header('Training Split'))
     predict(x_train, y_train, model)
     print(get_header('Testing Split'))
@@ -156,7 +156,7 @@ def train_loop():
     x_train, x_test, y_train, y_test = load_data()
     dir_path = os.path.dirname(os.path.realpath(__file__))
     precision_max = 0
-    for _ in range(100):
+    for _ in range(50):
         model = get_model()
         train_model(x_train, x_test, y_train, y_test, model)
         precision = predict(x_test, y_test, model)
