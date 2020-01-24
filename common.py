@@ -183,7 +183,7 @@ def get_buy_symbols(all_series, prices, cutoff=None, model=None):
         else:
             series_year = series[cutoff - LOOK_BACK_DAY:cutoff]
         price = prices.get(ticker, 1E10)
-        if price >= series_year[-1]:
+        if price > series_year[-1]:
             continue
         _, avg_return, threshold = get_picked_points(series_year)
         day_range_max = np.max(series_year[-DATE_RANGE:])
