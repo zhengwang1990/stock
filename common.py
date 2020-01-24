@@ -44,7 +44,7 @@ def get_time_now():
     return time_now
 
 
-def get_series(ticker, time='1y'):
+def get_series(ticker, period='1y'):
     """Gets close prices of a stock symbol as 1D numpy array."""
     dir_path = os.path.dirname(os.path.realpath(__file__))
     os.makedirs(os.path.join(dir_path, CACHE_DIR, get_business_day(1)), exist_ok=True)
@@ -54,13 +54,13 @@ def get_series(ticker, time='1y'):
         series = df.get('Close')
     else:
         tk = yf.Ticker(ticker)
-        hist = tk.history(period=time, interval='1d')
+        hist = tk.history(period=period, interval='1d')
         series = hist.get('Close')
         if 9.5 < get_time_now() < 16:
             drop_key = datetime.datetime.today().date()
             if drop_key in series.index:
                 series = series.drop(drop_key)
-        series.to_csv(cache_name, header=True)
+        hist.to_csv(cache_name, header=True)
     return ticker, series
 
 
@@ -105,26 +105,29 @@ def get_all_symbols():
     return res
 
 
-def get_series_length(time):
-    series = get_series(REFERENCE_SYMBOL, time=time)[1]
+def get_series_length(period):
+    series = get_series(REFERENCE_SYMBOL, period=period)[1]
     return len(series)
 
 
-def get_series_dates(time):
-    series = get_series(REFERENCE_SYMBOL, time=time)[1]
+def get_series_dates(period):
+    series = get_series(REFERENCE_SYMBOL, period=period)[1]
     return series.index
 
 
-def get_all_series(time):
-    """Returns stock price history of all symbols."""
+@retrying.retry(stop_max_attempt_number=10, wait_fixed=1000*60*10)
+def get_all_series(period):
+    """Returns stock price history of all symbols.
+
+    Retyies every 10min"""
     tickers = get_all_symbols()
-    series_length = get_series_length(time)
+    series_length = get_series_length(period)
     all_series = {}
     pool = futures.ThreadPoolExecutor(max_workers=MAX_THREADS)
     print('Loading stock histories...')
     threads = []
     for ticker in tickers:
-        t = pool.submit(get_series, ticker, time)
+        t = pool.submit(get_series, ticker, period)
         threads.append(t)
     for t in tqdm(threads, ncols=80, file=sys.stdout):
         ticker, series = t.result()
