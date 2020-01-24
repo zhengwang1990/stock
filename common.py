@@ -119,7 +119,7 @@ def get_series_dates(period):
 def get_all_series(period):
     """Returns stock price history of all symbols.
 
-    Retyies every 10min"""
+    Retyies every 10 min."""
     tickers = get_all_symbols()
     series_length = get_series_length(period)
     all_series = {}
