@@ -53,8 +53,12 @@ def get_series(ticker, period='1y'):
         df = pd.read_csv(cache_name, index_col=0, parse_dates=True)
         series = df.get('Close')
     else:
-        tk = yf.Ticker(ticker)
-        hist = tk.history(period=period, interval='1d')
+        try:
+            tk = yf.Ticker(ticker)
+            hist = tk.history(period=period, interval='1d')
+        except Exception as e:
+            print('Can not get history of %s: %s' % (ticker, e))
+            raise e
         series = hist.get('Close')
         hist.to_csv(cache_name, header=True)
     if 9.5 < get_time_now() < 16:
