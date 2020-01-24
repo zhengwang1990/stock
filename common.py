@@ -56,11 +56,11 @@ def get_series(ticker, period='1y'):
         tk = yf.Ticker(ticker)
         hist = tk.history(period=period, interval='1d')
         series = hist.get('Close')
-        if 9.5 < get_time_now() < 16:
-            drop_key = datetime.datetime.today().date()
-            if drop_key in series.index:
-                series = series.drop(drop_key)
         hist.to_csv(cache_name, header=True)
+    if 9.5 < get_time_now() < 16:
+        drop_key = datetime.datetime.today().date()
+        if drop_key in series.index:
+            series = series.drop(drop_key)
     return ticker, series
 
 
