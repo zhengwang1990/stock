@@ -23,7 +23,7 @@ MODELS_DIR = 'models'
 MAX_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 3
 GARBAGE_FILTER_THRESHOLD = 0.5
-VOLUME_FILTER_THRESHOLD = 100000
+VOLUME_FILTER_THRESHOLD = 500000
 MAX_THREADS = 5
 # These stocks are de-listed
 EXCLUSIONS = ('ACTTW', 'ALACW', 'BNTCW', 'CBO', 'CBX', 'CTEST', 'FTACW', 'IBO', 'TACOW', 'ZNWAA', 'ZTEST')
@@ -33,6 +33,7 @@ ML_FEATURES = ['Average_Return', 'Threshold',
                'Change_Average', 'Change_Variance',
                'RSI',
                'MACD_Rate']
+mem_cache = {}
 
 
 def get_time_now():
@@ -42,23 +43,26 @@ def get_time_now():
     return time_now
 
 
-def get_series(ticker, period='1y'):
+def get_series(ticker, period=MAX_HISTORY_LOAD, col='Close'):
     """Gets close prices of a stock symbol as 1D numpy array."""
     dir_path = os.path.dirname(os.path.realpath(__file__))
     os.makedirs(os.path.join(dir_path, CACHE_DIR, get_business_day(1)), exist_ok=True)
     cache_name = os.path.join(dir_path, CACHE_DIR, get_business_day(1), 'series-%s.csv' % (ticker,))
-    if os.path.isfile(cache_name):
-        df = pd.read_csv(cache_name, index_col=0, parse_dates=True)
-        series = df.get('Close')
+    if ticker in mem_cache:
+        hist = mem_cache[ticker]
+    elif os.path.isfile(cache_name):
+        hist = pd.read_csv(cache_name, index_col=0, parse_dates=True)
+        mem_cache[ticker] = hist
     else:
         try:
             tk = yf.Ticker(ticker)
             hist = tk.history(period=period, interval='1d')
+            mem_cache[ticker] = hist
         except Exception as e:
             print('Can not get history of %s: %s' % (ticker, e))
             raise e
-        series = hist.get('Close')
         hist.to_csv(cache_name, header=True)
+    series = hist.get(col)
     if 9.5 < get_time_now() < 16:
         drop_key = datetime.datetime.today().date()
         if drop_key in series.index:
@@ -157,19 +161,13 @@ def filter_garbage_series(all_series):
 
 
 def filter_low_volume_series(all_series):
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    volume_cache_file = os.path.join(dir_path, 'data', 'volumes.json')
-    with open(volume_cache_file) as f:
-        volumes = json.loads(f.read())
     res = {}
-    overwrite = False
     for ticker, series in all_series.items():
-        volume = volumes.get(ticker, VOLUME_FILTER_THRESHOLD)
-        if volume >= VOLUME_FILTER_THRESHOLD:
+        volumes = np.array(get_series(ticker, col='Volume')[1])
+        avg_trading_volume = np.average(np.multiply(
+            volumes[-DAYS_IN_A_YEAR:], series[-DAYS_IN_A_YEAR:]))
+        if avg_trading_volume >= VOLUME_FILTER_THRESHOLD:
             res[ticker] = series
-    if overwrite:
-        with open(volume_cache_file, 'w') as f:
-            f.write(json.dumps(volumes))
     print('%d / %d stock symbols remaining after volume filter' % (len(res), len(all_series)))
     return res
 
