@@ -166,7 +166,7 @@ def print_trading_list(trading_list, price_list, today_change_list, down_percent
                             '%.2f%%' % (-threshold_list[ticker] * 100,), price])
         if fund:
             value = fund * proportion
-            n_shares = np.round(value / price)
+            n_shares = int(value / price)
             share_cost = n_shares * price
             cost += share_cost
             trading_row.extend([share_cost, n_shares])
