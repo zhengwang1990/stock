@@ -17,13 +17,13 @@ def simulate(start_date=None, end_date=None, model_name=None):
     all_series = filter_low_volume_series(
         filter_garbage_series(get_all_series(MAX_HISTORY_LOAD)))
 
-    start_date = start_date or dates[LOOK_BACK_DAY + 1].date()
+    start_date = start_date or dates[DAYS_IN_A_YEAR + 1].date()
     end_date = end_date or pd.datetime.today().date()
     start_point, end_point = 0, series_length - 1
     while pd.to_datetime(start_date) > dates[start_point]:
         start_point += 1
-    if start_point - 1 < LOOK_BACK_DAY:
-        raise Exception('Start date must be no early than %s' % (dates[LOOK_BACK_DAY + 1].date()))
+    if start_point - 1 < DAYS_IN_A_YEAR:
+        raise Exception('Start date must be no early than %s' % (dates[DAYS_IN_A_YEAR + 1].date()))
     while pd.to_datetime(end_date) < dates[end_point]:
         end_point -= 1
     values = {'Total': ([dates[start_point - 1]], [1.0])}
@@ -80,8 +80,8 @@ def simulate(start_date=None, end_date=None, model_name=None):
     stats.to_csv(os.path.join(file_dir, OUTPUTS_DIR, 'simulate_stats.csv'), index=False)
 
     pd.plotting.register_matplotlib_converters()
-    qqq = get_series('QQQ', time=MAX_HISTORY_LOAD)[1]
-    spy = get_series('SPY', time=MAX_HISTORY_LOAD)[1]
+    qqq = get_series('QQQ', period=MAX_HISTORY_LOAD)[1]
+    spy = get_series('SPY', period=MAX_HISTORY_LOAD)[1]
     for k, v in values.items():
         plt.figure(figsize=(15, 7))
         plt.plot(v[0], v[1], label='My Portfolio')
@@ -115,7 +115,7 @@ def main():
     parser = argparse.ArgumentParser(description='Stock trading strategy.')
     parser.add_argument('--start_date', default=None, help='Start date of the simulation.')
     parser.add_argument('--end_date', default=None, help='End date of the simulation.')
-    parser.add_argument('--model', default='model_p695783.hdf5', help='Machine learning model for prediction.')
+    parser.add_argument('--model', default='model_p612804.hdf5', help='Machine learning model for prediction.')
     args = parser.parse_args()
     simulate(args.start_date, args.end_date, args.model)
 

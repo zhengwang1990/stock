@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 DATE_RANGE = 5
 REFERENCE_SYMBOL = 'AAPL'
-LOOK_BACK_DAY = 250
+DAYS_IN_A_YEAR = 250
 CACHE_DIR = 'cache'
 DATA_DIR = 'data'
 OUTPUTS_DIR = 'outputs'
@@ -28,13 +28,11 @@ MAX_THREADS = 5
 # These stocks are de-listed
 EXCLUSIONS = ('ACTTW', 'ALACW', 'BNTCW', 'CBO', 'CBX', 'CTEST', 'FTACW', 'IBO', 'TACOW', 'ZNWAA', 'ZTEST')
 ML_FEATURES = ['Average_Return', 'Threshold',
-               'Average_Return_Day_Rank', 'Average_Return_Top_Three',
-               'Down_Percent_Day_Rank', 'Down_Percent_Top_Three',
-               'Today_Change', 'Yesterday_Change',
-               'Day_Range_Change', 'Threshold_Diff', 'Threshold_Quotient',
-               'Price', 'Change_Average', 'Change_Variance',
-               'Price_Year_Max', 'Price_Year_Min', 'RSI',
-               'Price_Average_12', 'Price_Average_26', 'MACD']
+               'Today_Change', 'Yesterday_Change', 'Twenty_Day_Change',
+               'Day_Range_Change',
+               'Change_Average', 'Change_Variance',
+               'RSI',
+               'MACD_Rate']
 
 
 def get_time_now():
@@ -130,11 +128,18 @@ def get_all_series(period):
     pool = futures.ThreadPoolExecutor(max_workers=MAX_THREADS)
     print('Loading stock histories...')
     threads = []
+    tol = 10
     for ticker in tickers:
         t = pool.submit(get_series, ticker, period)
         threads.append(t)
     for t in tqdm(threads, ncols=80, file=sys.stdout):
-        ticker, series = t.result()
+        try:
+            ticker, series = t.result()
+        except Exception as e:
+            print(e)
+            tol -= 1
+            if tol <= 0:
+                raise e
         if len(series) != series_length:
             continue
         all_series[ticker] = np.array(series)
@@ -183,9 +188,9 @@ def get_buy_symbols(all_series, prices, cutoff=None, model=None):
     buy_infos = []
     for ticker, series in tqdm(all_series.items(), ncols=80, leave=False, file=sys.stdout):
         if not cutoff:
-            series_year = series[-LOOK_BACK_DAY:]
+            series_year = series[-DAYS_IN_A_YEAR:]
         else:
-            series_year = series[cutoff - LOOK_BACK_DAY:cutoff]
+            series_year = series[cutoff - DAYS_IN_A_YEAR:cutoff]
         price = prices.get(ticker, 1E10)
         if price > series_year[-1]:
             continue
@@ -206,17 +211,16 @@ def get_buy_symbols(all_series, prices, cutoff=None, model=None):
     for tuple in buy_infos:
         ticker = tuple[0]
         if not cutoff:
-            series_year = all_series[ticker][-LOOK_BACK_DAY:]
+            series_year = all_series[ticker][-DAYS_IN_A_YEAR:]
         else:
-            series_year = all_series[ticker][cutoff - LOOK_BACK_DAY:cutoff]
+            series_year = all_series[ticker][cutoff - DAYS_IN_A_YEAR:cutoff]
         price = prices[ticker]
         rankings = {'Average_Return': avg_return_ranking[ticker],
                     'Down_Percent': down_percent_ranking[ticker]}
         ml_feature = get_ml_feature(series_year, price, rankings)
         if model:
             x = [ml_feature[key] for key in ML_FEATURES]
-            # 90% boundary
-            weight = model.predict(np.array([x]))[0] + 0.025
+            weight = model.predict(np.array([x]))[0]
         else:
             weight = tuple[1]
         buy_symbols.append((ticker, weight, ml_feature))
@@ -231,6 +235,7 @@ def get_ml_feature(series, price, rankings):
     day_range_change = (day_range_max - price) / day_range_max * 100
     today_change = (price - series[-1]) / series[-1] * 100
     yesterday_change = (series[-1] - series[-2]) / series[-2] * 100
+    twenty_day_change = (price - series[-20]) / series[-20] * 100
     all_changes = ((series[1:] - series[:-1]) / series[:-1]) * 100
     rsi = get_rsi(series)
     avg_return_day_rank = rankings['Average_Return']
@@ -239,24 +244,14 @@ def get_ml_feature(series, price, rankings):
     price_average_26 = np.average(series[-26:])
     feature = {'Average_Return': avg_return,
                'Threshold': threshold,
-               'Yesterday_Change': yesterday_change,
                'Today_Change': today_change,
+               'Yesterday_Change': yesterday_change,
+               'Twenty_Day_Change': twenty_day_change,
                'Day_Range_Change': day_range_change,
-               'Threshold_Diff': day_range_change - threshold,
-               'Threshold_Quotient': day_range_change / threshold,
-               'Price': price,
                'Change_Average': np.mean(all_changes),
                'Change_Variance': np.var(all_changes),
-               'Price_Year_Max': np.max(series),
-               'Price_Year_Min': np.min(series),
                'RSI': rsi,
-               'Average_Return_Day_Rank': avg_return_day_rank,
-               'Average_Return_Top_Three': int(avg_return_day_rank <= 3),
-               'Down_Percent_Day_Rank': down_percent_day_rank,
-               'Down_Percent_Top_Three': int(down_percent_day_rank <= 3),
-               'Price_Average_12': price_average_12,
-               'Price_Average_26': price_average_26,
-               'MACD': price_average_12 - price_average_26}
+               'MACD_Rate': (price_average_12 - price_average_26) * 2 / (price_average_12 + price_average_26)}
     return feature
 
 

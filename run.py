@@ -31,7 +31,7 @@ class Trading(object):
             self.update_prices(self.all_series.keys(), use_tqdm=True)
 
         for ticker, series in self.all_series.items():
-            _, avg_return, threshold = get_picked_points(series[-LOOK_BACK_DAY:])
+            _, avg_return, threshold = get_picked_points(series[-DAYS_IN_A_YEAR:])
             self.thresholds[ticker] = threshold
             self.avg_returns[ticker] = avg_return
 
@@ -108,7 +108,10 @@ class Trading(object):
                 [second_to_string(update_freq) + ': ' + update_time.strftime('%H:%M:%S')
                  for update_freq, update_time in
                  sorted(self.last_updates.items(), key=lambda t: t[0])],), output_file)
-            time.sleep(100)
+            if get_time_now() > 15.9:
+                time.sleep(20)
+            else:
+                time.sleep(120)
         self.active = False
         time.sleep(1)
 
@@ -141,7 +144,7 @@ def get_static_trading_table(fund=None, model_name=None):
     down_percent_list = {ticker: (np.max(all_series[ticker][-1 - DATE_RANGE:-1]) - all_series[ticker][-1]) / np.max(
         all_series[ticker][-1 - DATE_RANGE:-1])
                          for ticker, _, _ in trading_list}
-    threshold_list = {ticker: get_picked_points(all_series[ticker][-1 - LOOK_BACK_DAY:-1])[2]
+    threshold_list = {ticker: get_picked_points(all_series[ticker][-1 - DAYS_IN_A_YEAR:-1])[2]
                       for ticker, _, _ in trading_list}
     print_trading_list(trading_list, price_list, today_change_list, down_percent_list, threshold_list, fund)
 
@@ -191,7 +194,7 @@ def main():
     parser = argparse.ArgumentParser(description='Stock trading strategy.')
     parser.add_argument('--fund', default=None, help='Total fund to trade.')
     parser.add_argument('--mode', default='live', choices=['live', 'static'], help='Mode to run.')
-    parser.add_argument('--model', default='model_p695783.hdf5', help='Machine learning model for prediction.')
+    parser.add_argument('--model', default='model_p612804.hdf5', help='Machine learning model for prediction.')
     args = parser.parse_args()
     fund = float(args.fund) if args.fund else None
     if args.mode == 'live':

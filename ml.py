@@ -7,7 +7,7 @@ from common import *
 from sklearn.model_selection import train_test_split
 from tabulate import tabulate
 
-DATA_FILE = 'simulate_stats1.csv'
+DATA_FILE = 'simulate_stats.csv'
 
 
 def read_df():
@@ -47,7 +47,7 @@ def load_data():
 def precision_favored_loss(y_true, y_pred):
     fp = (1 + y_pred) * (1 - y_true)
     fn = (1 - y_pred) * (1 + y_true)
-    loss = K.mean(2 * K.pow(fp, 3) + K.pow(fn, 3))
+    loss = K.mean(K.pow(fp, 2) + K.pow(fn, 2))
     return loss
 
 
@@ -55,11 +55,8 @@ def get_model():
     df = read_df()
     x_dim = len(df.columns) - 3
     model = keras.Sequential([
-        keras.layers.Input(shape=(x_dim,)),
-        keras.layers.Dense(20, activation='relu',
+        keras.layers.Dense(100, activation='relu',
                            input_shape=(x_dim,)),
-        keras.layers.Dense(100, activation='relu'),
-        keras.layers.Dense(20, activation='relu'),
         keras.layers.Dense(1, activation='tanh')
     ])
     model.compile(optimizer='adam', loss=precision_favored_loss)
@@ -69,7 +66,7 @@ def get_model():
 
 def train_model(x_train, x_test, y_train, y_test, model):
     early_stopping = keras.callbacks.EarlyStopping(
-        monitor='val_loss', patience=10, restore_best_weights=True)
+        monitor='val_loss', patience=25, restore_best_weights=True)
     model.fit(x_train, y_train, batch_size=256, epochs=500,
               validation_data=(x_test, y_test),
               callbacks=[early_stopping])
@@ -133,10 +130,11 @@ def predict(x, y, model, plot=False):
       plt.xlabel('Predicted')
       plt.ylabel('Truth')
       plt.plot([np.min(p), np.max(p)], [0, 0], '--')
-      plt.plot([0, 0], [np.min(y), np.max(y)], '--')
-      plt.plot([boundary_70, boundary_70], [np.min(y), np.max(y)], '--')
-      plt.plot([boundary_90, boundary_90], [np.min(y), np.max(y)], '--')
-      plt.plot([boundary_95, boundary_95], [np.min(y), np.max(y)], '--')
+      plt.plot([0, 0], [np.min(y), np.max(y)], '--', label='0')
+      plt.plot([boundary_70, boundary_70], [np.min(y), np.max(y)], '--', label='Percentile 70')
+      plt.plot([boundary_90, boundary_90], [np.min(y), np.max(y)], '--', label='Percentile 90')
+      plt.plot([boundary_95, boundary_95], [np.min(y), np.max(y)], '--', label='Percentile 95')
+      plt.legend()
       plt.show()
     return precision_90
 
@@ -145,7 +143,7 @@ def train_once():
     x_train, x_test, y_train, y_test = load_data()
     #model = get_model()
     #train_model(x_train, x_test, y_train, y_test, model)
-    model = load_model('model_p695783.hdf5')
+    model = load_model('model_p612804.hdf5')
     print(get_header('Training Split'))
     predict(x_train, y_train, model)
     print(get_header('Testing Split'))
@@ -156,7 +154,7 @@ def train_loop():
     x_train, x_test, y_train, y_test = load_data()
     dir_path = os.path.dirname(os.path.realpath(__file__))
     precision_max = 0
-    for _ in range(50):
+    for _ in range(10):
         model = get_model()
         train_model(x_train, x_test, y_train, y_test, model)
         precision = predict(x_test, y_test, model)
