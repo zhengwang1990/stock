@@ -108,7 +108,9 @@ class TradingRealTime(utils.TradingBase):
     while time.time() < next_market_close:
       trading_list = self.get_trading_list(prices=self.prices,
                                            model=self.model)
+      # Update symbols in trading list to make sure they are up-to-date
       self.update_prices([ticker for ticker, _, _ in trading_list])
+      self.update_ordered_symbols()
       utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%H:%M:%S')),
                      self.output_file)
       self.print_trading_list(trading_list)
