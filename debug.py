@@ -1,11 +1,9 @@
 import matplotlib.pyplot as plt
-from common import *
+import simulate
+import utils
 import alpaca_trade_api as tradeapi
 import time
-
-API_KEY = ''
-API_SECRET = ''
-APCA_API_BASE_URL = "https://api.alpaca.markets"
+import os
 
 
 def plot_buy_points(ticker):
@@ -22,6 +20,7 @@ def plot_buy_points(ticker):
 
 def test_alpaca():
     alpaca = tradeapi.REST(API_KEY, API_SECRET, APCA_API_BASE_URL, 'v2')
+
     # Time
     clock = alpaca.get_clock()
     closingTime = clock.next_close.replace().timestamp()
@@ -72,8 +71,12 @@ def test_alpaca():
 
 def main():
     #plot_buy_points('AMEH')
-    test_alpaca()
-
+    #test_alpaca()
+    alpaca = tradeapi.REST(os.environ['ALPACA_API_KEY'],
+                           os.environ['ALPACA_API_SECRET'],
+                           utils.APCA_API_BASE_URL, 'v2')
+    trading = simulate.TradingSimulate(alpaca)
+    trading.run()
 
 if __name__ == '__main__':
     main()
