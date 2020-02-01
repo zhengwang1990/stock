@@ -103,27 +103,58 @@ class TradingRealTime(utils.TradingBase):
   def run(self):
     output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
                                utils.get_business_day(0) + '.txt')
-    output_file = open(output_path, 'a')
+    self.output_file = open(output_path, 'a')
     next_market_close = self.alpaca.get_clock().next_close.timestamp()
     while time.time() < next_market_close:
       trading_list = self.get_trading_list(prices=self.prices,
                                            model=self.model)
       self.update_prices([ticker for ticker, _, _ in trading_list])
-      today_change_list = {
-          ticker: (self.prices[ticker] - self.closes[ticker][-1]) / self.closes[ticker][-1]
-          for ticker, _, _ in trading_list}
       utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%H:%M:%S')),
-                     output_file)
-      print_trading_list(trading_list, self.prices, today_change_list,
-                         self.down_percents, self.thresholds, self.fund,
-                         output_file)
+                     self.output_file)
+      self.print_trading_list(trading_list)
       utils.bi_print('Last updates: %s' % (
           [second_to_string(update_freq) + ': ' + update_time.strftime('%H:%M:%S')
            for update_freq, update_time in
-           sorted(self.last_updates.items(), key=lambda t: t[0])],), output_file)
-      time.sleep(120)
+           sorted(self.last_updates.items(), key=lambda t: t[0])],),
+                     self.output_file)
+      if time.time() > next_market_close - 60 * 5:
+        time.sleep(30)
+      else:
+        time.sleep(300)
     self.active = False
     time.sleep(1)
+
+  def print_trading_list(self, trading_list):
+    trading_table = []
+    cost = 0
+    max_non_buy_print = 3
+    for ticker, proportion, weight in trading_list:
+      max_non_buy_print -= 1
+      if proportion == 0 and max_non_buy_print < 0:
+        continue
+      trading_row = [ticker, '%.2f%%' % (proportion * 100,), weight]
+      price = self.prices[ticker]
+      change = (price - self.closes[ticker][-1]) / self.closes[ticker][-1]
+      trading_row.extend(['%.2f%%' % (change * 100,),
+                          '%.2f%%' % (-self.down_percents[ticker] * 100,),
+                          '%.2f%%' % (-self.thresholds[ticker] * 100,), price])
+      if self.fund:
+        value = self.fund * proportion
+        n_shares = int(value / price)
+        share_cost = n_shares * price
+        cost += share_cost
+        trading_row.extend([share_cost, n_shares])
+      trading_table.append(trading_row)
+    headers = ['Symbol', 'Proportion', 'Weight', 'Today Change',
+               '%d Day Change' % (utils.DATE_RANGE,), 'Threshold', 'Price']
+    if self.fund:
+      headers.extend(['Cost', 'Quantity'])
+    if trading_table:
+      utils.bi_print(tabulate(trading_table, headers=headers, tablefmt='grid'),
+                     self.output_file)
+      if self.fund:
+        utils.bi_print('Fund: %.2f' % (fund,), self.output_file)
+        utils.bi_print('Actual Cost: %.2f' % (cost,), self.output_file)
 
 
 def _get_real_time_price_from_yahoo(ticker):
@@ -135,40 +166,6 @@ def _get_real_time_price_from_yahoo(ticker):
     print(e)
     price = None
   return price
-
-
-def print_trading_list(trading_list, price_list, today_change_list,
-                       down_percent_list, threshold_list,
-                       fund=None, output_file=None):
-  trading_table = []
-  cost = 0
-  max_non_buy_print = 3
-  for ticker, proportion, weight in trading_list:
-    max_non_buy_print -= 1
-    if proportion == 0 and max_non_buy_print < 0:
-      continue
-    trading_row = [ticker, '%.2f%%' % (proportion * 100,), weight]
-    price = price_list[ticker]
-    change = today_change_list[ticker]
-    trading_row.extend(['%.2f%%' % (change * 100,),
-                        '%.2f%%' % (-down_percent_list[ticker] * 100,),
-                        '%.2f%%' % (-threshold_list[ticker] * 100,), price])
-    if fund:
-      value = fund * proportion
-      n_shares = int(value / price)
-      share_cost = n_shares * price
-      cost += share_cost
-      trading_row.extend([share_cost, n_shares])
-    trading_table.append(trading_row)
-  headers = ['Symbol', 'Proportion', 'Weight', 'Today Change',
-             '%d Day Change' % (utils.DATE_RANGE,), 'Threshold', 'Price']
-  if fund:
-    headers.extend(['Cost', 'Quantity'])
-  if trading_table:
-    utils.bi_print(tabulate(trading_table, headers=headers, tablefmt='grid'), output_file)
-    if fund:
-      utils.bi_print('Fund: %.2f' % (fund,), output_file)
-      utils.bi_print('Actual Cost: %.2f' % (cost,), output_file)
 
 
 def second_to_string(secs):
