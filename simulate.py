@@ -5,6 +5,7 @@ import ml
 import numpy as np
 import os
 import pandas as pd
+import signal
 import utils
 from tabulate import tabulate
 
@@ -29,7 +30,7 @@ class TradingSimulate(utils.TradingBase):
     self.model = ml.load_model(model_name) if model_name else None
 
     start_date = (start_date or
-                  self.history_dates[utils.DAYS_IN_A_YEAR + 1].date())
+                  self.history_dates[5 * utils.DAYS_IN_A_YEAR + 1].date())
     end_date = end_date or pd.datetime.today().date()
     self.start_point, self.end_point = 0, self.history_length - 1
     while pd.to_datetime(start_date) > self.history_dates[self.start_point]:
@@ -44,7 +45,12 @@ class TradingSimulate(utils.TradingBase):
                                            'simulate_detail.txt'), 'w')
     self.values = {'Total': ([self.history_dates[self.start_point - 1]], [1.0])}
     self.gain_transcations, self.loss_transactions = 0, 0
+    signal.signal(signal.SIGINT, self.safe_exit)
 
+  def safe_exit(self, signum, frame):
+    print('\nSafe exiting with signal %d...' % (signum,))
+    self._print_summary()
+    exit(1)
 
   def _step(self, date, cutoff):
     utils.bi_print(utils.get_header(date.date()), self.output_detail)
@@ -170,7 +176,7 @@ def main():
                       help='Start date of the simulation.')
   parser.add_argument('--end_date', default=None,
                       help='End date of the simulation.')
-  parser.add_argument('--model', default='model_p612804.hdf5',
+  parser.add_argument('--model', default='model_p573991.hdf5',
                       help='Machine learning model for prediction.')
   parser.add_argument('--api_key', default=None, help='Alpaca API key.')
   parser.add_argument('--api_secret', default=None, help='Alpaca API secret.')

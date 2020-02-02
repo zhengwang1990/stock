@@ -13,7 +13,7 @@ DATA_FILE = 'simulate_stats.csv'
 
 def read_df():
   dir_path = os.path.dirname(os.path.realpath(__file__))
-  df = pd.read_csv(os.path.join(dir_path, OUTPUTS_DIR, DATA_FILE))
+  df = pd.read_csv(os.path.join(dir_path, utils.OUTPUTS_DIR, DATA_FILE))
   return df
 
 
@@ -36,7 +36,7 @@ def load_data():
   x, y = [], []
   for row in df.itertuples():
     x_value = [getattr(row, key) for key in keys]
-    y_value = row.Gain / 5 if np.abs(row.Gain) < 5 else np.sign(row.Gain)
+    y_value = row.Gain / 0.1 if np.abs(row.Gain) < 0.1 else np.sign(row.Gain)
     x.append(x_value)
     y.append(y_value)
   x = np.array(x)
@@ -48,7 +48,7 @@ def load_data():
 def precision_favored_loss(y_true, y_pred):
   fp = (1 + y_pred) * (1 - y_true)
   fn = (1 - y_pred) * (1 + y_true)
-  loss = K.mean(K.pow(fp, 2) + K.pow(fn, 2))
+  loss = K.mean(3 * K.pow(fp, 2) + K.pow(fn, 2))
   return loss
 
 
@@ -60,7 +60,8 @@ def get_model():
                          input_shape=(x_dim,)),
       keras.layers.Dense(1, activation='tanh')
   ])
-  model.compile(optimizer='adam', loss=precision_favored_loss)
+  #model.compile(optimizer='adam', loss=precision_favored_loss)
+  model.compile(optimizer='adam', loss='mse')
   model.summary()
   return model
 
@@ -78,8 +79,8 @@ def train_model(x_train, x_test, y_train, y_test, model):
 def load_model(name):
   dir_path = os.path.dirname(os.path.realpath(__file__))
   model = keras.models.load_model(
-      os.path.join(dir_path, utils.MODELS_DIR, name),
-      custom_objects={'precision_favored_loss': precision_favored_loss})
+      os.path.join(dir_path, utils.MODELS_DIR, name))
+      #custom_objects={'precision_favored_loss': precision_favored_loss}
   return model
 
 
@@ -140,12 +141,12 @@ def predict(x, y, model, plot=False):
 
 def train_once():
   x_train, x_test, y_train, y_test = load_data()
-  #model = get_model()
-  #train_model(x_train, x_test, y_train, y_test, model)
-  model = load_model('model_p612804.hdf5')
-  print(get_header('Training Split'))
+  model = get_model()
+  train_model(x_train, x_test, y_train, y_test, model)
+  #model = load_model('model_p559201.hdf5')
+  print(utils.get_header('Training Split'))
   predict(x_train, y_train, model)
-  print(get_header('Testing Split'))
+  print(utils.get_header('Testing Split'))
   predict(x_test, y_test, model, plot=True)
 
 

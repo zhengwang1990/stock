@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 from concurrent import futures
+from exclusions import EXCLUSIONS
 from tqdm import tqdm
 
 DATE_RANGE = 5
@@ -18,52 +19,12 @@ DATA_DIR = 'data'
 OUTPUTS_DIR = 'outputs'
 MODELS_DIR = 'models'
 DEFAULT_HISTORY_LOAD = '5y'
-MAX_STOCK_PICK = 3
-VOLUME_FILTER_THRESHOLD = 1000000
+MAX_STOCK_PICK = 10
+VOLUME_FILTER_THRESHOLD = 100000
 MAX_THREADS = 5
-# These stocks are de-listed
-EXCLUSIONS = ('AABA', 'ACETQ', 'AETI', 'AGC', 'AKP', 'ALDR', 'ALN', 'ALQA',
-              'AMBR', 'AMGP', 'AMID', 'AMMA', 'ANDV', 'ANDX', 'ANWWQ', 'AOI',
-              'APC', 'APF', 'APHB', 'APU', 'AQ', 'ARLZQ', 'ARRS', 'ARRY',
-              'ASCMQ', 'AST', 'ASV', 'ATTU', 'AVHI', 'BEL', 'BHBK', 'BID',
-              'BKS', 'BLH', 'BLMT', 'BMS', 'BNCL', 'BNGOU', 'BOJA', 'BOSXF',
-              'BPL', 'BRACU', 'BRSS', 'BRSWQ', 'BT', 'BVX', 'BXEFF', 'CADC',
-              'CASM', 'CAW', 'CBAK', 'CBK', 'CBLK', 'CCA', 'CCNI', 'CHAC',
-              'CHKE', 'CHSP', 'CIVI', 'CJ', 'CLNS', 'CMSS', 'CMSSU', 'CMTA',
-              'CRAY', 'CTRL', 'CTRV', 'CTWS', 'CUR', 'CVRS', 'CYTX', 'CZFC',
-              'DATA', 'DCUD', 'DDE', 'DDOC', 'DELT', 'DFBH', 'DFRG', 'DHCP',
-              'DHVW', 'DNB', 'DOVA', 'DRYS', 'DSW', 'DTRM', 'DTV', 'DWDP',
-              'EAGL', 'EAGLU', 'ECYT', 'EDGE', 'EDR', 'EFII', 'EHIC', 'EIV',
-              'ELLI', 'EMCI', 'EMES', 'EQGP', 'ESESD', 'ESL', 'EVJ', 'EVLV',
-              'EVO', 'EVP', 'FDC', 'FELP', 'FHY', 'FLF', 'FNSR', 'FNTEU',
-              'FRAC', 'FRSH', 'FSNN', 'GG', 'GGP', 'GHDX', 'GLAC', 'GLACU',
-              'GNBC', 'GOV', 'GPIC', 'GSHT', 'GTYHU', 'HAIR', 'HBK', 'HEB',
-              'HF', 'HFBC', 'HIFR', 'HIVE', 'HKRSQ', 'HLTH', 'HMTA', 'HPJ',
-              'HYGS', 'IDTI', 'IMDZ', 'IMI', 'IMMY', 'IPOA', 'ISCA', 'ISRL',
-              'ITG', 'ITUS', 'JONE', 'JSYNU', 'KAAC', 'KCAP', 'KED', 'KEYW',
-              'KONE', 'KOOL', 'KPFS', 'KYE', 'LABL', 'LEXEA', 'LION', 'LLL',
-              'LOGO', 'LOXO', 'LTXB', 'LXFT', 'MACQ', 'MAMS', 'MB', 'MBFI',
-              'MBNAA', 'MBNAB', 'MBTF', 'MDSO', 'MFCB', 'MMDM', 'MOC', 'MPAC',
-              'MRT', 'MSF', 'MSL', 'MTEC', 'MTECU', 'MTGE', 'MXWL', 'MYND',
-              'MZF', 'NANO', 'NAO', 'NAVG', 'NCI', 'NCOM', 'NDRO', 'NETS',
-              'NITE', 'NNC', 'NRCG', 'NRE', 'NSU', 'NTC', 'NTRI', 'NVMM',
-              'NXEO', 'NXEOU', 'NXTM', 'NYLD', 'NYNY', 'OAK', 'OHGI', 'OHRP',
-              'OMED', 'ONEW', 'OPHT', 'ORBK', 'ORM', 'ORPN', 'OSIR', 'OSPRU',
-              'P', 'PCMI', 'PERY', 'PETX', 'PGLC', 'PHIIQ', 'PHIKQ', 'PLLL',
-              'PNTR', 'PRAN', 'PTIE', 'PTXTQ', 'PYDS', 'QCP', 'QSII', 'QTNA',
-              'RDC', 'REN', 'RHT', 'RLM', 'RNN', 'ROX', 'RTEC', 'RVEN', 'RXII',
-              'SCAC', 'SCACU', 'SFLY', 'SFS', 'SGYPQ', 'SHLM', 'SHOS', 'SHPG',
-              'SIFI', 'SIR', 'SKIS', 'SLD', 'SMSH', 'SPA', 'SSFN', 'STLR',
-              'STNL', 'STNLU', 'SVU', 'SXCP', 'TAHO', 'TFCF', 'TFCFA', 'TIER',
-              'TISA', 'TLP', 'TMCX', 'TMCXU', 'TOWR', 'TPIV', 'TRCO', 'TRK',
-              'TRNC', 'TSS', 'TST', 'TYPE', 'UBNK', 'UBNT', 'UCBA', 'ULTI',
-              'UQM', 'USG', 'UWN', 'VEACU', 'VICL', 'VMAX', 'VSAR', 'VSM',
-              'WAGE', 'WGP', 'WP', 'XGTI', 'XRM', 'XSPL', 'ZDEO', 'ZF', 'ZJBR',
-              'CVON', 'FFKT', 'KLXI', 'HNTUF', 'EGLTQ', 'NEWM', 'HCLP', 'HDP',
-              'GSTCQ', 'DFBHU', 'ILG', 'MATR', 'RENX', 'VLP', 'TSRO')
 ML_FEATURES = ['Average_Return', 'Threshold',
                'Today_Change', 'Yesterday_Change', 'Twenty_Day_Change',
-               'Day_Range_Change',
+               'Day_Range_Change', 'Year_High_Change', 'Year_Low_Change',
                'Change_Average', 'Change_Variance',
                'RSI',
                'MACD_Rate']
@@ -125,18 +86,11 @@ class TradingBase(object):
         drop_key = datetime.datetime.today().date()
         close = close.drop(drop_key)
         volume = volume.drop(drop_key)
-      close = np.array(close)
-      volume = np.array(volume)
-      avg_trading_volume = np.average(np.multiply(
-          volume[-90:], close[-90:]))
-      if avg_trading_volume >= VOLUME_FILTER_THRESHOLD:
-        self.closes[symbol] = close
-        self.volumes[symbol] = volume
+      self.closes[symbol] = np.array(close)
+      self.volumes[symbol] = np.array(volume)
     print('Attempt to load %d symbols' % (len(self.symbols)))
     print('%d loaded symbols after drop symbols traded less than %s' % (
-        len(self.hists), period))
-    print('%d symbols loaded after drop symbols with volume less than $%s' % (
-        len(self.closes), VOLUME_FILTER_THRESHOLD))
+        len(self.closes), period))
 
   def _load_history(self, symbol, period):
     """Loads history for a single symbol."""
@@ -175,10 +129,16 @@ class TradingBase(object):
     buy_infos = []
     for symbol, series in tqdm(self.closes.items(), ncols=80, leave=False,
                                file=sys.stdout):
-      if not cutoff:
-        series_year = series[-DAYS_IN_A_YEAR:]
-      else:
+      if cutoff:
         series_year = series[cutoff - DAYS_IN_A_YEAR:cutoff]
+        volumes_year = self.volumes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
+      else:
+        series_year = series[-DAYS_IN_A_YEAR:]
+        volumes_year = self.volumes[symbol][-DAYS_IN_A_YEAR:]
+      avg_trading_volume = np.average(np.multiply(
+          series_year[-20:], volumes_year[-20:]))
+      if avg_trading_volume < VOLUME_FILTER_THRESHOLD:
+        continue
       if prices:
         price = prices.get(symbol, 1E10)
       else:
@@ -188,7 +148,7 @@ class TradingBase(object):
       _, avg_return, threshold = get_picked_points(series_year)
       day_range_max = np.max(series_year[-DATE_RANGE:])
       down_percent = (day_range_max - price) / day_range_max
-      if down_percent > threshold > 0:
+      if down_percent > threshold > 0 and avg_return > 0:
         buy_infos.append((symbol, avg_return, threshold))
 
     buy_symbols = []
@@ -206,7 +166,7 @@ class TradingBase(object):
       ml_feature = get_ml_feature(series_year, price, avg_return, threshold)
       if model:
         x = [ml_feature[key] for key in ML_FEATURES]
-        weight = model.predict(np.array([x]))[0]
+        weight = model.predict(np.array([x]))[0] + 1
       else:
         weight = avg_return
       buy_symbols.append((symbol, weight, ml_feature))
@@ -264,6 +224,8 @@ def get_picked_points(series):
         tol -= 1
         if not tol:
           break
+  if not n_pick:
+    return [], np.finfo(float).min, np.finfo(float).max
   threshold_i = pick_ti[n_pick - 1]
   threshold = down_percent[threshold_i]
   pick_t = down_t[pick_ti[:n_pick]]
@@ -281,11 +243,12 @@ def get_header(title):
 
 
 def get_ml_feature(series, price, avg_return, threshold):
-  day_range_max = np.max(series[-DATE_RANGE:])
-  day_range_change = (day_range_max - price) / day_range_max
+  day_range_change = price / np.max(series[-DATE_RANGE:]) - 1
   today_change = (price - series[-1]) / series[-1]
   yesterday_change = (series[-1] - series[-2]) / series[-2]
   twenty_day_change = (price - series[-20]) / series[-20]
+  year_high_change = price / np.max(series) - 1
+  year_low_change = price / np.min(series) - 1
   all_changes = [(series[t + 1] - series[t]) / series[t]
                  for t in range(len(series) - 1)
                  if series[t + 1] > 0 and series[t] > 0]
@@ -295,6 +258,8 @@ def get_ml_feature(series, price, avg_return, threshold):
              'Yesterday_Change': yesterday_change,
              'Twenty_Day_Change': twenty_day_change,
              'Day_Range_Change': day_range_change,
+             'Year_High_Change': year_high_change,
+             'Year_Low_Change': year_low_change,
              'Change_Average': np.mean(all_changes),
              'Change_Variance': np.var(all_changes),
              'RSI': get_rsi(series),

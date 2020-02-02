@@ -182,7 +182,7 @@ def second_to_string(secs):
 def main():
   parser = argparse.ArgumentParser(description='Stock trading realtime.')
   parser.add_argument('--fund', default=None, help='Total fund to trade.')
-  parser.add_argument('--model', default='model_p612804.hdf5', help='Machine learning model for prediction.')
+  parser.add_argument('--model', default='model_p573991.hdf5', help='Machine learning model for prediction.')
   parser.add_argument('--api_key', default=None, help='Alpaca API key.')
   parser.add_argument('--api_secret', default=None, help='Alpaca API secret.')
   parser.add_argument("--real_trade", help='Trade with real money.',
