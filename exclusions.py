@@ -41,4 +41,8 @@ EXCLUSIONS = ('AABA', 'ACETQ', 'AETI', 'AGC', 'AKP', 'ALDR', 'ALN', 'ALQA',
               'XL', 'FNBG', 'WSCI', 'COTV', 'CVRR', 'RSYS', 'VCOYY', 'JMBA',
               'FCB', 'ATAC', 'JHA', 'EEP', 'STBZ', 'GPT', 'APB', 'BPK', 'PRTHU',
               'VVC', 'APTI', 'PF', 'ENLK', 'CWAY', 'BBOX', 'ABAX', 'JTPY',
-              'ARMO', 'ESIO')
+              'ARMO', 'ESIO', 'HQCL', 'ESND', 'EMJ', 'NYRT', 'AVDR', 'SNMX',
+              'SVA', 'DNJR', 'RLJE', 'CQH', 'TBLTU', 'ANCX', 'PNK', 'EGC',
+              'CHFN', 'DCT', 'XPLR', 'ESRX', 'EIO', 'DM', 'OCIP', 'STDY',
+              'ATHN', 'TBRGU', 'BJZ', 'SEND', 'MCRN', 'EIA', 'MMV', 'ALOG',
+              'DVMT', 'SYNT', 'EIP', 'XCRA', 'PAY')

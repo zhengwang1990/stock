@@ -4,6 +4,9 @@ import utils
 import alpaca_trade_api as tradeapi
 import time
 import os
+import ta
+import numpy as np
+import pandas as pd
 
 
 def plot_buy_points(ticker):
@@ -19,7 +22,9 @@ def plot_buy_points(ticker):
 
 
 def test_alpaca():
-    alpaca = tradeapi.REST(API_KEY, API_SECRET, APCA_API_BASE_URL, 'v2')
+    alpaca = tradeapi.REST(PAPER_API_KEY,
+                           PAPER_API_SECRET,
+                           PAPER_API_BASE_URL, 'v2')
 
     # Time
     clock = alpaca.get_clock()
@@ -32,16 +37,16 @@ def test_alpaca():
     # Account info
     account = alpaca.get_account()
     print('Account cash:', float(account.cash))
-    print('Account buying power:', float(account.buying_power))
+    print('Account equity:', float(account.equity))
 
     # Submit buy order
-    alpaca.submit_order('TAL', 1, 'buy', 'market', 'day')
-    print('Buy order submitted')
-    orders = alpaca.list_orders(status='open')
-    while orders:
-        print('Wait for order to fill...')
-        time.sleep(1)
-        orders = alpaca.list_orders(status='open')
+    #alpaca.submit_order('TAL', 1, 'buy', 'market', 'day')
+    #print('Buy order submitted')
+    #orders = alpaca.list_orders(status='open')
+    #while orders:
+    #    print('Wait for order to fill...')
+    #    time.sleep(1)
+    #    orders = alpaca.list_orders(status='open')
 
     # Positions
     positions = alpaca.list_positions()
@@ -52,7 +57,6 @@ def test_alpaca():
     # Account info
     account = alpaca.get_account()
     print('Account cash:', float(account.cash))
-    print('Account buying power:', float(account.buying_power))
 
     # Submit sell order
     alpaca.submit_order('TAL', 1, 'sell', 'market', 'day')
@@ -71,12 +75,8 @@ def test_alpaca():
 
 def main():
     #plot_buy_points('AMEH')
-    #test_alpaca()
-    alpaca = tradeapi.REST(os.environ['ALPACA_API_KEY'],
-                           os.environ['ALPACA_API_SECRET'],
-                           utils.APCA_API_BASE_URL, 'v2')
-    trading = simulate.TradingSimulate(alpaca)
-    trading.run()
+    test_alpaca()
+
 
 if __name__ == '__main__':
     main()
