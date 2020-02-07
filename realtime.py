@@ -138,6 +138,7 @@ class TradingRealTime(utils.TradingBase):
 
     def trade(self, trading_list):
         # Sell all current positions
+        utils.bi_print(utils.get_header('Place Sell Orders'), self.output_file)
         positions = self.alpaca.list_positions()
         positions_table = []
         for position in positions:
@@ -157,6 +158,7 @@ class TradingRealTime(utils.TradingBase):
         self.update_equity()
 
         # Order all current positions
+        utils.bi_print(utils.get_header('Place Buy Orders'), self.output_file)
         orders_table = []
         estimate_cost = 0
         for symbol, proportion, _ in trading_list:
@@ -175,15 +177,16 @@ class TradingRealTime(utils.TradingBase):
                                     headers=['Symbol', 'Price', 'Quantity', 'Estimated Cost'],
                                     tablefmt='grid'),
                            self.output_file)
-        utils.bi_print('Current Cash: %.2f. Estimated Total Cost: %.2f.' % (self.cash, estimate_cost),
+        utils.bi_print('Current Cash: %.2f. Estimated Total Cost: %.2f.' % (
+            self.cash, estimate_cost),
                        self.output_file)
         self._wait_for_order_to_fill()
 
     def _wait_for_order_to_fill(self):
         orders = self.alpaca.list_orders(status='open')
         while orders:
-            print('Wait for order to fill...')
-            time.sleep(1)
+            utils.bi_print('Wait for order to fill...', self.output_file)
+            time.sleep(2)
             orders = self.alpaca.list_orders(status='open')
 
     def print_trading_list(self, trading_list):
