@@ -179,13 +179,13 @@ def main():
                         help='End date of the simulation.')
     parser.add_argument('--api_key', default=None, help='Alpaca API key.')
     parser.add_argument('--api_secret', default=None, help='Alpaca API secret.')
-    parser.add_argument("--write_training_data", help='Write tranining data.',
+    parser.add_argument("--write_training_data", help='Write training data.',
                         action="store_true")
     args = parser.parse_args()
 
-    alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
-                           args.api_secret or os.environ['ALPACA_API_SECRET'],
-                           utils.ALPACA_API_BASE_URL, 'v2')
+    alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_PAPER_API_KEY'],
+                           args.api_secret or os.environ['ALPACA_PAPER_API_SECRET'],
+                           utils.ALPACA_PAPER_API_BASE_URL, 'v2')
     trading = TradingSimulate(alpaca, args.start_date, args.end_date,
                               args.write_training_data)
     trading.run()

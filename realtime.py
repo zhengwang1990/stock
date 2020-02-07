@@ -13,7 +13,7 @@ from tabulate import tabulate
 
 class TradingRealTime(utils.TradingBase):
 
-    def __init__(self, alpaca, equity=None, real_trade=False):
+    def __init__(self, alpaca, equity=None):
         super(TradingRealTime, self).__init__(alpaca)
         self.active = True
         self.equity = equity
@@ -30,7 +30,7 @@ class TradingRealTime(utils.TradingBase):
             with open(self.price_cache_file) as f:
                 self.prices = json.loads(f.read())
         else:
-            self.update_prices(self.all_series.keys(), use_tqdm=True)
+            self.update_prices(self.closes.keys(), use_tqdm=True)
 
         for ticker, series in self.closes.items():
             _, _, threshold = utils.get_picked_points(series[-utils.DAYS_IN_A_YEAR:])
@@ -102,9 +102,8 @@ class TradingRealTime(utils.TradingBase):
             self.ordered_symbols = tmp_ordered_symbols
 
     def update_equity(self):
-        if self.real_trade:
-            account = self.alpaca.get_account()
-            self.equity = account.equity
+        account = self.alpaca.get_account()
+        self.equity = account.equity
 
     def run(self):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
@@ -122,13 +121,9 @@ class TradingRealTime(utils.TradingBase):
                  for update_freq, update_time in
                  sorted(self.last_updates.items(), key=lambda t: t[0])],),
                            self.output_file)
-
-            if time.time() > next_market_close - 90:
-                if self.real_trade:
-                    self.trade(trading_list)
-                    break
-                else:
-                    time.sleep(30)
+            if time.time() > next_market_close - 60:
+                self.trade(trading_list)
+                break
             elif time.time() > next_market_close - 60 * 5:
                 time.sleep(30)
             else:
@@ -239,11 +234,16 @@ def main():
                         action="store_true")
     args = parser.parse_args()
 
-    alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
-                           args.api_secret or os.environ['ALPACA_API_SECRET'],
-                           utils.ALPACA_API_BASE_URL, 'v2')
-    fund = float(args.fund) if args.fund else None
-    trading = TradingRealTime(alpaca, equity=args.equity, real_trade=args.real_trade)
+    if args.real_trade:
+        alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
+                               args.api_secret or os.environ['ALPACA_API_SECRET'],
+                               utils.ALPACA_API_BASE_URL, 'v2')
+    else:
+        alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_PAPER_API_KEY'],
+                               args.api_secret or os.environ['ALPACA_PAPER_API_SECRET'],
+                               utils.ALPACA_PAPER_API_BASE_URL, 'v2')
+    equity = float(args.equity) if args.equity else None
+    trading = TradingRealTime(alpaca, equity=equity)
     trading.run()
 
 

@@ -4,6 +4,7 @@ import re
 import requests
 import retrying
 import ta
+import tensorflow.keras as keras
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -23,33 +24,33 @@ DEFAULT_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 8
 VOLUME_FILTER_THRESHOLD = 100000
 MAX_THREADS = 5
-REGRESSION_COEFFICIENT = {
-    'Today_Change': 0.000000e+00,
-    'Yesterday_Change': -1.990495e+00,
-    'Day_Before_Yesterday_Change': -6.625245e-01,
-    'Twenty_Day_Change': -1.457217e-01,
-    'Day_Range_Change': -0.000000e+00,
-    'Year_High_Change': 7.263699e-01,
-    'Year_Low_Change': 1.085623e-02,
-    'Change_Average': 0.000000e+00,
-    'Change_Variance': -0.000000e+00,
-    'RSI': -1.215447e-02,
-    'MACD_Rate': -1.421378e+01,
-    'TSI': 0.000000e+00,
-    'WR': 2.405147e-02,
-}
-REGRESSION_INTERCEPT = 2.72789864441329
-ML_FEATURES = list(REGRESSION_COEFFICIENT.keys())
-ALPACA_API_BASE_URL = "https://api.alpaca.markets"
+ML_FEATURES = [
+    'Today_Change',
+    'Yesterday_Change',
+    'Day_Before_Yesterday_Change',
+    'Twenty_Day_Change',
+    'Day_Range_Change',
+    'Year_High_Change',
+    'Year_Low_Change',
+    'Change_Average',
+    'Change_Variance',
+    'RSI',
+    'MACD_Rate',
+    'TSI',
+    'WR']
+ALPACA_API_BASE_URL = 'https://api.alpaca.markets'
+ALPACA_PAPER_API_BASE_URL = 'https://paper-api.alpaca.markets'
+DEFAULT_MODEL = 'model_p624875.hdf5'
 
 
 class TradingBase(object):
     """Basic trade utils."""
 
-    def __init__(self, alpaca, period=DEFAULT_HISTORY_LOAD):
+    def __init__(self, alpaca, period=DEFAULT_HISTORY_LOAD, model=DEFAULT_MODEL):
         self.alpaca = alpaca
         self.pool = futures.ThreadPoolExecutor(max_workers=MAX_THREADS)
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
+        self.model = keras.models.load_model(os.path.join(self.root_dir, MODELS_DIR, model))
         self.cache_path = os.path.join(self.root_dir, CACHE_DIR,
                                        get_business_day(1), period)
         os.makedirs(self.cache_path, exist_ok=True)
@@ -170,9 +171,8 @@ class TradingBase(object):
         buy_symbols = []
         for symbol in buy_info:
             ml_feature = self.get_ml_feature(symbol, prices=prices, cutoff=cutoff)
-            weight = REGRESSION_INTERCEPT
-            for key in ML_FEATURES:
-                weight += REGRESSION_COEFFICIENT.get(key, 0) * ml_feature.get(key, 0)
+            x = np.array([[ml_feature[key] for key in ML_FEATURES]])
+            weight = self.model.predict(x)[0]
             buy_symbols.append((symbol, weight, ml_feature))
         return buy_symbols
 
