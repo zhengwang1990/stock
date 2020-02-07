@@ -48,12 +48,12 @@ class TradingBase(object):
 
     def __init__(self, alpaca, period=DEFAULT_HISTORY_LOAD, model=DEFAULT_MODEL):
         self.alpaca = alpaca
-        self.pool = futures.ThreadPoolExecutor(max_workers=MAX_THREADS)
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.model = keras.models.load_model(os.path.join(self.root_dir, MODELS_DIR, model))
         self.cache_path = os.path.join(self.root_dir, CACHE_DIR,
                                        get_business_day(1), period)
         os.makedirs(self.cache_path, exist_ok=True)
+        self.is_market_open = self.alpaca.get_clock().is_open
         self.hists = {}
         self.history_length = self.get_history_length(period)
         self.history_dates = self.get_history_dates(period)
@@ -75,30 +75,28 @@ class TradingBase(object):
         threads = []
         # Allow at most 10 errors
         error_tol = 10
-        for symbol in self.symbols:
-            t = self.pool.submit(self._load_history, symbol, period)
-            threads.append(t)
-        for t in tqdm(threads, ncols=80):
-            try:
-                t.result()
-            except Exception as e:
-                print(e)
-                error_tol -= 1
-                if error_tol <= 0:
-                    raise e
+
+        with futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as pool:
+            for symbol in self.symbols:
+                t = pool.submit(self._load_history, symbol, period)
+                threads.append(t)
+            for t in tqdm(threads, ncols=80):
+                try:
+                    t.result()
+                except Exception as e:
+                    print(e)
+                    error_tol -= 1
+                    if error_tol <= 0:
+                        raise e
 
     def _read_series_from_histories(self, period):
         """Reads out close price and volume."""
         self.closes = {}
         self.volumes = {}
-        clock = self.alpaca.get_clock()
+
         for symbol, hist in self.hists.items():
             close = hist.get('Close')
             volume = hist.get('Volume')
-            if clock.is_open:
-                drop_key = datetime.datetime.today().date()
-                close = close.drop(drop_key)
-                volume = volume.drop(drop_key)
             self.closes[symbol] = np.array(close)
             self.volumes[symbol] = np.array(volume)
         print('Attempt to load %d symbols' % (len(self.symbols)))
@@ -120,8 +118,14 @@ class TradingBase(object):
             except Exception as e:
                 print('Can not get history of %s: %s' % (symbol, e))
                 raise e
+        drop_key = datetime.datetime.today().date()
+        if self.is_market_open and drop_key in hist.index:
+            hist.drop(drop_key)
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:
             self.hists[symbol] = hist
+        else if symbol == 'QQQ':
+            raise Exception('Error loading QQQ: expect length %d, but got %d.' % (
+                self.history_length, len(hist)))
 
     def get_history_length(self, period):
         """Get the number of trading days in a given period."""
@@ -141,7 +145,7 @@ class TradingBase(object):
         if not (prices or cutoff) or (prices and cutoff):
             raise Exception('Exactly one of prices or cutoff must be provided')
         buy_info = []
-        for symbol, close in tqdm(self.closes.items(), ncols=80):
+        for symbol, close in tqdm(self.closes.items(), ncols=80, leave=False):
             if cutoff:
                 close_year = close[cutoff - DAYS_IN_A_YEAR:cutoff]
                 volumes_year = self.volumes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
@@ -249,41 +253,6 @@ def get_threshold(series):
                     if series[i] < np.max(series[i - DATE_RANGE:i])]
     threshold = np.mean(down_percent) - 2.5 * np.std(down_percent)
     return threshold
-
-
-def get_picked_points(series):
-    """Gets threshold for best return of a series.
-
-    This function uses full information of the series without truncation.
-    """
-    down_t = np.array([i + 1 for i in range(DATE_RANGE - 1, len(series) - 1)
-                       if series[i] >= series[i + 1] > 0])
-    down_percent = [(np.max(series[i - DATE_RANGE:i]) - series[i]) /
-                    np.max(series[i - DATE_RANGE:i]) for i in down_t]
-    pick_ti = sorted(range(len(down_percent)), key=lambda i: down_percent[i],
-                     reverse=True)
-    tol = 50
-    max_avg_gain = np.finfo(float).min
-    n_pick = 0
-    for n_point in range(1, len(pick_ti)):
-        potential_t = down_t[pick_ti[:n_point]]
-        gains = [(series[t + 1] - series[t]) / series[t]
-                 for t in potential_t if t + 1 < len(series)]
-        if len(gains) > 0:
-            avg_gain = np.average(gains)
-            if avg_gain > max_avg_gain:
-                n_pick = n_point
-                max_avg_gain = avg_gain
-            else:
-                tol -= 1
-                if not tol:
-                    break
-    if not n_pick:
-        return [], np.finfo(float).min, np.finfo(float).max
-    threshold_i = pick_ti[n_pick - 1]
-    threshold = down_percent[threshold_i]
-    pick_t = down_t[pick_ti[:n_pick]]
-    return pick_t, max_avg_gain, threshold
 
 
 def get_business_day(offset):

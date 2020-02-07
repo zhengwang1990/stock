@@ -7,19 +7,20 @@ import threading
 import time
 import os
 import utils
-import tqdm
+from concurrent import futures
+from tqdm import tqdm
 from tabulate import tabulate
 
 
 class TradingRealTime(utils.TradingBase):
 
-    def __init__(self, alpaca, equity=None):
+    def __init__(self, alpaca):
         super(TradingRealTime, self).__init__(alpaca)
         self.active = True
-        self.equity = equity
+        self.update_equity()
         self.lock = threading.RLock()
         self.thresholds = {}
-        self.down_percents = {}
+        self.day_range_changes = {}
         self.prices = {}
         self.ordered_symbols = []
         self.price_cache_file = os.path.join(
@@ -30,10 +31,11 @@ class TradingRealTime(utils.TradingBase):
             with open(self.price_cache_file) as f:
                 self.prices = json.loads(f.read())
         else:
+            print('Loading current stock prices...')
             self.update_prices(self.closes.keys(), use_tqdm=True)
 
-        for ticker, series in self.closes.items():
-            _, _, threshold = utils.get_picked_points(series[-utils.DAYS_IN_A_YEAR:])
+        for ticker, close in self.closes.items():
+            threshold = utils.get_threshold(close[-utils.DAYS_IN_A_YEAR:])
             self.thresholds[ticker] = threshold
 
         self.update_ordered_symbols()
@@ -66,16 +68,17 @@ class TradingRealTime(utils.TradingBase):
 
     def update_prices(self, tickers, use_tqdm=False):
         threads = []
-        for ticker in tickers:
-            if not self.active:
-                return
-            t = self.pool.submit(self.get_real_time_price, ticker)
-            threads.append(t)
-        iterator = tqdm(threads, ncols=80) if use_tqdm else threads
-        for t in iterator:
-            if not self.active:
-                return
-            t.result()
+        with futures.ThreadPoolExecutor(max_workers=utils.MAX_THREADS) as pool:
+          for ticker in tickers:
+              if not self.active:
+                  return
+              t = pool.submit(self.get_real_time_price, ticker)
+              threads.append(t)
+          iterator = tqdm(threads, ncols=80, leave=False) if use_tqdm else threads
+          for t in iterator:
+              if not self.active:
+                  return
+              t.result()
         with self.lock:
             with open(self.price_cache_file, 'w') as f:
                 f.write(json.dumps(self.prices))
@@ -83,27 +86,27 @@ class TradingRealTime(utils.TradingBase):
     def update_ordered_symbols(self):
         tmp_ordered_symbols = []
         order_weights = {}
-        for ticker, series in self.closes.items():
+        for ticker, close in self.closes.items():
             if ticker not in self.prices:
                 continue
             price = self.prices[ticker]
-            down_percent = (np.max(series[-utils.DATE_RANGE:]) -
-                            price) / np.max(series[-utils.DATE_RANGE:])
+            day_range_change = price / np.max(close[-utils.DATE_RANGE:]) - 1
             threshold = self.thresholds[ticker]
-            self.down_percents[ticker] = down_percent
+            self.day_range_changes[ticker] = day_range_change
             tmp_ordered_symbols.append(ticker)
-            if down_percent >= threshold:
-                order_weights[ticker] = min(np.abs(down_percent - threshold),
-                                            np.abs((price - series[-1]) / series[-1]))
+            if day_range_change < threshold:
+                order_weights[ticker] = min(np.abs(day_range_change - threshold),
+                                            np.abs(price / close[-1] - 1))
             else:
-                order_weights[ticker] = np.abs(down_percent - threshold)
+                order_weights[ticker] = np.abs(day_range_change - threshold)
         tmp_ordered_symbols.sort(key=lambda ticker: order_weights[ticker])
         with self.lock:
             self.ordered_symbols = tmp_ordered_symbols
 
     def update_equity(self):
         account = self.alpaca.get_account()
-        self.equity = account.equity
+        self.equity = float(account.equity)
+        self.cash = float(account.cash)
 
     def run(self):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
@@ -111,7 +114,7 @@ class TradingRealTime(utils.TradingBase):
             self.update_equity()
             trading_list = self.get_trading_list(prices=self.prices)
             # Update symbols in trading list to make sure they are up-to-date
-            self.update_prices([ticker for ticker, _, _ in trading_list])
+            self.update_prices([ticker for ticker, _, _ in trading_list], use_tqdm=True)
             self.update_ordered_symbols()
             utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%H:%M:%S')),
                            self.output_file)
@@ -121,28 +124,34 @@ class TradingRealTime(utils.TradingBase):
                  for update_freq, update_time in
                  sorted(self.last_updates.items(), key=lambda t: t[0])],),
                            self.output_file)
-            if time.time() > next_market_close - 60:
+            if time.time() > next_market_close - 90:
                 self.trade(trading_list)
                 break
             elif time.time() > next_market_close - 60 * 5:
-                time.sleep(30)
+                time.sleep(10)
+            elif time.time() > next_market_close - 60 * 20:
+                time.sleep(100)
             else:
                 time.sleep(300)
         self.active = False
-        time.sleep(1)
+        time.sleep(10)
 
     def trade(self, trading_list):
         # Sell all current positions
         positions = self.alpaca.list_positions()
         positions_table = []
         for position in positions:
-            positions_table.append([position.symbol, position.current_price, position.qty,
-                                    position.market_value - position.cost_basis])
-            self.alpaca.submit_order(position.symbol, int(position.qty), 'sell', 'market', 'day')
-        utils.bi_print(tabulate(positions_table,
-                                headers=['Symbol', 'Price', 'Quantity', 'Estimated Gain Value'],
-                                tablefmt='grid'),
-                       self.output_file)
+            try:
+                self.alpaca.submit_order(position.symbol, int(position.qty), 'sell', 'market', 'day')
+                positions_table.append([position.symbol, position.current_price, position.qty,
+                                        float(position.market_value) - float(position.cost_basis)])
+            except tradeapi.rest.APIError as e:
+                print('Failed to sell %s: %s' % (position.symbol, e))
+        if positions_table:
+            utils.bi_print(tabulate(positions_table,
+                                    headers=['Symbol', 'Price', 'Quantity', 'Estimated Gain Value'],
+                                    tablefmt='grid'),
+                           self.output_file)
         self._wait_for_order_to_fill()
 
         self.update_equity()
@@ -153,16 +162,21 @@ class TradingRealTime(utils.TradingBase):
         for symbol, proportion, _ in trading_list:
             if proportion == 0:
                 continue
-            qty = int(self.equity * proportion / self.prices[symbol])
+            qty = int(self.cash * proportion / self.prices[symbol])
             if qty > 0:
                 orders_table.append([symbol, self.prices[symbol], qty, self.prices[symbol] * qty])
                 estimate_cost += self.prices[symbol] * qty
-                self.alpaca.submit_order(symbol, qty, 'buy', 'market', 'day')
-        utils.bi_print(tabulate(orders_table,
-                                headers=['Symbol', 'Price', 'Quantity', 'Estimated Cost'],
-                                tablefmt='grid'),
+                try:
+                    self.alpaca.submit_order(symbol, qty, 'buy', 'market', 'day')
+                except tradeapi.rest.APIError as e:
+                    print('Failed to buy %s: %s' % (symbol, e))
+        if orders_table:
+            utils.bi_print(tabulate(orders_table,
+                                    headers=['Symbol', 'Price', 'Quantity', 'Estimated Cost'],
+                                    tablefmt='grid'),
+                           self.output_file)
+        utils.bi_print('Current Cash: %.2f. Estimated Total Cost: %.2f.' % (self.cash, estimate_cost),
                        self.output_file)
-        utils.bi_print('Current Equity: %.2f. Estimated Total Cost: %.2f.' % (self.equity, estimate_cost))
         self._wait_for_order_to_fill()
 
     def _wait_for_order_to_fill(self):
@@ -183,26 +197,23 @@ class TradingRealTime(utils.TradingBase):
             trading_row = [symbol, '%.2f%%' % (proportion * 100,), weight]
             price = self.prices[symbol]
             change = (price - self.closes[symbol][-1]) / self.closes[symbol][-1]
+            value = self.equity * proportion
+            qty = int(value / price)
+            share_cost = qty * price
+            cost += share_cost
             trading_row.extend(['%.2f%%' % (change * 100,),
-                                '%.2f%%' % (-self.down_percents[symbol] * 100,),
-                                '%.2f%%' % (-self.thresholds[symbol] * 100,), price])
-            if self.equity:
-                value = self.equity * proportion
-                n_shares = int(value / price)
-                share_cost = n_shares * price
-                cost += share_cost
-                trading_row.extend([share_cost, n_shares])
+                                '%.2f%%' % (self.day_range_changes[symbol] * 100,),
+                                '%.2f%%' % (self.thresholds[symbol] * 100,), price,
+                                share_cost, qty])
             trading_table.append(trading_row)
         headers = ['Symbol', 'Proportion', 'Weight', 'Today Change',
-                   '%d Day Change' % (utils.DATE_RANGE,), 'Threshold', 'Price']
-        if self.equity:
-            headers.extend(['Cost', 'Quantity'])
+                   '%d Day Change' % (utils.DATE_RANGE,), 'Threshold', 'Price',
+                   'Cost', 'Quantity']
         if trading_table:
             utils.bi_print(tabulate(trading_table, headers=headers, tablefmt='grid'),
                            self.output_file)
-            if self.equity:
-                utils.bi_print('Fund: %.2f' % (fund,), self.output_file)
-                utils.bi_print('Actual Cost: %.2f' % (cost,), self.output_file)
+            utils.bi_print('Equity: %.2f' % (self.equity,), self.output_file)
+            utils.bi_print('Etimated Cost: %.2f' % (cost,), self.output_file)
 
 
 def _get_real_time_price_from_yahoo(ticker):
@@ -227,7 +238,6 @@ def second_to_string(secs):
 
 def main():
     parser = argparse.ArgumentParser(description='Stock trading realtime.')
-    parser.add_argument('--equity', default=None, help='Total fund to trade.')
     parser.add_argument('--api_key', default=None, help='Alpaca API key.')
     parser.add_argument('--api_secret', default=None, help='Alpaca API secret.')
     parser.add_argument("--real_trade", help='Trade with real money.',
@@ -235,15 +245,20 @@ def main():
     args = parser.parse_args()
 
     if args.real_trade:
+        print('-' * 80)
+        print('Using Alpaca API for live trading')
+        print('-' * 80)
         alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
                                args.api_secret or os.environ['ALPACA_API_SECRET'],
                                utils.ALPACA_API_BASE_URL, 'v2')
     else:
+        print('-' * 80)
+        print('Using Alpaca API for paper market')
+        print('-' * 80)
         alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_PAPER_API_KEY'],
                                args.api_secret or os.environ['ALPACA_PAPER_API_SECRET'],
                                utils.ALPACA_PAPER_API_BASE_URL, 'v2')
-    equity = float(args.equity) if args.equity else None
-    trading = TradingRealTime(alpaca, equity=equity)
+    trading = TradingRealTime(alpaca)
     trading.run()
 
 

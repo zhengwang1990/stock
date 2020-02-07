@@ -22,9 +22,9 @@ def plot_buy_points(ticker):
 
 
 def test_alpaca():
-    alpaca = tradeapi.REST(PAPER_API_KEY,
-                           PAPER_API_SECRET,
-                           PAPER_API_BASE_URL, 'v2')
+    alpaca = tradeapi.REST(os.environ['ALPACA_PAPER_API_KEY'],
+                           os.environ['ALPACA_PAPER_API_SECRET'],
+                           utils.ALPACA_PAPER_API_BASE_URL, 'v2')
 
     # Time
     clock = alpaca.get_clock()
@@ -36,6 +36,8 @@ def test_alpaca():
 
     # Account info
     account = alpaca.get_account()
+    print(account)
+    exit(0)
     print('Account cash:', float(account.cash))
     print('Account equity:', float(account.equity))
 
