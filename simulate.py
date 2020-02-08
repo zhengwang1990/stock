@@ -177,7 +177,7 @@ class TradingSimulate(utils.TradingBase):
             if ((has_qqq and np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1])) or
                 (has_spy and np.abs(v[1][-1]) > 10 * np.abs(spy_curve[-1]))):
                 plt.yscale('log')
-            plt.savefig(os.path.join(self.root_dir, utils.OUTPUTS_DIR, k + '.png'))
+            plt.savefig(os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'plots', k + '.png'))
             plt.close()
 
     def run(self):
