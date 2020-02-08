@@ -60,7 +60,7 @@ def get_model():
                            input_shape=(x_dim,)),
         keras.layers.Dense(1, activation='tanh')
     ])
-    model.compile(optimizer='adam', loss=precision_favored_loss)
+    model.compile(optimizer='adam', loss='mse')
     model.summary()
     return model
 

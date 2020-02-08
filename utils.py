@@ -37,8 +37,7 @@ ML_FEATURES = [
     'RSI',
     'MACD_Rate',
     'TSI',
-    'WR',
-    'VIX']
+    'WR']
 ALPACA_API_BASE_URL = 'https://api.alpaca.markets'
 ALPACA_PAPER_API_BASE_URL = 'https://paper-api.alpaca.markets'
 DEFAULT_MODEL = 'model_p624875.hdf5'
@@ -70,7 +69,7 @@ class TradingBase(object):
         assets = self.alpaca.list_assets()
         self.symbols = [asset.symbol for asset in assets
                         if re.match('^[A-Z]*$', asset.symbol)
-                        and asset.symbol not in EXCLUSIONS] + ['^VIX']
+                        and asset.symbol not in EXCLUSIONS]
 
     @retrying.retry(stop_max_attempt_number=10, wait_fixed=1000 * 60 * 10)
     def load_histories(self, period):
@@ -127,7 +126,7 @@ class TradingBase(object):
             hist.drop(drop_key)
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:
             self.hists[symbol] = hist
-        elif symbol in ('QQQ', 'SPY', '^VIX'):
+        elif symbol in ('QQQ', 'SPY'):
             os.remove(cache_name)
             raise Exception('Error loading %s: expect length %d, but got %d.' % (
                 symbol, self.history_length, len(hist)))
@@ -201,10 +200,8 @@ class TradingBase(object):
     def get_ml_feature(self, symbol, prices=None, cutoff=None):
         if prices:
             price = prices.get(symbol, 1E10)
-            vix = self.prices['^VIX']
         else:
             price = self.closes[symbol][cutoff]
-            vix = self.closes['^VIX'][cutoff]
 
         if cutoff:
             close = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
@@ -248,8 +245,7 @@ class TradingBase(object):
                    'RSI': rsi,
                    'MACD_Rate': macd_rate,
                    'WR': wr,
-                   'TSI': tsi,
-                   'VIX': vix}
+                   'TSI': tsi}
         return feature
 
 
