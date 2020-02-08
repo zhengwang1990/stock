@@ -102,7 +102,7 @@ class TradingSimulate(utils.TradingBase):
         self._add_profit(sell_date, daily_gain)
 
     def _analyze_rows(self, sell_date_str, rows):
-        print(utils.get_header(sell_date_str))
+        utils.bi_print(utils.get_header(sell_date_str), self.output_detail)
         ml_features, symbols, gains = [], [], {}
         for row in rows:
             ml_features.append([getattr(row, key) for key in utils.ML_FEATURES])
@@ -163,12 +163,7 @@ class TradingSimulate(utils.TradingBase):
         output_summary = open(os.path.join(self.root_dir, utils.OUTPUTS_DIR,
                                            'simulate_summary.txt'), 'w')
         utils.bi_print(utils.get_header('Summary'), output_summary)
-        if self.data_file:
-            time_range = self.data_df.iloc[0].Date + '~' + self.data_df.iloc[-1].Date
-        else:
-            time_range = '%s ~ %s' % (
-                self.history_dates[self.start_point].date(),
-                self.history_dates[self.end_point].date())
+        time_range = '%s ~ %s' % (self.start_date, self.end_date)
         summary_table = [['Time Range', time_range]]
         gain_texts = [(k + ' Gain', '%.2f%%' % ((v[1][-1] - 1) * 100,))
                       for k, v in self.values.items()]
@@ -197,7 +192,7 @@ class TradingSimulate(utils.TradingBase):
             spy = self.hists.get('SPY').get('Close')
         for k, v in self.values.items():
             plt.figure(figsize=(15, 7))
-            plt.plot(v[0], v[1], label='My Portfolio')
+            plt.plot(v[0], v[1], linewidth=2, label='My Portfolio')
             qqq_curve = [qqq[dt] for dt in v[0]] if has_qqq else None
             spy_curve = [spy[dt] for dt in v[0]] if has_spy else None
             for i in range(len(v[0]) - 1, -1, -1):
