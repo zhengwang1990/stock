@@ -150,18 +150,22 @@ class TradingSimulate(utils.TradingBase):
             if symbol not in self.hists:
                 self.load_history(symbol, self.period)
 
-        qqq = self.hists['QQQ'].get('Close')
-        spy = self.hists['SPY'].get('Close')
+        qqq = self.hists.get('QQQ', {}).get('Close')
+        spy = self.hists.get('SPY', {}).get('Close')
         for k, v in self.values.items():
             plt.figure(figsize=(15, 7))
             plt.plot(v[0], v[1], label='My Portfolio')
-            qqq_curve = [qqq[dt] for dt in v[0]]
-            spy_curve = [spy[dt] for dt in v[0]]
+            qqq_curve = [qqq[dt] for dt in v[0]] if qqq else None
+            spy_curve = [spy[dt] for dt in v[0]] if spy else None
             for i in range(len(v[0]) - 1, -1, -1):
-                qqq_curve[i] /= qqq_curve[0]
-                spy_curve[i] /= spy_curve[0]
-            plt.plot(v[0], qqq_curve, label='QQQ')
-            plt.plot(v[0], spy_curve, label='SPY')
+                if qqq:
+                    qqq_curve[i] /= qqq_curve[0]
+                if spy:
+                    spy_curve[i] /= spy_curve[0]
+            if qqq:
+                plt.plot(v[0], qqq_curve, label='QQQ')
+            if spy:
+                plt.plot(v[0], spy_curve, label='SPY')
             plt.legend()
             plt.title(k)
             if np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1]):
