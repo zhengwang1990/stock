@@ -46,22 +46,26 @@ DEFAULT_MODEL = 'model_p624875.hdf5'
 class TradingBase(object):
     """Basic trade utils."""
 
-    def __init__(self, alpaca, period=DEFAULT_HISTORY_LOAD, model=DEFAULT_MODEL):
+    def __init__(self, alpaca, period=None, model=None, load_history=True):
+        model = model or DEFAULT_MODEL
         self.alpaca = alpaca
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.model = keras.models.load_model(os.path.join(self.root_dir, MODELS_DIR, model))
+        self.hists = {}
+        self.period = period or DEFAULT_HISTORY_LOAD
         self.cache_path = os.path.join(self.root_dir, CACHE_DIR,
-                                       get_business_day(1), period)
+                                       get_business_day(1), self.period)
         os.makedirs(self.cache_path, exist_ok=True)
         self.is_market_open = self.alpaca.get_clock().is_open
-        self.hists = {}
-        self.history_length = self.get_history_length(period)
-        self.history_dates = self.get_history_dates(period)
-        self._load_all_symbols()
-        self._load_histories(period)
-        self._read_series_from_histories(period)
+        self.history_length = self.get_history_length(self.period)
+        self.history_dates = self.get_history_dates(self.period)
+        if not load_history:
+            return
+        self.load_all_symbols()
+        self.load_histories(self.period)
+        self.read_series_from_histories(self.period)
 
-    def _load_all_symbols(self):
+    def load_all_symbols(self):
         self.symbols = []
         assets = self.alpaca.list_assets()
         self.symbols = [asset.symbol for asset in assets
@@ -69,7 +73,7 @@ class TradingBase(object):
                         and asset.symbol not in EXCLUSIONS]
 
     @retrying.retry(stop_max_attempt_number=10, wait_fixed=1000 * 60 * 10)
-    def _load_histories(self, period):
+    def load_histories(self, period):
         """Loads history of all stock symbols."""
         print('Loading stock histories...')
         threads = []
@@ -78,7 +82,7 @@ class TradingBase(object):
 
         with futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as pool:
             for symbol in self.symbols:
-                t = pool.submit(self._load_history, symbol, period)
+                t = pool.submit(self.load_history, symbol, period)
                 threads.append(t)
             for t in tqdm(threads, ncols=80):
                 try:
@@ -89,7 +93,7 @@ class TradingBase(object):
                     if error_tol <= 0:
                         raise e
 
-    def _read_series_from_histories(self, period):
+    def read_series_from_histories(self, period):
         """Reads out close price and volume."""
         self.closes = {}
         self.volumes = {}
@@ -104,7 +108,7 @@ class TradingBase(object):
             len(self.closes), period))
 
     @retrying.retry(stop_max_attempt_number=2, wait_fixed=500)
-    def _load_history(self, symbol, period):
+    def load_history(self, symbol, period):
         """Loads history for a single symbol."""
         cache_name = os.path.join(self.cache_path, 'history_%s.csv' % (symbol,))
         if os.path.isfile(cache_name):
@@ -123,18 +127,18 @@ class TradingBase(object):
             hist.drop(drop_key)
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:
             self.hists[symbol] = hist
-        else if symbol == 'QQQ':
+        elif symbol == 'QQQ':
             raise Exception('Error loading QQQ: expect length %d, but got %d.' % (
                 self.history_length, len(hist)))
 
     def get_history_length(self, period):
         """Get the number of trading days in a given period."""
-        self._load_history(REFERENCE_SYMBOL, period=period)
+        self.load_history(REFERENCE_SYMBOL, period=period)
         return len(self.hists[REFERENCE_SYMBOL])
 
     def get_history_dates(self, period):
         """Gets the list trading dates in a given period."""
-        self._load_history(REFERENCE_SYMBOL, period=period)
+        self.load_history(REFERENCE_SYMBOL, period=period)
         return self.hists[REFERENCE_SYMBOL].index
 
     def get_buy_symbols(self, prices=None, cutoff=None):
