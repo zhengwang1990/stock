@@ -77,12 +77,18 @@ class TradingSimulate(utils.TradingBase):
             if proportion == 0:
                 continue
             close = self.closes[symbol]
+            today_change = close[cutoff] / close[cutoff - 1] - 1
+            day_range_change = close[cutoff] / np.max(close[cutoff - utils.DATE_RANGE:cutoff]) - 1
+            if cutoff == self.history_length - 1:
+                trading_table.append([symbol, '%.2f%%' % (proportion * 100,),
+                                      weight,
+                                      '%.2f%%' % (today_change * 100,),
+                                      '%.2f%%' % (day_range_change * 100,)])
+                continue
             gain = (close[cutoff + 1] - close[cutoff]) / close[cutoff]
             # > 100% gain might caused by stock split. Do not calculate.
             if gain >= 1:
                 continue
-            today_change = close[cutoff] / close[cutoff - 1] - 1
-            day_range_change = close[cutoff] / np.max(close[cutoff - utils.DATE_RANGE:cutoff]) - 1
             trading_table.append([symbol, '%.2f%%' % (proportion * 100,),
                                   weight,
                                   '%.2f%%' % (today_change * 100,),
@@ -94,12 +100,12 @@ class TradingSimulate(utils.TradingBase):
             else:
                 self.loss_transactions += 1
         if trading_table:
-            utils.bi_print(tabulate(
-                trading_table,
-                headers=['Symbol', 'Proportion', 'Weight', 'Today Change',
-                         '%d Day Change' % (utils.DATE_RANGE,), 'Gain'],
-                tablefmt='grid'), self.output_detail)
-        self._add_profit(sell_date, daily_gain)
+            utils.bi_print(tabulate(trading_table, headers=[
+                'Symbol', 'Proportion', 'Weight', 'Today Change',
+                '%d Day Change' % (utils.DATE_RANGE,), 'Gain'], tablefmt='grid'),
+                           self.output_detail)
+        if cutoff < self.history_length - 1:
+            self._add_profit(sell_date, daily_gain)
 
     def _analyze_rows(self, sell_date_str, rows):
         utils.bi_print(utils.get_header(sell_date_str), self.output_detail)
@@ -232,6 +238,9 @@ class TradingSimulate(utils.TradingBase):
             for cutoff in range(self.start_point - 1, self.end_point):
                 sell_date = self.history_dates[cutoff + 1]
                 self._analyze_date(sell_date, cutoff)
+            if self.end_date > self.history_dates[-1]:
+                self._analyze_date(self.history_dates[-1] + pd.tseries.offsets.BDay(1),
+                                   self.history_length - 1)
 
         self._print_summary()
         self._plot_summary()
