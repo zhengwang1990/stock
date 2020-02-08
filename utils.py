@@ -66,7 +66,6 @@ class TradingBase(object):
         self.read_series_from_histories(self.period)
 
     def load_all_symbols(self):
-        self.symbols = []
         assets = self.alpaca.list_assets()
         self.symbols = [asset.symbol for asset in assets
                         if re.match('^[A-Z]*$', asset.symbol)

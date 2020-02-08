@@ -17,7 +17,7 @@ class TradingRealTime(utils.TradingBase):
     def __init__(self, alpaca):
         super(TradingRealTime, self).__init__(alpaca)
         self.active = True
-        self.update_equity()
+        self.update_account()
         self.lock = threading.RLock()
         self.thresholds = {}
         self.day_range_changes = {}
@@ -69,16 +69,16 @@ class TradingRealTime(utils.TradingBase):
     def update_prices(self, tickers, use_tqdm=False):
         threads = []
         with futures.ThreadPoolExecutor(max_workers=utils.MAX_THREADS) as pool:
-          for ticker in tickers:
-              if not self.active:
-                  return
-              t = pool.submit(self.get_real_time_price, ticker)
-              threads.append(t)
-          iterator = tqdm(threads, ncols=80, leave=False) if use_tqdm else threads
-          for t in iterator:
-              if not self.active:
-                  return
-              t.result()
+            for ticker in tickers:
+                if not self.active:
+                    return
+                t = pool.submit(self.get_real_time_price, ticker)
+                threads.append(t)
+            iterator = tqdm(threads, ncols=80, leave=False) if use_tqdm else threads
+            for t in iterator:
+                if not self.active:
+                    return
+                t.result()
         with self.lock:
             with open(self.price_cache_file, 'w') as f:
                 f.write(json.dumps(self.prices))
@@ -103,7 +103,7 @@ class TradingRealTime(utils.TradingBase):
         with self.lock:
             self.ordered_symbols = tmp_ordered_symbols
 
-    def update_equity(self):
+    def update_account(self):
         account = self.alpaca.get_account()
         self.equity = float(account.equity)
         self.cash = float(account.cash)
@@ -111,7 +111,7 @@ class TradingRealTime(utils.TradingBase):
     def run(self):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
         while time.time() < next_market_close:
-            self.update_equity()
+            self.update_account()
             trading_list = self.get_trading_list(prices=self.prices)
             # Update symbols in trading list to make sure they are up-to-date
             self.update_prices([ticker for ticker, _, _ in trading_list], use_tqdm=True)
@@ -155,7 +155,16 @@ class TradingRealTime(utils.TradingBase):
                            self.output_file)
         self._wait_for_order_to_fill()
 
-        self.update_equity()
+        for _ in range(10):
+            self.update_account()
+            if self.equity == self.cash:
+                break
+            time.sleep(1)
+        else:
+            print('-' * 80)
+            print('Warning: timeout while waiting for cash to settle. Equity: %s; Cash: %s.' % (
+                self.equity, self.cash))
+            print('-' * 80)
 
         # Order all current positions
         utils.bi_print(utils.get_header('Place Buy Orders'), self.output_file)
@@ -216,7 +225,7 @@ class TradingRealTime(utils.TradingBase):
             utils.bi_print(tabulate(trading_table, headers=headers, tablefmt='grid'),
                            self.output_file)
             utils.bi_print('Equity: %.2f' % (self.equity,), self.output_file)
-            utils.bi_print('Etimated Cost: %.2f' % (cost,), self.output_file)
+            utils.bi_print('Estimated Cost: %.2f' % (cost,), self.output_file)
 
 
 def _get_real_time_price_from_yahoo(ticker):

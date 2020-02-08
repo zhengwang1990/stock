@@ -18,17 +18,17 @@ class TradingSimulate(utils.TradingBase):
                  end_date=None,
                  model=None,
                  data_file=None,
-                 write_training_data=False):
-        if start_date:
-            year_diff = (pd.datetime.today().date().year -
-                         pd.to_datetime(start_date).year + 2)
-            year_diff = max(5, year_diff)
-            period = '%dy' % (year_diff,)
-        elif data_file:
+                 write_data=False):
+        if data_file:
             self.data_df = pd.read_csv(os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), utils.DATA_DIR, data_file))
             year_diff = (pd.datetime.today().date().year -
                          pd.to_datetime(self.data_df.iloc[0].Date).year + 1)
+            period = '%dy' % (year_diff,)
+        elif start_date:
+            year_diff = (pd.datetime.today().date().year -
+                         pd.to_datetime(start_date).year + 2)
+            year_diff = max(5, year_diff)
             period = '%dy' % (year_diff,)
         else:
             period = utils.DEFAULT_HISTORY_LOAD
@@ -36,20 +36,22 @@ class TradingSimulate(utils.TradingBase):
                                               load_history=not bool(data_file))
         self.data_file = data_file
         if data_file:
+            self.start_date = start_date or self.data_df.iloc[0].Date
+            self.end_date = end_date or self.data_df.iloc[-1].Date
             self.values = {'Total': (
-                [self._get_prev_market_date(pd.to_datetime(self.data_df.iloc[0].Date))],
+                [self._get_prev_market_date(pd.to_datetime(self.start_date))],
                 [1.0])}
         else:
-            start_date = (start_date or
-                          self.history_dates[5 * utils.DAYS_IN_A_YEAR + 1].date())
-            end_date = end_date or pd.datetime.today().date()
+            self.start_date = (start_date or
+                               self.history_dates[5 * utils.DAYS_IN_A_YEAR + 1].date())
+            self.end_date = end_date or pd.datetime.today().date()
             self.start_point, self.end_point = 0, self.history_length - 1
-            while pd.to_datetime(start_date) > self.history_dates[self.start_point]:
+            while pd.to_datetime(self.start_date) > self.history_dates[self.start_point]:
                 self.start_point += 1
-            while pd.to_datetime(end_date) < self.history_dates[self.end_point]:
+            while pd.to_datetime(self.end_date) < self.history_dates[self.end_point]:
                 self.end_point -= 1
-            self.write_training_data = write_training_data
-            if self.write_training_data:
+            self.write_data = write_data
+            if self.write_data:
                 stats_cols = ['Symbol', 'Date'] + utils.ML_FEATURES + ['Gain']
                 self.stats = pd.DataFrame(columns=stats_cols)
             self.values = {'Total': ([self.history_dates[self.start_point - 1]], [1.0])}
@@ -66,7 +68,7 @@ class TradingSimulate(utils.TradingBase):
     def _analyze_date(self, sell_date, cutoff):
         utils.bi_print(utils.get_header(sell_date.date()), self.output_detail)
         buy_symbols = self.get_buy_symbols(cutoff=cutoff)
-        if self.write_training_data:
+        if self.write_data:
             self._append_stats(buy_symbols, sell_date, cutoff)
         trading_list = self.get_trading_list(buy_symbols=buy_symbols)
         trading_table = []
@@ -98,6 +100,41 @@ class TradingSimulate(utils.TradingBase):
                          '%d Day Change' % (utils.DATE_RANGE,), 'Gain'],
                 tablefmt='grid'), self.output_detail)
         self._add_profit(sell_date, daily_gain)
+
+    def _analyze_rows(self, sell_date_str, rows):
+        print(utils.get_header(sell_date_str))
+        ml_features, symbols, gains = [], [], {}
+        for row in rows:
+            ml_features.append([getattr(row, key) for key in utils.ML_FEATURES])
+            symbols.append(row.Symbol)
+            gains[row.Symbol] = row.Gain
+        ml_features = np.array(ml_features)
+        weights = self.model.predict(ml_features)
+        buy_symbols = [(symbol, weight) for symbol, weight in zip(symbols, weights)]
+        trading_list = self.get_trading_list(buy_symbols=buy_symbols)
+        trading_table = []
+        daily_gain = 0
+        for symbol, proportion, weight in trading_list:
+            if proportion == 0:
+                continue
+            gain = gains[symbol]
+            # > 100% gain might caused by stock split. Do not calculate.
+            if gain >= 1:
+                continue
+            trading_table.append([symbol, '%.2f%%' % (proportion * 100,),
+                                  weight,
+                                  '%.2f%%' % (gain * 100,)])
+            daily_gain += gain * proportion
+            if gain >= 0:
+                self.gain_transactions += 1
+            else:
+                self.loss_transactions += 1
+        if trading_table:
+            utils.bi_print(tabulate(
+                trading_table,
+                headers=['Symbol', 'Proportion', 'Weight', 'Gain'],
+                tablefmt='grid'), self.output_detail)
+        self._add_profit(pd.to_datetime(sell_date_str), daily_gain)
 
     def _add_profit(self, sell_date, daily_gain):
         """Adds daily gain to values memory."""
@@ -138,7 +175,7 @@ class TradingSimulate(utils.TradingBase):
         summary_table.extend(sorted(gain_texts))
         utils.bi_print(tabulate(summary_table, tablefmt='grid'), output_summary)
 
-        if not self.data_file and self.write_training_data:
+        if not self.data_file and self.write_data:
             self.stats.to_csv(os.path.join(self.root_dir,
                                            utils.OUTPUTS_DIR,
                                            'simulate_stats.csv'),
@@ -175,7 +212,7 @@ class TradingSimulate(utils.TradingBase):
             plt.legend()
             plt.title(k)
             if ((has_qqq and np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1])) or
-                (has_spy and np.abs(v[1][-1]) > 10 * np.abs(spy_curve[-1]))):
+                    (has_spy and np.abs(v[1][-1]) > 10 * np.abs(spy_curve[-1]))):
                 plt.yscale('log')
             plt.savefig(os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'plots', k + '.png'))
             plt.close()
@@ -188,6 +225,8 @@ class TradingSimulate(utils.TradingBase):
             prev_date = ''
             for row in self.data_df.itertuples():
                 current_date = row.Date
+                if current_date < self.start_date or current_date > self.end_date:
+                    continue
                 if current_date != prev_date and prev_date:
                     self._analyze_rows(prev_date, rows)
                     rows = []
@@ -201,41 +240,6 @@ class TradingSimulate(utils.TradingBase):
 
         self._print_summary()
         self._plot_summary()
-
-    def _analyze_rows(self, sell_date_str, rows):
-        print(utils.get_header(sell_date_str))
-        ml_features, symbols, gains = [], [], {}
-        for row in rows:
-            ml_features.append([getattr(row, key) for key in utils.ML_FEATURES])
-            symbols.append(row.Symbol)
-            gains[row.Symbol] = row.Gain
-        ml_features = np.array(ml_features)
-        weights = self.model.predict(ml_features)
-        buy_symbols = [(symbol, weight) for symbol, weight in zip(symbols, weights)]
-        trading_list = self.get_trading_list(buy_symbols=buy_symbols)
-        trading_table = []
-        daily_gain = 0
-        for symbol, proportion, weight in trading_list:
-            if proportion == 0:
-                continue
-            gain = gains[symbol]
-            # > 100% gain might caused by stock split. Do not calculate.
-            if gain >= 1:
-                continue
-            trading_table.append([symbol, '%.2f%%' % (proportion * 100,),
-                                  weight,
-                                  '%.2f%%' % (gain * 100,)])
-            daily_gain += gain * proportion
-            if gain >= 0:
-                self.gain_transactions += 1
-            else:
-                self.loss_transactions += 1
-        if trading_table:
-            utils.bi_print(tabulate(
-                trading_table,
-                headers=['Symbol', 'Proportion', 'Weight', 'Gain'],
-                tablefmt='grid'), self.output_detail)
-        self._add_profit(pd.to_datetime(sell_date_str), daily_gain)
 
     def _append_stats(self, buy_symbols, date, cutoff):
         for symbol, _, ml_feature in buy_symbols:
@@ -267,7 +271,7 @@ def main():
     parser.add_argument('--api_secret', default=None, help='Alpaca API secret.')
     parser.add_argument('--model', default=None, help='Keras model for weight prediction.')
     parser.add_argument('--data_file', default=None, help='Read datafile for simulation.')
-    parser.add_argument("--write_training_data", help='Write training data.',
+    parser.add_argument("--write_data", help='Write data with ML features.',
                         action="store_true")
     args = parser.parse_args()
 
@@ -276,7 +280,7 @@ def main():
                            utils.ALPACA_PAPER_API_BASE_URL, 'v2')
     trading = TradingSimulate(alpaca, args.start_date, args.end_date,
                               args.model, args.data_file,
-                              args.write_training_data)
+                              args.write_data)
     trading.run()
 
 
