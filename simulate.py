@@ -148,27 +148,34 @@ class TradingSimulate(utils.TradingBase):
         pd.plotting.register_matplotlib_converters()
         for symbol in [utils.REFERENCE_SYMBOL, 'QQQ', 'SPY']:
             if symbol not in self.hists:
-                self.load_history(symbol, self.period)
-
-        qqq = self.hists.get('QQQ', {}).get('Close')
-        spy = self.hists.get('SPY', {}).get('Close')
+                try:
+                    self.load_history(symbol, self.period)
+                except Exception:
+                    pass
+        has_qqq = 'QQQ' in self.hists
+        has_spy = 'SPY' in self.hists
+        if has_qqq:
+            qqq = self.hists.get('QQQ').get('Close')
+        if has_spy:
+            spy = self.hists.get('SPY').get('Close')
         for k, v in self.values.items():
             plt.figure(figsize=(15, 7))
             plt.plot(v[0], v[1], label='My Portfolio')
-            qqq_curve = [qqq[dt] for dt in v[0]] if qqq else None
-            spy_curve = [spy[dt] for dt in v[0]] if spy else None
+            qqq_curve = [qqq[dt] for dt in v[0]] if has_qqq else None
+            spy_curve = [spy[dt] for dt in v[0]] if has_spy else None
             for i in range(len(v[0]) - 1, -1, -1):
-                if qqq:
+                if has_qqq:
                     qqq_curve[i] /= qqq_curve[0]
-                if spy:
+                if has_spy:
                     spy_curve[i] /= spy_curve[0]
-            if qqq:
+            if has_qqq:
                 plt.plot(v[0], qqq_curve, label='QQQ')
-            if spy:
+            if has_spy:
                 plt.plot(v[0], spy_curve, label='SPY')
             plt.legend()
             plt.title(k)
-            if np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1]):
+            if ((has_qqq and np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1])) or
+                (has_spy and np.abs(v[1][-1]) > 10 * np.abs(spy_curve[-1]))):
                 plt.yscale('log')
             plt.savefig(os.path.join(self.root_dir, utils.OUTPUTS_DIR, k + '.png'))
             plt.close()
