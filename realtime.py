@@ -24,7 +24,7 @@ class TradingRealTime(utils.TradingBase):
         self.prices = {}
         self.ordered_symbols = []
         self.price_cache_file = os.path.join(
-            self.root_dir, utils.CACHE_DIR, utils.get_business_day(0) + '-prices.json')
+            self.cache_path, utils.get_business_day(0) + '-prices.json')
 
         read_cache = os.path.isfile(self.price_cache_file)
         if read_cache:
@@ -34,9 +34,9 @@ class TradingRealTime(utils.TradingBase):
             print('Loading current stock prices...')
             self.update_prices(self.closes.keys(), use_tqdm=True)
 
-        for ticker, close in self.closes.items():
+        for symbol, close in self.closes.items():
             threshold = utils.get_threshold(close[-utils.DAYS_IN_A_YEAR:])
-            self.thresholds[ticker] = threshold
+            self.thresholds[symbol] = threshold
 
         self.update_ordered_symbols()
 
@@ -62,17 +62,17 @@ class TradingRealTime(utils.TradingBase):
             self.last_updates[sleep_secs] = datetime.datetime.now()
             time.sleep(sleep_secs)
 
-    def get_real_time_price(self, ticker):
-        price = _get_real_time_price_from_yahoo(ticker)
-        self.prices[ticker] = price
+    def get_real_time_price(self, symbol):
+        price = _get_real_time_price_from_yahoo(symbol)
+        self.prices[symbol] = price
 
-    def update_prices(self, tickers, use_tqdm=False):
+    def update_prices(self, symbols, use_tqdm=False):
         threads = []
         with futures.ThreadPoolExecutor(max_workers=utils.MAX_THREADS) as pool:
-            for ticker in tickers:
+            for symbol in symbols:
                 if not self.active:
                     return
-                t = pool.submit(self.get_real_time_price, ticker)
+                t = pool.submit(self.get_real_time_price, symbol)
                 threads.append(t)
             iterator = tqdm(threads, ncols=80, leave=False) if use_tqdm else threads
             for t in iterator:
@@ -86,20 +86,20 @@ class TradingRealTime(utils.TradingBase):
     def update_ordered_symbols(self):
         tmp_ordered_symbols = []
         order_weights = {}
-        for ticker, close in self.closes.items():
-            if ticker not in self.prices:
+        for symbol, close in self.closes.items():
+            if symbol not in self.prices:
                 continue
-            price = self.prices[ticker]
+            price = self.prices[symbol]
             day_range_change = price / np.max(close[-utils.DATE_RANGE:]) - 1
-            threshold = self.thresholds[ticker]
-            self.day_range_changes[ticker] = day_range_change
-            tmp_ordered_symbols.append(ticker)
+            threshold = self.thresholds[symbol]
+            self.day_range_changes[symbol] = day_range_change
+            tmp_ordered_symbols.append(symbol)
             if day_range_change < threshold:
-                order_weights[ticker] = min(np.abs(day_range_change - threshold),
+                order_weights[symbol] = min(np.abs(day_range_change - threshold),
                                             np.abs(price / close[-1] - 1))
             else:
-                order_weights[ticker] = np.abs(day_range_change - threshold)
-        tmp_ordered_symbols.sort(key=lambda ticker: order_weights[ticker])
+                order_weights[symbol] = np.abs(day_range_change - threshold)
+        tmp_ordered_symbols.sort(key=lambda symbol: order_weights[symbol])
         with self.lock:
             self.ordered_symbols = tmp_ordered_symbols
 
@@ -114,7 +114,7 @@ class TradingRealTime(utils.TradingBase):
             self.update_account()
             trading_list = self.get_trading_list(prices=self.prices)
             # Update symbols in trading list to make sure they are up-to-date
-            self.update_prices([ticker for ticker, _, _ in trading_list], use_tqdm=True)
+            self.update_prices([symbol for symbol, _, _ in trading_list], use_tqdm=True)
             self.update_ordered_symbols()
             utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%H:%M:%S')),
                            self.output_file)
@@ -228,8 +228,8 @@ class TradingRealTime(utils.TradingBase):
             utils.bi_print('Estimated Cost: %.2f' % (cost,), self.output_file)
 
 
-def _get_real_time_price_from_yahoo(ticker):
-    url = 'https://finance.yahoo.com/quote/{}'.format(ticker)
+def _get_real_time_price_from_yahoo(symbol):
+    url = 'https://finance.yahoo.com/quote/{}'.format(symbol)
     prefixes = ['"currentPrice"', '"regularMarketPrice"']
     try:
         price = float(utils.web_scraping(url, prefixes))

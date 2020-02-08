@@ -53,8 +53,7 @@ class TradingBase(object):
         self.model = keras.models.load_model(os.path.join(self.root_dir, MODELS_DIR, model))
         self.hists = {}
         self.period = period or DEFAULT_HISTORY_LOAD
-        self.cache_path = os.path.join(self.root_dir, CACHE_DIR,
-                                       get_business_day(1), self.period)
+        self.cache_path = os.path.join(self.root_dir, CACHE_DIR, get_business_day(1))
         os.makedirs(self.cache_path, exist_ok=True)
         self.is_market_open = self.alpaca.get_clock().is_open
         self.history_length = self.get_history_length(self.period)
@@ -109,7 +108,7 @@ class TradingBase(object):
     @retrying.retry(stop_max_attempt_number=2, wait_fixed=500)
     def load_history(self, symbol, period):
         """Loads history for a single symbol."""
-        cache_name = os.path.join(self.cache_path, 'history_%s.csv' % (symbol,))
+        cache_name = os.path.join(self.cache_path, self.period, 'history_%s.csv' % (symbol,))
         if os.path.isfile(cache_name):
             hist = pd.read_csv(cache_name, index_col=0, parse_dates=True)
         else:

@@ -46,4 +46,4 @@ EXCLUSIONS = ('AABA', 'ACETQ', 'AETI', 'AGC', 'AKP', 'ALDR', 'ALN', 'ALQA',
               'CHFN', 'DCT', 'XPLR', 'ESRX', 'EIO', 'DM', 'OCIP', 'STDY',
               'ATHN', 'TBRGU', 'BJZ', 'SEND', 'MCRN', 'EIA', 'MMV', 'ALOG',
               'DVMT', 'SYNT', 'EIP', 'XCRA', 'PAY', 'IPAS', 'COBZ', 'BRQS',
-              'MIW')
+              'MIW', 'CAVM')
