@@ -70,7 +70,7 @@ class TradingSimulate(utils.TradingBase):
     def _analyze_date(self, sell_date, cutoff):
         utils.bi_print(utils.get_header(sell_date.date()), self.output_detail)
         buy_symbols = self.get_buy_symbols(cutoff=cutoff)
-        if self.write_data:
+        if self.write_data and cutoff < self.history_length - 1:
             self._append_stats(buy_symbols, sell_date, cutoff)
         trading_list = self.get_trading_list(buy_symbols=buy_symbols)
         trading_table = []
@@ -179,10 +179,12 @@ class TradingSimulate(utils.TradingBase):
         utils.bi_print(tabulate(summary_table, tablefmt='grid'), output_summary)
 
         if not self.data_file and self.write_data:
-            self.stats.to_csv(os.path.join(self.root_dir,
-                                           utils.OUTPUTS_DIR,
-                                           'simulate_stats.csv'),
-                              index=False)
+            self.stats.to_csv(
+                os.path.join(self.root_dir,
+                             utils.OUTPUTS_DIR,
+                             'simulate_stats_%s_%s.csv' % (self.start_date[:4],
+                                                           self.end_date[:4])),
+                index=False)
 
     def _plot_summary(self):
         pd.plotting.register_matplotlib_converters()
