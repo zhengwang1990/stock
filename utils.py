@@ -1,4 +1,3 @@
-import datetime
 import os
 import re
 import requests
@@ -120,7 +119,7 @@ class TradingBase(object):
             except Exception as e:
                 print('Can not get history of %s: %s' % (symbol, e))
                 raise e
-        drop_key = pd.to_datetime(datetime.datetime.today().date())
+        drop_key = pd.datetime.today().date()
         if self.is_market_open and drop_key in hist.index:
             hist = hist.drop(drop_key)
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:

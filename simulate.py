@@ -43,12 +43,14 @@ class TradingSimulate(utils.TradingBase):
                 [1.0])}
         else:
             self.start_date = (start_date or
-                               self.history_dates[5 * utils.DAYS_IN_A_YEAR + 1].date())
-            self.end_date = end_date or pd.datetime.today().date()
+                               self.history_dates[5 * utils.DAYS_IN_A_YEAR + 1].strftime('%F'))
+            self.end_date = end_date or pd.datetime.today().strftime('%F')
             self.start_point, self.end_point = 0, self.history_length - 1
-            while pd.to_datetime(self.start_date) > self.history_dates[self.start_point]:
+            while (self.start_point < self.history_length and
+                   pd.to_datetime(self.start_date) > self.history_dates[self.start_point]):
                 self.start_point += 1
-            while pd.to_datetime(self.end_date) < self.history_dates[self.end_point]:
+            while (self.end_point > 0 and
+                   pd.to_datetime(self.end_date) < self.history_dates[self.end_point]):
                 self.end_point -= 1
             self.write_data = write_data
             if self.write_data:
@@ -238,7 +240,7 @@ class TradingSimulate(utils.TradingBase):
             for cutoff in range(self.start_point - 1, self.end_point):
                 sell_date = self.history_dates[cutoff + 1]
                 self._analyze_date(sell_date, cutoff)
-            if self.end_date > self.history_dates[-1]:
+            if pd.to_datetime(self.end_date) > self.history_dates[-1]:
                 self._analyze_date(self.history_dates[-1] + pd.tseries.offsets.BDay(1),
                                    self.history_length - 1)
 
