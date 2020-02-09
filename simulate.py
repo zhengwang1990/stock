@@ -188,36 +188,27 @@ class TradingSimulate(utils.TradingBase):
 
     def _plot_summary(self):
         pd.plotting.register_matplotlib_converters()
-        for symbol in [utils.REFERENCE_SYMBOL, 'QQQ', 'SPY']:
+        plot_symbols = ['QQQ', 'SPY', 'TQQQ']
+        for symbol in [utils.REFERENCE_SYMBOL] + plot_symbols:
             if symbol not in self.hists:
                 try:
                     self.load_history(symbol, self.period)
                 except Exception:
                     pass
-        has_qqq = 'QQQ' in self.hists
-        has_spy = 'SPY' in self.hists
-        if has_qqq:
-            qqq = self.hists.get('QQQ').get('Close')
-        if has_spy:
-            spy = self.hists.get('SPY').get('Close')
         for k, v in self.values.items():
             plt.figure(figsize=(15, 7))
             plt.plot(v[0], v[1], linewidth=2, label='My Portfolio')
-            qqq_curve = [qqq[dt] for dt in v[0]] if has_qqq else None
-            spy_curve = [spy[dt] for dt in v[0]] if has_spy else None
-            for i in range(len(v[0]) - 1, -1, -1):
-                if has_qqq:
-                    qqq_curve[i] /= qqq_curve[0]
-                if has_spy:
-                    spy_curve[i] /= spy_curve[0]
-            if has_qqq:
-                plt.plot(v[0], qqq_curve, label='QQQ')
-            if has_spy:
-                plt.plot(v[0], spy_curve, label='SPY')
+            curve_max = 1
+            for symbol in plot_symbols:
+                if symbol in self.hists:
+                    curve = [self.hists[symbol].get('Close')[dt] for dt in v[0]]
+                    for i in range(len(v[0]) - 1, -1, -1):
+                        curve[i] /= curve[0]
+                    curve_max = max(curve_max, np.abs(curve[-1]))
+                    plt.plot(v[0], curve, label=symbol)
             plt.legend()
             plt.title(k)
-            if ((has_qqq and np.abs(v[1][-1]) > 10 * np.abs(qqq_curve[-1])) or
-                    (has_spy and np.abs(v[1][-1]) > 10 * np.abs(spy_curve[-1]))):
+            if np.abs(v[1][-1]) > 5 * curve_max:
                 plt.yscale('log')
             plt.savefig(os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'plots', k + '.png'))
             plt.close()
