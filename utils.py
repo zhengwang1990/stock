@@ -20,7 +20,7 @@ DATA_DIR = 'data'
 OUTPUTS_DIR = 'outputs'
 MODELS_DIR = 'models'
 DEFAULT_HISTORY_LOAD = '5y'
-MAX_STOCK_PICK = 8
+MAX_STOCK_PICK = 3
 VOLUME_FILTER_THRESHOLD = 100000
 MAX_THREADS = 5
 ML_FEATURES = [
@@ -53,7 +53,7 @@ class TradingBase(object):
         self.hists = {}
         self.period = period or DEFAULT_HISTORY_LOAD
         self.cache_path = os.path.join(self.root_dir, CACHE_DIR, get_business_day(1))
-        os.makedirs(self.cache_path, exist_ok=True)
+        os.makedirs(os.path.join(self.cache_path, self.period), exist_ok=True)
         self.is_market_open = self.alpaca.get_clock().is_open
         self.history_length = self.get_history_length(self.period)
         self.history_dates = self.get_history_dates(self.period)
