@@ -20,7 +20,6 @@ class TradingRealTime(utils.TradingBase):
         self.update_account()
         self.lock = threading.RLock()
         self.thresholds = {}
-        self.day_range_changes = {}
         self.prices = {}
         self.ordered_symbols = []
         self.price_cache_file = os.path.join(
@@ -92,7 +91,6 @@ class TradingRealTime(utils.TradingBase):
             price = self.prices[symbol]
             day_range_change = price / np.max(close[-utils.DATE_RANGE:]) - 1
             threshold = self.thresholds[symbol]
-            self.day_range_changes[symbol] = day_range_change
             tmp_ordered_symbols.append(symbol)
             if day_range_change < threshold:
                 order_weights[symbol] = min(np.abs(day_range_change - threshold),
@@ -210,12 +208,13 @@ class TradingRealTime(utils.TradingBase):
             trading_row = [symbol, '%.2f%%' % (proportion * 100,), weight]
             price = self.prices[symbol]
             change = (price - self.closes[symbol][-1]) / self.closes[symbol][-1]
+            day_range_change = price / np.max(self.closes[symbol][-utils.DATE_RANGE:]) - 1
             value = self.equity * proportion
             qty = int(value / price)
             share_cost = qty * price
             cost += share_cost
             trading_row.extend(['%.2f%%' % (change * 100,),
-                                '%.2f%%' % (self.day_range_changes[symbol] * 100,),
+                                '%.2f%%' % (day_range_change * 100,),
                                 '%.2f%%' % (self.thresholds[symbol] * 100,), price,
                                 share_cost, qty])
             trading_table.append(trading_row)
