@@ -26,7 +26,7 @@ class ML(object):
         self.X, self.y = [], []
         for row in self.df.itertuples():
             x_value = [getattr(row, col) for col in self.ml_features]
-            y_value = row.Gain / 5 if np.abs(row.Gain) < 5 else np.sign(row.Gain)
+            y_value = row.Gain / 0.05 if np.abs(row.Gain) < 0.05 else np.sign(row.Gain)
             self.X.append(x_value)
             self.y.append(y_value)
         self.X = np.array(self.X)
@@ -47,7 +47,7 @@ class ML(object):
 
     def fit_model(self, model):
         early_stopping = keras.callbacks.EarlyStopping(
-            monitor='val_loss', patience=10, restore_best_weights=True)
+            monitor='val_loss', patience=50, restore_best_weights=True)
         model.fit(self.X_train, self.y_train, batch_size=512, epochs=1000,
                   validation_data=(self.X_test, self.y_test),
                   callbacks=[early_stopping])
