@@ -114,6 +114,7 @@ class TradingRealTime(utils.TradingBase):
             self.update_account()
             trading_list = self.get_trading_list(prices=self.prices)
             # Update symbols in trading list to make sure they are up-to-date
+            self.update_prices(['^VIX'])
             self.update_prices([symbol for symbol, _, _ in trading_list], use_tqdm=True)
             self.update_ordered_symbols()
             utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%H:%M:%S')),
