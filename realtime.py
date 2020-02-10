@@ -89,12 +89,14 @@ class TradingRealTime(utils.TradingBase):
             if symbol not in self.prices:
                 continue
             price = self.prices[symbol]
+            today_change = price / close[-1] - 1
             day_range_change = price / np.max(close[-utils.DATE_RANGE:]) - 1
             threshold = self.thresholds[symbol]
             tmp_ordered_symbols.append(symbol)
             if day_range_change < threshold:
-                order_weights[symbol] = min(np.abs(day_range_change - threshold),
-                                            np.abs(price / close[-1] - 1))
+                order_weights[symbol] = min(
+                    np.abs(day_range_change - threshold),
+                    np.abs(np.abs(today_change) - 0.5 * np.abs(day_range_change)))
             else:
                 order_weights[symbol] = np.abs(day_range_change - threshold)
         tmp_ordered_symbols.sort(key=lambda symbol: order_weights[symbol])
@@ -112,8 +114,7 @@ class TradingRealTime(utils.TradingBase):
             self.update_account()
             trading_list = self.get_trading_list(prices=self.prices)
             # Update symbols in trading list to make sure they are up-to-date
-            self.update_prices(['^VIX'])
-            self.update_prices([symbol for symbol, _, _ in trading_list], use_tqdm=True)
+            self.update_prices(['^VIX'] + [symbol for symbol, _, _ in trading_list], use_tqdm=True)
             self.update_ordered_symbols()
             utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%H:%M:%S')),
                            self.output_file)
