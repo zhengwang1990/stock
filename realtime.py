@@ -110,14 +110,14 @@ class TradingRealTime(utils.TradingBase):
 
     def run(self):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
+        trading_list = []
         while time.time() < next_market_close:
-            self.update_account()
-            trading_list = self.get_trading_list(prices=self.prices)
-            # Update symbols in trading list to make sure they are up-to-date
-            self.update_prices(['^VIX'] + [symbol for symbol, _, _ in trading_list], use_tqdm=True)
-            self.update_ordered_symbols()
             utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%H:%M:%S')),
                            self.output_file)
+            # Update symbols in trading list to make sure they are up-to-date
+            self.update_prices(['^VIX'] + [symbol for symbol, _, _ in trading_list], use_tqdm=True)
+            trading_list = self.get_trading_list(prices=self.prices)
+            self.update_account()
             self.print_trading_list(trading_list)
             utils.bi_print('Last updates: %s' % (
                 [second_to_string(update_freq) + ': ' + update_time.strftime('%H:%M:%S')
@@ -161,10 +161,12 @@ class TradingRealTime(utils.TradingBase):
                 break
             time.sleep(1)
         else:
-            print('-' * 80)
-            print('Warning: timeout while waiting for cash to settle. Equity: %s; Cash: %s.' % (
-                self.equity, self.cash))
-            print('-' * 80)
+            utils.bi_print('-' * 80, self.output_file)
+            utils.bi_print(
+                'Warning: timeout while waiting for cash to settle. Equity: %s; Cash: %s.' % (
+                    self.equity, self.cash),
+                self.output_file)
+            utils.bi_print('-' * 80, self.output_file)
 
         # Order all current positions
         utils.bi_print(utils.get_header('Place Buy Orders'), self.output_file)
@@ -194,7 +196,8 @@ class TradingRealTime(utils.TradingBase):
     def _wait_for_order_to_fill(self):
         orders = self.alpaca.list_orders(status='open')
         while orders:
-            utils.bi_print('Wait for order to fill...', self.output_file)
+            utils.bi_print('Wait for order to fill. %d open orders remaining...' % (
+                len(orders),), self.output_file)
             time.sleep(2)
             orders = self.alpaca.list_orders(status='open')
 
