@@ -112,7 +112,7 @@ class TradingRealTime(utils.TradingBase):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
         trading_list = []
         while time.time() < next_market_close:
-            utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%H:%M:%S')),
+            utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
                            self.output_file)
             # Update symbols in trading list to make sure they are up-to-date
             self.update_prices(['^VIX'] + [symbol for symbol, _, _ in trading_list], use_tqdm=True)
@@ -120,13 +120,15 @@ class TradingRealTime(utils.TradingBase):
             self.update_account()
             self.print_trading_list(trading_list)
             utils.bi_print('Last updates: %s' % (
-                [second_to_string(update_freq) + ': ' + update_time.strftime('%H:%M:%S')
+                [second_to_string(update_freq) + ': ' + update_time.strftime('%T')
                  for update_freq, update_time in
                  sorted(self.last_updates.items(), key=lambda t: t[0])],),
                            self.output_file)
             if time.time() > next_market_close - 90:
                 self.trade(trading_list)
                 break
+            elif time.time() > next_market_close - 60 * 2:
+                time.sleep(1)
             elif time.time() > next_market_close - 60 * 5:
                 time.sleep(10)
             elif time.time() > next_market_close - 60 * 20:
@@ -138,7 +140,9 @@ class TradingRealTime(utils.TradingBase):
 
     def trade(self, trading_list):
         # Sell all current positions
-        utils.bi_print(utils.get_header('Place Sell Orders'), self.output_file)
+        utils.bi_print(utils.get_header('Place Sell Orders At ' +
+                                        datetime.datetime.now().strftime('%T')),
+                       self.output_file)
         positions = self.alpaca.list_positions()
         positions_table = []
         for position in positions:
@@ -169,7 +173,9 @@ class TradingRealTime(utils.TradingBase):
             utils.bi_print('-' * 80, self.output_file)
 
         # Order all current positions
-        utils.bi_print(utils.get_header('Place Buy Orders'), self.output_file)
+        utils.bi_print(utils.get_header('Place Buy Orders At ' +
+                                        datetime.datetime.now().strftime('%T')),
+                       self.output_file)
         orders_table = []
         estimate_cost = 0
         for symbol, proportion, _ in trading_list:
@@ -204,10 +210,8 @@ class TradingRealTime(utils.TradingBase):
     def print_trading_list(self, trading_list):
         trading_table = []
         cost = 0
-        max_non_buy_print = utils.MAX_STOCK_PICK
         for symbol, proportion, weight in trading_list:
-            max_non_buy_print -= 1
-            if proportion == 0 and max_non_buy_print < 0:
+            if proportion == 0:
                 continue
             trading_row = [symbol, '%.2f%%' % (proportion * 100,), weight]
             price = self.prices[symbol]
@@ -230,6 +234,8 @@ class TradingRealTime(utils.TradingBase):
                            self.output_file)
             utils.bi_print('Equity: %.2f' % (self.equity,), self.output_file)
             utils.bi_print('Estimated Cost: %.2f' % (cost,), self.output_file)
+        else:
+            utils.bi_print('NO stock satisfying trading criteria.', self.output_file)
 
 
 def _get_real_time_price_from_yahoo(symbol):
@@ -260,7 +266,7 @@ def main():
                         action="store_true")
     args = parser.parse_args()
 
-    if args.real_trade:
+    if args.api_key and args.api_secret or args.real_trade:
         print('-' * 80)
         print('Using Alpaca API for live trading')
         print('-' * 80)
@@ -271,8 +277,8 @@ def main():
         print('-' * 80)
         print('Using Alpaca API for paper market')
         print('-' * 80)
-        alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_PAPER_API_KEY'],
-                               args.api_secret or os.environ['ALPACA_PAPER_API_SECRET'],
+        alpaca = tradeapi.REST(os.environ['ALPACA_PAPER_API_KEY'],
+                               os.environ['ALPACA_PAPER_API_SECRET'],
                                utils.ALPACA_PAPER_API_BASE_URL, 'v2')
     trading = TradingRealTime(alpaca)
     trading.run()
