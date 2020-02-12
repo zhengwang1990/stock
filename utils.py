@@ -173,7 +173,7 @@ class TradingBase(object):
             day_range_change = price / day_range_max - 1
             today_change = price / close_year[-1] - 1
             # Today change is tamed
-            if np.abs(day_range_change) > 0.5 * np.abs(day_range_change):
+            if np.abs(today_change) > 0.5 * np.abs(day_range_change):
                 continue
             # Enough drop but not too crazy
             if threshold > day_range_change > DATE_RANGE_CHANGE_CEIL:
