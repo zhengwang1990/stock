@@ -4,4 +4,4 @@ models/*
 data/*
 __pycache__
 stock.egg-info
-cron.sh
+*.sh
