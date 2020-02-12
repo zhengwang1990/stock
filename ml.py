@@ -57,9 +57,9 @@ class ML(object):
         boundary_90 = np.percentile(y_pred, 90)
         precision_90 = get_precision(self.y, y_pred, boundary_90)
         precision_model = get_precision(self.y, y_pred, 0)
-        output = [['Precision_90:', precision_90],
-                  ['Model Precision:', precision_model],
-                  ['Boundary_90:', boundary_90]]
+        output = [['Precision_90', precision_90],
+                  ['Model Precision', precision_model],
+                  ['Boundary_90', boundary_90]]
         print(tabulate(output, tablefmt='grid'))
         if plot:
             plt.figure()
