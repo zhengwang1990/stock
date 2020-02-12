@@ -96,8 +96,7 @@ class TradingRealTime(utils.TradingBase):
             if day_range_change < threshold:
                 order_weights[symbol] = min(
                     np.abs(day_range_change - threshold),
-                    np.abs(today_change - 0.5 * day_range_change),
-                    np.abs(today_change + 0.1 * day_range_change))
+                    np.abs(np.abs(today_change) - 0.5 * np.abs(day_range_change)))
             else:
                 order_weights[symbol] = np.abs(day_range_change - threshold)
         tmp_ordered_symbols.sort(key=lambda symbol: order_weights[symbol])
