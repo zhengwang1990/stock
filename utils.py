@@ -20,7 +20,7 @@ DATA_DIR = 'data'
 OUTPUTS_DIR = 'outputs'
 MODELS_DIR = 'models'
 DEFAULT_HISTORY_LOAD = '5y'
-MAX_STOCK_PICK = 3
+MAX_STOCK_PICK = 2
 VOLUME_FILTER_THRESHOLD = 100000
 MAX_THREADS = 5
 ML_FEATURES = [
@@ -117,13 +117,13 @@ class TradingBase(object):
                 tk = yf.Ticker(symbol)
                 hist = tk.history(period=period, interval='1d')
                 if len(hist):
-                    hist.to_csv(cache_name, header=True)
+                    hist.to_csv(cache_name)
             except Exception as e:
                 print('Can not get history of %s: %s' % (symbol, e))
                 raise e
         drop_key = pd.datetime.today().date()
         if self.is_market_open and drop_key in hist.index:
-            hist = hist.drop(drop_key)
+            hist.drop(drop_key, inplace=True)
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:
             self.hists[symbol] = hist
         elif symbol in ('QQQ', 'SPY', '^VIX'):

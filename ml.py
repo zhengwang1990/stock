@@ -8,9 +8,9 @@ import utils
 from sklearn.model_selection import train_test_split
 from tabulate import tabulate
 
-DEFAULT_DATA_FILE = 'simulate_stats_2015_2019.csv'
+DEFAULT_DATA_FILE = 'simulate_stats.csv'
 NON_ML_FEATURE_COLUMNS = ['Gain', 'Symbol', 'Date']
-
+TRAIN_ITER = 2
 
 class ML(object):
 
@@ -75,7 +75,7 @@ class ML(object):
 
     def train(self):
         precision_max, model_max = 0, None
-        for _ in range(5):
+        for _ in range(TRAIN_ITER):
             model = self.create_model()
             self.fit_model(model)
             precision = self.evaluate(model)
