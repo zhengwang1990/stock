@@ -10,13 +10,15 @@ from tabulate import tabulate
 
 DEFAULT_DATA_FILE = 'simulate_stats.csv'
 NON_ML_FEATURE_COLUMNS = ['Gain', 'Symbol', 'Date']
-TRAIN_ITER = 10
+DEFAULT_TRAIN_ITER = 10
+
 
 class ML(object):
 
-    def __init__(self, model=None, data_files=None):
+    def __init__(self, model=None, data_files=None, train_iter=DEFAULT_TRAIN_ITER):
         data_files = data_files or [DEFAULT_DATA_FILE]
         self.model = model
+        self.train_iter = train_iter
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.df = pd.concat([pd.read_csv(
             os.path.join(self.root_dir, utils.DATA_DIR, data_file))
@@ -77,7 +79,7 @@ class ML(object):
 
     def train(self):
         precision_max, model_max = 0, None
-        for _ in range(TRAIN_ITER):
+        for _ in range(self.train_iter):
             model = self.create_model()
             self.fit_model(model)
             precision = self.evaluate(model)
@@ -114,8 +116,10 @@ def main():
                         help='Model name to load')
     parser.add_argument('--data_files', default=[], nargs='*',
                         help='Data to train on.')
+    parser.add_argument('--train_iter', type=int, default=DEFAULT_TRAIN_ITER,
+                        help='Iterations in training.')
     args = parser.parse_args()
-    ml = ML(args.model, args.data_files)
+    ml = ML(args.model, args.data_files, args.train_iter)
     print(args.data_files)
     if args.model:
         ml.load()
