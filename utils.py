@@ -40,7 +40,7 @@ ML_FEATURES = [
     'VIX']
 ALPACA_API_BASE_URL = 'https://api.alpaca.markets'
 ALPACA_PAPER_API_BASE_URL = 'https://paper-api.alpaca.markets'
-DEFAULT_MODEL = 'model_p724543.hdf5'
+DEFAULT_MODEL = 'model_p713276.hdf5'
 
 
 class TradingBase(object):
