@@ -33,7 +33,7 @@ class ML(object):
             self.y.append(y_value)
         self.X = np.array(self.X)
         self.y = np.array(self.y)
-        self.w = 0.5 + np.log10(np.arange(len(self.df)) / len(self.df) * 100 + 1) / 2 * 0.5
+        self.w = 0.3 + np.arange(len(self.df)) / len(self.df) * 0.7
         self.X_train, self.X_test, self.y_train, self.y_test, self.w_train, self.w_test = train_test_split(
             self.X, self.y, self.w, test_size=0.1, random_state=0)
 
