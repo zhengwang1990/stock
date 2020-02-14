@@ -64,7 +64,7 @@ class TradingRealTime(utils.TradingBase):
     def get_real_time_price(self, symbol):
         price = _get_real_time_price_from_yahoo(symbol)
         if price is not None:
-          self.prices[symbol] = price
+            self.prices[symbol] = price
 
     def update_prices(self, symbols, use_tqdm=False):
         threads = []
