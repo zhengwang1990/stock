@@ -20,7 +20,7 @@ DATA_DIR = 'data'
 OUTPUTS_DIR = 'outputs'
 MODELS_DIR = 'models'
 DEFAULT_HISTORY_LOAD = '5y'
-MAX_STOCK_PICK = 2
+MAX_STOCK_PICK = 8
 VOLUME_FILTER_THRESHOLD = 100000
 MAX_THREADS = 5
 ML_FEATURES = [
@@ -40,7 +40,7 @@ ML_FEATURES = [
     'VIX']
 ALPACA_API_BASE_URL = 'https://api.alpaca.markets'
 ALPACA_PAPER_API_BASE_URL = 'https://paper-api.alpaca.markets'
-DEFAULT_MODEL = 'model_p775153.hdf5'
+DEFAULT_MODEL = 'model_p724543.hdf5'
 
 
 class TradingBase(object):

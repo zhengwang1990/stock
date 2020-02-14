@@ -10,7 +10,7 @@ from tabulate import tabulate
 
 DEFAULT_DATA_FILE = 'simulate_stats.csv'
 NON_ML_FEATURE_COLUMNS = ['Gain', 'Symbol', 'Date']
-TRAIN_ITER = 2
+TRAIN_ITER = 10
 
 class ML(object):
 
@@ -31,14 +31,15 @@ class ML(object):
             self.y.append(y_value)
         self.X = np.array(self.X)
         self.y = np.array(self.y)
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            self.X, self.y, test_size=0.1, random_state=0)
+        self.w = 0.5 + np.log10(np.arange(len(self.df)) / len(self.df) * 100 + 1) / 2 * 0.5
+        self.X_train, self.X_test, self.y_train, self.y_test, self.w_train, self.w_test = train_test_split(
+            self.X, self.y, self.w, test_size=0.1, random_state=0)
 
     def create_model(self):
         x_dim = len(self.df.columns) - 3
         model = keras.Sequential([
-            keras.layers.Dense(100, activation='relu',
-                               input_shape=(x_dim,)),
+            keras.layers.Dense(50, input_shape=(x_dim,), activation='relu'),
+            keras.layers.Dropout(0.2),
             keras.layers.Dense(1, activation='tanh')
         ])
         model.compile(optimizer='adam', loss='mse')
@@ -49,7 +50,8 @@ class ML(object):
         early_stopping = keras.callbacks.EarlyStopping(
             monitor='val_loss', patience=50, restore_best_weights=True)
         model.fit(self.X_train, self.y_train, batch_size=512, epochs=1000,
-                  validation_data=(self.X_test, self.y_test),
+                  sample_weight=self.w_train,
+                  validation_data=(self.X_test, self.y_test, self.w_test),
                   callbacks=[early_stopping])
 
     def evaluate(self, model, plot=False):

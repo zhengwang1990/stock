@@ -25,13 +25,13 @@ class TradingSimulate(utils.TradingBase):
             year_diff = (pd.datetime.today().date().year -
                          pd.to_datetime(self.data_df.iloc[0].Date).year + 1)
             period = '%dy' % (year_diff,)
-        elif start_date:
+        if start_date:
             year_diff = (pd.datetime.today().date().year -
                          pd.to_datetime(start_date).year + 2)
             year_diff = max(5, year_diff)
             period = '%dy' % (year_diff,)
-        else:
-            period = utils.DEFAULT_HISTORY_LOAD
+        if not (data_file or start_date):
+          period = utils.DEFAULT_HISTORY_LOAD
         super(TradingSimulate, self).__init__(alpaca, period=period, model=model,
                                               load_history=not bool(data_file))
         self.data_file = data_file
