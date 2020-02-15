@@ -1,3 +1,4 @@
+import functools
 import os
 import re
 import requests
@@ -149,7 +150,8 @@ class TradingBase(object):
         if not (prices or cutoff) or (prices and cutoff):
             raise Exception('Exactly one of prices or cutoff must be provided')
         buy_info = []
-        for symbol, close in tqdm(self.closes.items(), ncols=80, leave=False):
+        iterator = tqdm(self.closes.items(), ncols=80, leave=False) if cutoff else self.closes.items()
+        for symbol, close in iterator:
             # Non-tradable symbols
             if symbol == '^VIX':
                 continue
@@ -168,7 +170,7 @@ class TradingBase(object):
                 price = prices.get(symbol, 1E10)
             else:
                 price = close[cutoff]
-            threshold = get_threshold(close_year)
+            threshold = self.get_threshold(symbol, cutoff)
             day_range_max = np.max(close_year[-DATE_RANGE:])
             day_range_change = price / day_range_max - 1
             today_change = price / close_year[-1] - 1
@@ -254,15 +256,19 @@ class TradingBase(object):
                    'VIX': vix}
         return feature
 
-
-def get_threshold(series):
-    """Gets threshold for a series.
-    """
-    down_percent = [series[i] / np.max(series[i - DATE_RANGE:i]) - 1
-                    for i in range(DATE_RANGE, len(series))
-                    if series[i] < np.max(series[i - DATE_RANGE:i])]
-    threshold = np.mean(down_percent) - 2.5 * np.std(down_percent)
-    return threshold
+    @functools.lru_cache(maxsize=10000)
+    def get_threshold(self, symbol, cutoff=None):
+        """Gets threshold for a symbol.
+        """
+        if cutoff:
+            close_year = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
+        else:
+            close_year = self.closes[symbol][-DAYS_IN_A_YEAR:]
+        down_percent = [close_year[i] / np.max(close_year[i - DATE_RANGE:i]) - 1
+                        for i in range(DATE_RANGE, len(close_year))
+                        if close_year[i] < np.max(close_year[i - DATE_RANGE:i])]
+        threshold = np.mean(down_percent) - 2.5 * np.std(down_percent)
+        return threshold
 
 
 def get_business_day(offset):

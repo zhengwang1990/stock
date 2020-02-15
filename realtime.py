@@ -34,7 +34,7 @@ class TradingRealTime(utils.TradingBase):
             self.update_prices(self.closes.keys(), use_tqdm=True)
 
         for symbol, close in self.closes.items():
-            threshold = utils.get_threshold(close[-utils.DAYS_IN_A_YEAR:])
+            threshold = self.get_threshold(symbol)
             self.thresholds[symbol] = threshold
 
         self.update_ordered_symbols()
