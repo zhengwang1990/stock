@@ -271,7 +271,9 @@ def main():
     parser = argparse.ArgumentParser(description='Stock trading realtime.')
     parser.add_argument('--api_key', default=None, help='Alpaca API key.')
     parser.add_argument('--api_secret', default=None, help='Alpaca API secret.')
-    parser.add_argument("--real_trade", help='Trade with real money.',
+    parser.add_argument('--real_trade', help='Trade with real money.',
+                        action="store_true")
+    parser.add_argument('-f', '--force', help='Force to run even at market close.',
                         action="store_true")
     args = parser.parse_args()
 
@@ -289,8 +291,14 @@ def main():
         alpaca = tradeapi.REST(os.environ['ALPACA_PAPER_API_KEY'],
                                os.environ['ALPACA_PAPER_API_SECRET'],
                                utils.ALPACA_PAPER_API_BASE_URL, 'v2')
-    trading = TradingRealTime(alpaca)
-    trading.run()
+
+    if alpaca.get_clock().is_open or args.force:
+        trading = TradingRealTime(alpaca)
+        trading.run()
+    else:
+        print('-' * 80)
+        print('Market is closed. Use "-f" flag to force run.')
+        print('-' * 80)
 
 
 if __name__ == '__main__':

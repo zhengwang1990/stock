@@ -28,7 +28,7 @@ def test_alpaca():
 
     # Time
     clock = alpaca.get_clock()
-    closingTime = clock.next_close.replace().timestamp()
+    closingTime = clock.next_close.timestamp()
     currTime = time.time()
     print('Market is open:', clock.is_open)
     print('Market close time:', closingTime)
