@@ -62,9 +62,28 @@ class TradingRealTime(utils.TradingBase):
             time.sleep(sleep_secs)
 
     def get_real_time_price(self, symbol):
-        price = _get_real_time_price_from_yahoo(symbol)
-        if price is not None:
-            self.prices[symbol] = price
+        websites = [('https://finance.yahoo.com/quote/{}',
+                     ['"currentPrice"', '"regularMarketPrice"']),
+                    ('https://stocktwits.com/symbol/{}',
+                     ['"price"', '"last"']),
+                    ('https://money.cnn.com/quote/quote.html?symb={}',
+                     ['streamFormat="ToHundredth" streamFeed="MorningstarQuote">'])]
+        errors = [0] * len(websites)
+        special_symbols = {'^VIX': [0], 'DAX': [0, 1]}
+        permutation = np.random.permutation(special_symbols.get(symbol, len(websites)))
+        for i in permutation:
+            url, prefixes = websites[i]
+            try:
+                if errors[i] > 20:
+                    errors[i] -= 0.001
+                    continue
+                price = float(utils.web_scraping(url.format(symbol), prefixes))
+            except Exception as e:
+                errors[i] += 1
+                print(e)
+            else:
+                self.prices[symbol] = price
+                break
 
     def update_prices(self, symbols, use_tqdm=False):
         threads = []
@@ -237,17 +256,6 @@ class TradingRealTime(utils.TradingBase):
             utils.bi_print('Estimated Cost: %.2f' % (cost,), self.output_file)
         else:
             utils.bi_print('NO stock satisfying trading criteria.', self.output_file)
-
-
-def _get_real_time_price_from_yahoo(symbol):
-    url = 'https://finance.yahoo.com/quote/{}'.format(symbol)
-    prefixes = ['"currentPrice"', '"regularMarketPrice"']
-    try:
-        price = float(utils.web_scraping(url, prefixes))
-    except Exception as e:
-        print(e)
-        price = None
-    return price
 
 
 def second_to_string(secs):

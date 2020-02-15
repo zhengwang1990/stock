@@ -279,19 +279,18 @@ def get_header(title):
 def web_scraping(url, prefixes):
     r = requests.get(url, timeout=3)
     c = str(r.content)
-    pos = -1
     for prefix in prefixes:
         pos = c.find(prefix)
         if pos >= 0:
-            break
-    if pos >= 0:
-        s = ''
-        while c[pos] > '9' or c[pos] < '0':
-            pos += 1
-        while '9' >= c[pos] >= '0' or c[pos] == '.':
-            s += c[pos]
-            pos += 1
-        return s
+            pos += len(prefix)
+            s = ''
+            while c[pos] > '9' or c[pos] < '0':
+                pos += 1
+            while '9' >= c[pos] >= '0' or c[pos] in ['.', ',']:
+                if c[pos] != ',':
+                    s += c[pos]
+                pos += 1
+            return s
     else:
         raise Exception('[status %d] %s not found in %s' % (r.status_code, prefixes, url))
 
