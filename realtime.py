@@ -33,7 +33,7 @@ class TradingRealTime(utils.TradingBase):
             print('Loading current stock prices...')
             self.update_prices(self.closes.keys(), use_tqdm=True)
 
-        for symbol, close in self.closes.items():
+        for symbol, _ in self.closes.items():
             threshold = self.get_threshold(symbol)
             self.thresholds[symbol] = threshold
 
