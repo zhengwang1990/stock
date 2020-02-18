@@ -67,7 +67,8 @@ class TradingRealTime(utils.TradingBase):
                     ('https://stocktwits.com/symbol/{}',
                      ['"price"', '"last"']),
                     ('https://money.cnn.com/quote/quote.html?symb={}',
-                     ['streamFormat="ToHundredth" streamFeed="MorningstarQuote">'])]
+                     ['streamFormat="ToHundredth" streamFeed="BatsUS">',
+                      'streamFormat="ToHundredth" streamFeed="MorningstarQuote">'])]
         errors = [0] * len(websites)
         special_symbols = {'^VIX': [0], 'DAX': [0, 1]}
         permutation = np.random.permutation(special_symbols.get(symbol, len(websites)))
@@ -226,6 +227,9 @@ class TradingRealTime(utils.TradingBase):
                 len(orders),), self.output_file)
             time.sleep(2)
             orders = self.alpaca.list_orders(status='open')
+        utils.bi_print('All orders filled at ' +
+                       datetime.datetime.now().strftime('%T'),
+                       self.output_file)
 
     def print_trading_list(self, trading_list):
         trading_table = []
