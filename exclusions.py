@@ -63,3 +63,6 @@ SHORTS = ['BIS', 'CROC', 'DDG', 'DOG', 'DPK', 'DRIP', 'DUG', 'DUST', 'DXD',
           'XXVFF', 'YGRN', 'ZIV']
 
 EXCLUSIONS = DELISTED + SHORTS
+
+# Symbols can not be found from money.cnn.com
+CNN_NOT_FOUND = ['DAX', 'INSYQ', 'ADZ', 'DDP', 'DEE', 'NTX', 'FTSM']

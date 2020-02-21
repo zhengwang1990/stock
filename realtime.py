@@ -1,6 +1,7 @@
 import alpaca_trade_api as tradeapi
 import argparse
 import datetime
+import exclusions
 import json
 import numpy as np
 import threading
@@ -70,7 +71,8 @@ class TradingRealTime(utils.TradingBase):
                      ['streamFormat="ToHundredth" streamFeed="BatsUS">',
                       'streamFormat="ToHundredth" streamFeed="MorningstarQuote">'])]
         errors = [0] * len(websites)
-        special_symbols = {'^VIX': [0], 'DAX': [0, 1]}
+        special_symbols = {symbol: [0, 1] for symbol in exclusions.CNN_NOT_FOUND}
+        special_symbols['^VIX'] = [0]
         permutation = np.random.permutation(special_symbols.get(symbol, len(websites)))
         for i in permutation:
             url, prefixes = websites[i]
