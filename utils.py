@@ -7,6 +7,7 @@ import ta
 import tensorflow.keras as keras
 import numpy as np
 import pandas as pd
+import sys
 import yfinance as yf
 from concurrent import futures
 from exclusions import EXCLUSIONS
@@ -84,7 +85,8 @@ class TradingBase(object):
             for symbol in self.symbols:
                 t = pool.submit(self.load_history, symbol, period)
                 threads.append(t)
-            for t in tqdm(threads, ncols=80):
+            iterator = tqdm(threads, ncols=80) if sys.stdout.isatty() else threads
+            for t in iterator:
                 try:
                     t.result()
                 except Exception as e:
@@ -150,7 +152,8 @@ class TradingBase(object):
         if not (prices or cutoff) or (prices and cutoff):
             raise Exception('Exactly one of prices or cutoff must be provided')
         buy_info = []
-        iterator = tqdm(self.closes.items(), ncols=80, leave=False) if cutoff else self.closes.items()
+        iterator = (tqdm(self.closes.items(), ncols=80, leave=False)
+                    if cutoff and sys.stdout.isatty() else self.closes.items())
         for symbol, close in iterator:
             # Non-tradable symbols
             if symbol == '^VIX':

@@ -4,6 +4,7 @@ import datetime
 import exclusions
 import json
 import numpy as np
+import sys
 import threading
 import time
 import os
@@ -25,6 +26,7 @@ class TradingRealTime(utils.TradingBase):
         self.ordered_symbols = []
         self.price_cache_file = os.path.join(
             self.cache_path, utils.get_business_day(0) + '-prices.json')
+        self.drop_low_volume_symbols()
 
         read_cache = os.path.isfile(self.price_cache_file)
         if read_cache:
@@ -34,7 +36,7 @@ class TradingRealTime(utils.TradingBase):
             print('Loading current stock prices...')
             self.update_prices(self.closes.keys(), use_tqdm=True)
 
-        for symbol, _ in self.closes.items():
+        for symbol in self.closes.keys():
             threshold = self.get_threshold(symbol)
             self.thresholds[symbol] = threshold
 
@@ -52,6 +54,19 @@ class TradingRealTime(utils.TradingBase):
         output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
                                    utils.get_business_day(0) + '.txt')
         self.output_file = open(output_path, 'a')
+
+    def drop_low_volume_symbols(self):
+        dropped_keys = []
+        for symbol in self.closes.keys():
+            avg_trading_volume = np.average(np.multiply(
+                self.closes[symbol][-20:], self.volumes[symbol][-20:]))
+            if avg_trading_volume < utils.VOLUME_FILTER_THRESHOLD and symbol != '^VIX':
+                dropped_keys.append(symbol)
+        for symbol in dropped_keys:
+            self.closes.pop(symbol)
+            self.volumes.pop(symbol)
+        print('%d loaded symbols after drop symbols with cash volume lower than $%d' % (
+            len(self.closes), utils.VOLUME_FILTER_THRESHOLD))
 
     def update_stats(self, length, sleep_secs):
         while True:
@@ -96,7 +111,8 @@ class TradingRealTime(utils.TradingBase):
                     return
                 t = pool.submit(self.get_real_time_price, symbol)
                 threads.append(t)
-            iterator = tqdm(threads, ncols=80, leave=False) if use_tqdm else threads
+            iterator = (tqdm(threads, ncols=80, leave=False)
+                        if use_tqdm and sys.stdout.isatty() else threads)
             for t in iterator:
                 if not self.active:
                     return
