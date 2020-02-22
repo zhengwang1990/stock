@@ -75,6 +75,8 @@ class TradingRealTime(utils.TradingBase):
             self.update_prices(symbols)
             self.update_ordered_symbols()
             self.last_updates[sleep_secs] = datetime.datetime.now()
+            if not self.active:
+                return
             time.sleep(sleep_secs)
 
     def get_real_time_price(self, symbol):
