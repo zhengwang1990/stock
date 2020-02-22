@@ -163,7 +163,7 @@ class TradingRealTime(utils.TradingBase):
                  for update_freq, update_time in
                  sorted(self.last_updates.items(), key=lambda t: t[0])],),
                            self.output_file)
-            if time.time() > next_market_close - 90:
+            if time.time() > next_market_close - 60:
                 self.trade(trading_list)
                 break
             elif time.time() > next_market_close - 60 * 2:
