@@ -100,7 +100,8 @@ class TradingRealTime(utils.TradingBase):
                 price = float(utils.web_scraping(url.format(symbol), prefixes))
             except Exception as e:
                 errors[i] += 1
-                print(e)
+                if self.active:
+                    print(e)
             else:
                 self.prices[symbol] = price
                 break
