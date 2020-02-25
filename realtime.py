@@ -185,7 +185,6 @@ class TradingRealTime(utils.TradingBase):
             if not self.active:
                 time.sleep(1)
                 continue
-            loop_start = time.time()
             utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
                            self.output_file)
             self.trading_list = self.get_trading_list(prices=self.prices)
@@ -196,7 +195,6 @@ class TradingRealTime(utils.TradingBase):
                  for update_freq, update_time in
                  sorted(self.last_updates.items(), key=lambda t: t[0])],),
                            self.output_file)
-            elapsed_time = time.time() - loop_start
             if time.time() > next_market_close - 60 * 2:
                 time.sleep(1)
             elif time.time() > next_market_close - 60 * 5:
