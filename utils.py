@@ -289,9 +289,9 @@ def web_scraping(url, prefixes):
     r = requests.get(url, timeout=3)
     c = str(r.content)
     for prefix in prefixes:
-        pos = c.find(prefix)
-        if pos >= 0:
-            pos += len(prefix)
+        prefix_pos = c.find(prefix)
+        if prefix_pos >= 0:
+            pos = prefix_pos + len(prefix)
             s = ''
             while c[pos] > '9' or c[pos] < '0':
                 pos += 1
@@ -299,7 +299,8 @@ def web_scraping(url, prefixes):
                 if c[pos] != ',':
                     s += c[pos]
                 pos += 1
-            return s
+            if pos - prefix_pos < 100:
+                return s
     else:
         raise Exception('[status %d] %s not found in %s' % (r.status_code, prefixes, url))
 

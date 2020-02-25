@@ -57,6 +57,10 @@ class TradingRealTime(utils.TradingBase):
         t.daemon = True
         t.start()
 
+        t = threading.Thread(target=self.trade_clock_watcher)
+        t.daemon = True
+        t.start()
+
         output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
                                    utils.get_business_day(0) + '.txt')
         self.output_file = open(output_path, 'a')
@@ -73,6 +77,13 @@ class TradingRealTime(utils.TradingBase):
             self.volumes.pop(symbol)
         print('%d loaded symbols after drop symbols with cash volume lower than $%d' % (
             len(self.closes), utils.VOLUME_FILTER_THRESHOLD))
+
+    def trade_clock_watcher(self):
+        next_market_close = self.alpaca.get_clock().next_close.timestamp()
+        while time.time() < next_market_close - 30:
+            time.sleep(1)
+        self.active = False
+        self.trade()
 
     def update_stats(self, length, sleep_secs):
         while True:
@@ -106,6 +117,7 @@ class TradingRealTime(utils.TradingBase):
                       'streamFormat="ToHundredth" streamFeed="MorningstarQuote">'])]
         errors = [0] * len(websites)
         special_symbols = {symbol: [0, 1] for symbol in exclusions.CNN_NOT_FOUND}
+        special_symbols['SPSM'] = [0, 2]
         special_symbols['^VIX'] = [0]
         permutation = np.random.permutation(special_symbols.get(symbol, len(websites)))
         for i in permutation:
@@ -170,6 +182,9 @@ class TradingRealTime(utils.TradingBase):
     def run(self):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
         while time.time() < next_market_close:
+            if not self.active:
+                time.sleep(1)
+                continue
             loop_start = time.time()
             utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
                            self.output_file)
@@ -182,11 +197,7 @@ class TradingRealTime(utils.TradingBase):
                  sorted(self.last_updates.items(), key=lambda t: t[0])],),
                            self.output_file)
             elapsed_time = time.time() - loop_start
-            if time.time() > next_market_close - max(60, elapsed_time + 20):
-                self.active = False
-                self.trade()
-                break
-            elif time.time() > next_market_close - 60 * 2:
+            if time.time() > next_market_close - 60 * 2:
                 time.sleep(1)
             elif time.time() > next_market_close - 60 * 5:
                 time.sleep(10)
