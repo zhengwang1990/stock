@@ -182,19 +182,24 @@ class TradingRealTime(utils.TradingBase):
     def run(self):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
         while time.time() < next_market_close:
-            utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
-                           self.output_file)
-            self.trading_list = self.get_trading_list(prices=self.prices)
-            self.update_account()
-            self.print_trading_list()
-            utils.bi_print('Last updates: %s' % (
-                [second_to_string(update_freq) + ': ' + update_time.strftime('%T')
-                 for update_freq, update_time in
-                 sorted(self.last_updates.items(), key=lambda t: t[0])],),
-                           self.output_file)
-            if time.time() > next_market_close - 30:
-                time.sleep(60)
-            elif time.time() > next_market_close - 60 * 2:
+            # Update trading list
+            if self.active:
+                self.trading_list = self.get_trading_list(prices=self.prices)
+                self.update_account()
+
+            # Print
+            if self.active:
+                utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
+                               self.output_file)
+                self.print_trading_list()
+                utils.bi_print('Last updates: %s' % (
+                    [second_to_string(update_freq) + ': ' + update_time.strftime('%T')
+                     for update_freq, update_time in
+                     sorted(self.last_updates.items(), key=lambda t: t[0])],),
+                               self.output_file)
+
+            # Wait for next update
+            if time.time() > next_market_close - 60 * 2:
                 time.sleep(1)
             elif time.time() > next_market_close - 60 * 5:
                 time.sleep(10)
