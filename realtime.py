@@ -182,9 +182,6 @@ class TradingRealTime(utils.TradingBase):
     def run(self):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
         while time.time() < next_market_close:
-            if not self.active:
-                time.sleep(1)
-                continue
             utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
                            self.output_file)
             self.trading_list = self.get_trading_list(prices=self.prices)
@@ -195,7 +192,9 @@ class TradingRealTime(utils.TradingBase):
                  for update_freq, update_time in
                  sorted(self.last_updates.items(), key=lambda t: t[0])],),
                            self.output_file)
-            if time.time() > next_market_close - 60 * 2:
+            if time.time() > next_market_close - 30:
+                time.sleep(60)
+            elif time.time() > next_market_close - 60 * 2:
                 time.sleep(1)
             elif time.time() > next_market_close - 60 * 5:
                 time.sleep(10)
@@ -203,7 +202,6 @@ class TradingRealTime(utils.TradingBase):
                 time.sleep(100)
             else:
                 time.sleep(300)
-        time.sleep(10)
 
     def trade(self):
         # Sell all current positions
