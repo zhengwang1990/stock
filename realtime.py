@@ -51,6 +51,12 @@ class TradingRealTime(utils.TradingBase):
             t = threading.Thread(target=self.update_stats, args=args)
             t.daemon = True
             t.start()
+
+        self.trading_list = []
+        t = threading.Thread(target=self.update_trading_list_prices)
+        t.daemon = True
+        t.start()
+
         output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
                                    utils.get_business_day(0) + '.txt')
         self.output_file = open(output_path, 'a')
@@ -78,6 +84,17 @@ class TradingRealTime(utils.TradingBase):
             if not self.active:
                 return
             time.sleep(sleep_secs)
+
+    def update_trading_list_prices(self):
+        next_market_close = self.alpaca.get_clock().next_close.timestamp()
+        while True:
+            self.update_prices(['^VIX'] + [symbol for symbol, _, _ in self.trading_list])
+            if not self.active:
+                return
+            if time.time() > next_market_close - 60 * 5:
+                time.sleep(1)
+            else:
+                time.sleep(60)
 
     def get_real_time_price(self, symbol):
         websites = [('https://finance.yahoo.com/quote/{}',
@@ -152,22 +169,22 @@ class TradingRealTime(utils.TradingBase):
 
     def run(self):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
-        trading_list = []
         while time.time() < next_market_close:
+            loop_start = time.time()
             utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
                            self.output_file)
-            # Update symbols in trading list to make sure they are up-to-date
-            self.update_prices(['^VIX'] + [symbol for symbol, _, _ in trading_list], use_tqdm=True)
-            trading_list = self.get_trading_list(prices=self.prices)
+            self.trading_list = self.get_trading_list(prices=self.prices)
             self.update_account()
-            self.print_trading_list(trading_list)
+            self.print_trading_list()
             utils.bi_print('Last updates: %s' % (
                 [second_to_string(update_freq) + ': ' + update_time.strftime('%T')
                  for update_freq, update_time in
                  sorted(self.last_updates.items(), key=lambda t: t[0])],),
                            self.output_file)
-            if time.time() > next_market_close - 60:
-                self.trade(trading_list)
+            elapsed_time = time.time() - loop_start
+            if time.time() > next_market_close - max(60, elapsed_time + 20):
+                self.active = False
+                self.trade()
                 break
             elif time.time() > next_market_close - 60 * 2:
                 time.sleep(1)
@@ -177,10 +194,9 @@ class TradingRealTime(utils.TradingBase):
                 time.sleep(100)
             else:
                 time.sleep(300)
-        self.active = False
         time.sleep(10)
 
-    def trade(self, trading_list):
+    def trade(self):
         # Sell all current positions
         utils.bi_print(utils.get_header('Place Sell Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
@@ -220,7 +236,7 @@ class TradingRealTime(utils.TradingBase):
                        self.output_file)
         orders_table = []
         estimate_cost = 0
-        for symbol, proportion, _ in trading_list:
+        for symbol, proportion, _ in self.trading_list:
             if proportion == 0:
                 continue
             qty = int(self.cash * proportion / self.prices[symbol])
@@ -252,10 +268,10 @@ class TradingRealTime(utils.TradingBase):
                        datetime.datetime.now().strftime('%T'),
                        self.output_file)
 
-    def print_trading_list(self, trading_list):
+    def print_trading_list(self):
         trading_table = []
         cost = 0
-        for symbol, proportion, weight in trading_list:
+        for symbol, proportion, weight in self.trading_list:
             if proportion == 0:
                 continue
             trading_row = [symbol, '%.2f%%' % (proportion * 100,), weight]
