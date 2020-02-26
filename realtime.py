@@ -115,8 +115,11 @@ class TradingRealTime(utils.TradingBase):
                      ['streamFormat="ToHundredth" streamFeed="BatsUS">',
                       'streamFormat="ToHundredth" streamFeed="MorningstarQuote">'])]
         errors = [0] * len(websites)
-        special_symbols = {symbol: [0, 1] for symbol in exclusions.CNN_NOT_FOUND}
-        special_symbols['SPSM'] = [0, 2]
+        special_symbols = {}
+        for s in exclusions.CNN_NOT_FOUND:
+            special_symbols[s] = [0, 1]
+        for s in exclusions.STOCKTWITS_NOT_FOUND:
+            special_symbols[s] = [0, 2]
         special_symbols['^VIX'] = [0]
         permutation = np.random.permutation(special_symbols.get(symbol, len(websites)))
         for i in permutation:
@@ -169,7 +172,7 @@ class TradingRealTime(utils.TradingBase):
                     np.abs(np.abs(today_change) - 0.5 * np.abs(day_range_change)))
             else:
                 order_weights[symbol] = np.abs(day_range_change - threshold)
-        tmp_ordered_symbols.sort(key=lambda symbol: order_weights[symbol])
+        tmp_ordered_symbols.sort(key=lambda s: order_weights[s])
         with self.lock:
             self.ordered_symbols = tmp_ordered_symbols
 
