@@ -53,13 +53,10 @@ class TradingRealTime(utils.TradingBase):
             t.start()
 
         self.trading_list = []
-        t = threading.Thread(target=self.update_trading_list_prices)
-        t.daemon = True
-        t.start()
-
-        t = threading.Thread(target=self.trade_clock_watcher)
-        t.daemon = True
-        t.start()
+        for target in [self.update_trading_list_prices, self.trade_clock_watcher]:
+            t = threading.Thread(target=target)
+            t.daemon = True
+            t.start()
 
         output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
                                    utils.get_business_day(0) + '.txt')
@@ -75,7 +72,7 @@ class TradingRealTime(utils.TradingBase):
         for symbol in dropped_keys:
             self.closes.pop(symbol)
             self.volumes.pop(symbol)
-        print('%d loaded symbols after drop symbols with cash volume lower than $%d' % (
+        print('%d loaded symbols after drop symbols with cash volume lower than $%.1E' % (
             len(self.closes), utils.VOLUME_FILTER_THRESHOLD))
 
     def trade_clock_watcher(self):
@@ -83,6 +80,8 @@ class TradingRealTime(utils.TradingBase):
         while time.time() < next_market_close - 30:
             time.sleep(1)
         self.active = False
+        # Wait for all printing done
+        time.sleep(0.5)
         self.trade()
 
     def update_stats(self, length, sleep_secs):
@@ -227,7 +226,7 @@ class TradingRealTime(utils.TradingBase):
                                     headers=['Symbol', 'Price', 'Quantity', 'Estimated Gain Value'],
                                     tablefmt='grid'),
                            self.output_file)
-        self._wait_for_order_to_fill()
+        self.wait_for_order_to_fill()
 
         for _ in range(10):
             self.update_account()
@@ -267,9 +266,9 @@ class TradingRealTime(utils.TradingBase):
         utils.bi_print('Current Cash: %.2f. Estimated Total Cost: %.2f.' % (
             self.cash, estimate_cost),
                        self.output_file)
-        self._wait_for_order_to_fill()
+        self.wait_for_order_to_fill()
 
-    def _wait_for_order_to_fill(self):
+    def wait_for_order_to_fill(self):
         orders = self.alpaca.list_orders(status='open')
         while orders:
             utils.bi_print('Wait for order to fill. %d open orders remaining...' % (
