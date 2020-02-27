@@ -284,7 +284,7 @@ def get_header(title):
     return header_left + '=' * (80 - len(header_left))
 
 
-@retrying.retry(stop_max_attempt_number=3, wait_fixed=500)
+@retrying.retry(stop_max_attempt_number=3, wait_exponential_multiplier=500)
 def web_scraping(url, prefixes):
     r = requests.get(url, timeout=3)
     c = str(r.content)

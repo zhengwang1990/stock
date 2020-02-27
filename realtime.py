@@ -109,17 +109,13 @@ class TradingRealTime(utils.TradingBase):
     def get_real_time_price(self, symbol):
         websites = [('https://finance.yahoo.com/quote/{}',
                      ['"currentPrice"', '"regularMarketPrice"']),
-                    ('https://stocktwits.com/symbol/{}',
-                     ['"price"', '"last"']),
                     ('https://money.cnn.com/quote/quote.html?symb={}',
                      ['streamFormat="ToHundredth" streamFeed="BatsUS">',
                       'streamFormat="ToHundredth" streamFeed="MorningstarQuote">'])]
         errors = [0] * len(websites)
         special_symbols = {}
         for s in exclusions.CNN_NOT_FOUND:
-            special_symbols[s] = [0, 1]
-        for s in exclusions.STOCKTWITS_NOT_FOUND:
-            special_symbols[s] = [0, 2]
+            special_symbols[s] = [0]
         special_symbols['^VIX'] = [0]
         permutation = np.random.permutation(special_symbols.get(symbol, len(websites)))
         for i in permutation:
