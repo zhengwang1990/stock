@@ -81,7 +81,7 @@ class TradingRealTime(utils.TradingBase):
             time.sleep(1)
         self.active = False
         # Wait for all printing done
-        time.sleep(0.5)
+        time.sleep(1)
         self.trade()
 
     def update_stats(self, length, sleep_secs):
