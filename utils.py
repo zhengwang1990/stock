@@ -45,6 +45,14 @@ ALPACA_PAPER_API_BASE_URL = 'https://paper-api.alpaca.markets'
 DEFAULT_MODEL = 'model_p727217.hdf5'
 
 
+class NetworkError(Exception):
+    """Network error occurred."""
+
+
+class NotFoundError(Exception):
+    """Content not found."""
+
+
 class TradingBase(object):
     """Basic trade utils."""
 
@@ -284,10 +292,19 @@ def get_header(title):
     return header_left + '=' * (80 - len(header_left))
 
 
-@retrying.retry(stop_max_attempt_number=3, wait_exponential_multiplier=500)
-def web_scraping(url, prefixes):
-    r = requests.get(url, timeout=3)
+@retrying.retry(stop_max_attempt_number=3, wait_fixed=1000,
+                retry_on_exception=lambda e: isinstance(e, NetworkError))
+def web_scraping(url, prefixes, exclusives):
+    try:
+        r = requests.get(url, timeout=5)
+    except requests.exceptions.RequestException as e:
+        raise NetworkError('[%s] %s' %(url, e))
+    if r.status_code != 200:
+        raise NetworkError('[%s] status %d' % (url, r.status_code))
     c = str(r.content)
+    for exclusive in exclusives:
+        if exclusive in c:
+            raise NotFoundError('[%s] %s found' % (url, exclusive))
     for prefix in prefixes:
         prefix_pos = c.find(prefix)
         if prefix_pos >= 0:
@@ -302,7 +319,7 @@ def web_scraping(url, prefixes):
             if pos - prefix_pos < 100:
                 return s
     else:
-        raise Exception('[status %d] %s not found in %s' % (r.status_code, prefixes, url))
+        raise NotFoundError('[%s] %s not found' % (url, prefixes))
 
 
 def bi_print(message, output_file):

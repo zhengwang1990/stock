@@ -65,11 +65,37 @@ SHORTS = ['BIS', 'CROC', 'DDG', 'DOG', 'DPK', 'DRIP', 'DUG', 'DUST', 'DXD',
 EXCLUSIONS = DELISTED + SHORTS
 
 # Symbols can not be found from money.cnn.com
-CNN_NOT_FOUND = ['DAX', 'INSYQ', 'ADZ', 'DDP', 'DEE', 'NTX', 'FTSM', 'WEX']
+CNN_NOT_FOUND = ['DAX', 'INSYQ', 'ADZ', 'DDP', 'DEE', 'NTX', 'FTSM', 'WEX',
+                 'FRN', 'RWW', 'TAO']
 
 # Symbols can not be found from stocktwits
 STOCKTWITS_NOT_FOUND = ['MMTM', 'SPSM', 'SPMB', 'SPSB', 'PPLC', 'DRTT', 'FCOR',
                         'SPEM', 'SYG', 'USFR', 'TFLO', 'JPGE', 'QMCO', 'SPGP',
                         'QSY', 'LOWC', 'J', 'SYE', 'COFS', 'DIVA', 'SPAB',
                         'SYV', 'CHIC', 'SVC', 'SPLB', 'SPTL', 'OPCH', 'ROUS',
-                        'TIIAY', 'MDRIQ', 'SPTS', 'THTX', 'SPIB', 'BBC', 'VEGA']
+                        'TIIAY', 'MDRIQ', 'SPTS', 'THTX', 'SPIB', 'BBC', 'VEGA',
+                        'MNSB', 'HDG', 'GQRE', 'IQDE', 'PFIG', 'EEMA', 'BDCS',
+                        'FTSD', 'FRPH', 'WBII', 'IBDL', 'HSPX', 'BSCL', 'IBMI',
+                        'PBBI', 'JMLP', 'EQNR', 'IBDC', 'FWONA', 'IPKW', 'FNDA',
+                        'NEPH', 'XSOE', 'TSLF', 'RAVI', 'DBEU', 'HYLS', 'WBIG',
+                        'ISTB', 'AIRR', 'ACWV', 'FLN', 'TILT', 'HUSE', 'FTLS',
+                        'IUSV', 'CHMG', 'LTRPA', 'EEMS', 'RDVY', 'XSLV', 'PGHY',
+                        'CFO', 'NIQ', 'SZC', 'CIL', 'USRT', 'EFAD', 'IGSB',
+                        'FNY', 'IQLT', 'IPFF', 'HYGH', 'SPVM', 'FNDX', 'TLTD',
+                        'AIF', 'SMBK', 'BSJL', 'GAL', 'CEZ', 'LQDH', 'BBDC',
+                        'CRBN', 'ATEX', 'ARDC', 'SUSA', 'FNDF', 'EWGS', 'FTLB',
+                        'ICMB', 'AGZD', 'CMCT', 'DBEZ', 'BSJK', 'EWSC', 'ESBA',
+                        'FYLD', 'FRG', 'TOLZ', 'HEFA', 'PTVCB', 'ICSH', 'BANX',
+                        'HYMB', 'GAA', 'RINF', 'RDIV', 'IEUR', 'IGLB', 'IQDF',
+                        'DBAW', 'CSB', 'ROOF', 'CFA', 'BCM', 'VUSE', 'CBH',
+                        'ARGO', 'MDIV', 'FDT', 'FTSM', 'FLRN', 'FGM', 'EELV',
+                        'MRIC', 'FEUZ', 'IGHG', 'DGRS', 'MVBF', 'MBSD', 'MELR',
+                        'IUSB', 'BSCN', 'SAMG', 'TTSH', 'RGT', 'IBCD', 'NDP',
+                        'BGB', 'CSF', 'SPXC', 'FKU', 'EDOG', 'QWLD', 'LGLV',
+                        'EMLP', 'FEMB', 'OCSL', 'EFF', 'FEMS', 'MINC', 'TLTE',
+                        'DGRE', 'HYHG', 'LMBS', 'CATC', 'EQAL', 'IMTM', 'FPXI',
+                        'AMU', 'EMHY', 'VIDI', 'FJP', 'UE', 'KBWR', 'FSZ', 'RLY',
+                        'JPMV', 'IEUS', 'FNK', 'SJNK', 'EWUS', 'LXFR', 'SNLN',
+                        'BWG', 'CARE', 'FLGE', 'CXP', 'EQWL', 'IDOG', 'ULST',
+                        'JPXN', 'BSJM', 'QEFA', 'EUMV', 'BSCK', 'XMLV', 'WDIV',
+                        'GL', 'QDYN', 'FTGC', 'EWMC', 'IPAC']

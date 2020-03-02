@@ -42,7 +42,7 @@ class TradingRealTime(utils.TradingBase):
 
         self.update_ordered_symbols()
 
-        update_frequencies = [(10, 60), (100, 600),
+        update_frequencies = [(10, 120), (100, 600),
                               (len(self.ordered_symbols), 2400)]
         self.last_updates = ({update_frequencies[-1][1]: datetime.datetime.now()}
                              if not read_cache else {})
@@ -106,25 +106,30 @@ class TradingRealTime(utils.TradingBase):
             else:
                 time.sleep(60)
 
-    def get_real_time_price(self, symbol):
+    def get_realtime_price(self, symbol):
         websites = [('https://finance.yahoo.com/quote/{}',
-                     ['"currentPrice"', '"regularMarketPrice"']),
+                     ['"currentPrice"', '"regularMarketPrice"'], []),
+                    ('https://stocktwits.com/symbol/{}',
+                     ['"price"', '"last"'],
+                     ['This page may have been deleted or the link might be off']),
                     ('https://money.cnn.com/quote/quote.html?symb={}',
                      ['streamFormat="ToHundredth" streamFeed="BatsUS">',
-                      'streamFormat="ToHundredth" streamFeed="MorningstarQuote">'])]
+                      'streamFormat="ToHundredth" streamFeed="MorningstarQuote">'], [])]
         errors = [0] * len(websites)
         special_symbols = {}
         for s in exclusions.CNN_NOT_FOUND:
-            special_symbols[s] = [0]
+            special_symbols[s] = [0, 1]
+        for s in exclusions.STOCKTWITS_NOT_FOUND:
+            special_symbols[s] = [0, 2]
         special_symbols['^VIX'] = [0]
         permutation = np.random.permutation(special_symbols.get(symbol, len(websites)))
         for i in permutation:
-            url, prefixes = websites[i]
+            url, prefixes, exclusives = websites[i]
             try:
                 if errors[i] > 20:
                     errors[i] -= 0.001
                     continue
-                price = float(utils.web_scraping(url.format(symbol), prefixes))
+                price = float(utils.web_scraping(url.format(symbol), prefixes, exclusives))
             except Exception as e:
                 errors[i] += 1
                 if self.active:
@@ -139,7 +144,7 @@ class TradingRealTime(utils.TradingBase):
             for symbol in symbols:
                 if not self.active:
                     return
-                t = pool.submit(self.get_real_time_price, symbol)
+                t = pool.submit(self.get_realtime_price, symbol)
                 threads.append(t)
             iterator = (tqdm(threads, ncols=80, leave=False)
                         if use_tqdm and sys.stdout.isatty() else threads)
@@ -183,10 +188,10 @@ class TradingRealTime(utils.TradingBase):
             # Update trading list
             if self.active:
                 self.trading_list = self.get_trading_list(prices=self.prices)
-                self.update_account()
 
             # Print
             if self.active:
+                self.update_account()
                 utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
                                self.output_file)
                 self.print_trading_list()
