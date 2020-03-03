@@ -24,6 +24,8 @@ class TradingRealTime(utils.TradingBase):
         self.thresholds = {}
         self.prices = {}
         self.ordered_symbols = []
+        self.errors = {}
+
         self.price_cache_file = os.path.join(
             self.cache_path, utils.get_business_day(0) + '-prices.json')
         self.drop_low_volume_symbols()
@@ -115,7 +117,6 @@ class TradingRealTime(utils.TradingBase):
                     ('https://money.cnn.com/quote/quote.html?symb={}',
                      ['streamFormat="ToHundredth" streamFeed="BatsUS">',
                       'streamFormat="ToHundredth" streamFeed="MorningstarQuote">'], [])]
-        errors = [0] * len(websites)
         special_symbols = {}
         for s in exclusions.CNN_NOT_FOUND:
             special_symbols[s] = [0, 1]
@@ -124,16 +125,17 @@ class TradingRealTime(utils.TradingBase):
         special_symbols['^VIX'] = [0]
         permutation = np.random.permutation(special_symbols.get(symbol, len(websites)))
         for i in permutation:
-            url, prefixes, exclusives = websites[i]
+            url_template, prefixes, exclusives = websites[i]
+            url = url_template.format(symbol)
             try:
-                if errors[i] > 20:
-                    errors[i] -= 0.001
+                if self.errors.get(url, 0) >= 2:
+                    self.errors[url] -= 0.2
                     continue
-                price = float(utils.web_scraping(url.format(symbol), prefixes, exclusives))
+                price = float(utils.web_scraping(url, prefixes, exclusives))
             except Exception as e:
-                errors[i] += 1
+                self.errors[url] = self.errors.get(url, 0) + 1
                 if self.active:
-                    print(e)
+                    print('%s. Error counter: %d' % (e, self.errors[url]))
             else:
                 self.prices[symbol] = price
                 break
@@ -186,20 +188,24 @@ class TradingRealTime(utils.TradingBase):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
         while time.time() < next_market_close:
             # Update trading list
-            if self.active:
-                self.trading_list = self.get_trading_list(prices=self.prices)
+            trading_list = self.get_trading_list(prices=self.prices)
+            if not self.active:
+                return
+
+            self.trading_list = trading_list
+            self.update_account()
 
             # Print
-            if self.active:
-                self.update_account()
-                utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
-                               self.output_file)
-                self.print_trading_list()
-                utils.bi_print('Last updates: %s' % (
-                    [second_to_string(update_freq) + ': ' + update_time.strftime('%T')
-                     for update_freq, update_time in
-                     sorted(self.last_updates.items(), key=lambda t: t[0])],),
-                               self.output_file)
+            utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
+                           self.output_file)
+            self.print_trading_list()
+            utils.bi_print('Last updates: %s' % (
+                [second_to_string(update_freq) + ': ' + update_time.strftime('%T')
+                 for update_freq, update_time in
+                 sorted(self.last_updates.items(), key=lambda t: t[0])],),
+                           self.output_file)
+            if not self.active:
+                return
 
             # Wait for next update
             if time.time() > next_market_close - 60 * 2:
