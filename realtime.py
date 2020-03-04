@@ -303,7 +303,7 @@ class TradingRealTime(utils.TradingBase):
                            self.output_file)
         self.wait_for_order_to_fill()
 
-    def wait_for_order_to_fill(self, timeout=10):
+    def wait_for_order_to_fill(self, timeout=15):
         orders = self.alpaca.list_orders(status='open')
         wait_time = 0
         while orders:

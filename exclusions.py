@@ -114,4 +114,8 @@ STOCKTWITS_NOT_FOUND = ['MMTM', 'SPSM', 'SPMB', 'SPSB', 'PPLC', 'DRTT', 'FCOR',
                         'ZJPN', 'AUB', 'BSCO', 'BTT', 'FDIV', 'FIBR', 'FLTB',
                         'FMB', 'ICOL', 'LEMB', 'RELX', 'XSMO', 'XSVM', 'AUOTY',
                         'FTS', 'INKM', 'IQDY', 'TIPX', 'XMVM', 'FIV', 'SLQD',
-                        'USIG', 'FSBW', 'REGL', 'SPTM']
+                        'USIG', 'FSBW', 'REGL', 'SPTM', 'AMCR', 'CDOR', 'CLSK',
+                        'DBEM', 'EPAC', 'FHI', 'FNDE', 'HIE', 'HLIO', 'HYND',
+                        'MLPO', 'OLEM', 'SFBC', 'TDTF', 'URTH', 'WBIE', 'XHS',
+                        'VBND', 'BFOR', 'ENFR', 'EUSC', 'FNDB', 'IMLP', 'ROAM',
+                        'SPLG', 'SSPY', 'WBIF', 'WBIL']
