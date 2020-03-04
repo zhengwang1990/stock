@@ -1,3 +1,4 @@
+import datetime
 import alpaca_trade_api as tradeapi
 import argparse
 import matplotlib.pyplot as plt
@@ -22,11 +23,11 @@ class TradingSimulate(utils.TradingBase):
         if data_file:
             self.data_df = pd.read_csv(os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), utils.DATA_DIR, data_file))
-            year_diff = (pd.datetime.today().date().year -
+            year_diff = (datetime.datetime.today().date().year -
                          pd.to_datetime(self.data_df.iloc[0].Date).year + 1)
             period = '%dy' % (year_diff,)
         if start_date:
-            year_diff = (pd.datetime.today().date().year -
+            year_diff = (datetime.datetime.today().date().year -
                          pd.to_datetime(start_date).year + 2)
             year_diff = max(5, year_diff)
             period = '%dy' % (year_diff,)
@@ -44,7 +45,7 @@ class TradingSimulate(utils.TradingBase):
         else:
             self.start_date = (start_date or
                                self.history_dates[utils.DAYS_IN_A_YEAR + 1].strftime('%F'))
-            self.end_date = end_date or pd.datetime.today().strftime('%F')
+            self.end_date = end_date or datetime.datetime.today().strftime('%F')
             self.start_point, self.end_point = 0, self.history_length - 1
             while (self.start_point < self.history_length and
                    pd.to_datetime(self.start_date) > self.history_dates[self.start_point]):

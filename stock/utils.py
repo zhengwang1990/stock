@@ -1,3 +1,4 @@
+import datetime
 import functools
 import os
 import re
@@ -132,7 +133,7 @@ class TradingBase(object):
             except Exception as e:
                 print('Can not get history of %s: %s' % (symbol, e))
                 raise e
-        drop_key = pd.datetime.today().date()
+        drop_key = datetime.datetime.today().date()
         if self.is_market_open and drop_key in hist.index:
             hist.drop(drop_key, inplace=True)
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:
@@ -283,7 +284,7 @@ class TradingBase(object):
 
 
 def get_business_day(offset):
-    day = pd.datetime.today() - pd.tseries.offsets.BDay(offset) if offset else pd.datetime.today()
+    day = datetime.datetime.today() - pd.tseries.offsets.BDay(offset) if offset else datetime.datetime.today()
     return '%4d-%02d-%02d' % (day.year, day.month, day.day)
 
 
