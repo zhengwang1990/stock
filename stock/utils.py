@@ -80,7 +80,8 @@ class TradingBase(object):
         self.symbols = ['^VIX'] + [
             asset.symbol for asset in assets
             if re.match('^[A-Z]*$', asset.symbol)
-            and asset.symbol not in EXCLUSIONS]
+            and asset.symbol not in EXCLUSIONS
+            and asset.tradable]
 
     @retrying.retry(stop_max_attempt_number=10, wait_fixed=1000 * 60 * 10)
     def load_histories(self, period):
