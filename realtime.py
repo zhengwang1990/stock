@@ -260,7 +260,7 @@ class TradingRealTime(utils.TradingBase):
             try:
                 if order_type == 'limit':
                     self.alpaca.submit_order(position.symbol, int(position.qty), 'sell', 'limit', 'day',
-                                             limit_price=float(position.market_value) / int(position.qty))
+                                             limit_price=float(position.current_price))
                 elif order_type == 'market':
                     self.alpaca.submit_order(position.symbol, int(position.qty), 'sell', 'market', 'day')
                 else:
