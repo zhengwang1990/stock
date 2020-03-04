@@ -1,7 +1,7 @@
-stock/cache/*
-stock/outputs/*
-stock/models/*
-stock/data/*
-stock/__pycache__
-stock/stock.egg-info
-stock/*.sh
+cache/*
+outputs/*
+models/*
+data/*
+__pycache__
+stock.egg-info
+*.sh
