@@ -79,7 +79,7 @@ class TradingRealTime(utils.TradingBase):
 
     def trade_clock_watcher(self):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
-        while time.time() < next_market_close - 30:
+        while time.time() < next_market_close - 60:
             time.sleep(1)
         self.active = False
         # Wait for all printing done
@@ -218,25 +218,16 @@ class TradingRealTime(utils.TradingBase):
                 time.sleep(300)
 
     def trade(self):
-        # Sell all current positions
-        utils.bi_print(utils.get_header('Place Sell Orders At ' +
+        # Sell all current positions with limit orders
+        utils.bi_print(utils.get_header('Place Limit Sell Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
                        self.output_file)
-        positions = self.alpaca.list_positions()
-        positions_table = []
-        for position in positions:
-            try:
-                self.alpaca.submit_order(position.symbol, int(position.qty), 'sell', 'market', 'day')
-                positions_table.append([position.symbol, position.current_price, position.qty,
-                                        float(position.market_value) - float(position.cost_basis)])
-            except tradeapi.rest.APIError as e:
-                print('Failed to sell %s: %s' % (position.symbol, e))
-        if positions_table:
-            utils.bi_print(tabulate(positions_table,
-                                    headers=['Symbol', 'Price', 'Quantity', 'Estimated Gain Value'],
-                                    tablefmt='grid'),
-                           self.output_file)
-        self.wait_for_order_to_fill()
+        self.sell('limit')
+        # Sell remaining positions with market orders
+        utils.bi_print(utils.get_header('Place Market Sell Orders At ' +
+                                        datetime.datetime.now().strftime('%T')),
+                       self.output_file)
+        self.sell('market')
 
         for _ in range(10):
             self.update_account()
@@ -251,21 +242,58 @@ class TradingRealTime(utils.TradingBase):
                 self.output_file)
             utils.bi_print('-' * 80, self.output_file)
 
-        # Order all current positions
-        utils.bi_print(utils.get_header('Place Buy Orders At ' +
+        # Buy with limit orders
+        utils.bi_print(utils.get_header('Place Limit Buy Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
                        self.output_file)
+        self.buy('limit')
+        # Buy with market orders
+        utils.bi_print(utils.get_header('Place Market Buy Orders At ' +
+                                        datetime.datetime.now().strftime('%T')),
+                       self.output_file)
+        self.buy('market')
+
+    def sell(self, order_type):
+        positions = self.alpaca.list_positions()
+        positions_table = []
+        for position in positions:
+            try:
+                if order_type == 'limit':
+                    self.alpaca.submit_order(position.symbol, int(position.qty), 'sell', 'limit', 'day',
+                                             limit_price=float(position.market_value) / int(position.qty))
+                elif order_type == 'market':
+                    self.alpaca.submit_order(position.symbol, int(position.qty), 'sell', 'market', 'day')
+                else:
+                    raise NotImplementedError('Order type %s not recognized' % (order_type,))
+                positions_table.append([position.symbol, position.current_price, position.qty,
+                                        float(position.market_value) - float(position.cost_basis)])
+            except tradeapi.rest.APIError as e:
+                print('Failed to sell %s: %s' % (position.symbol, e))
+        if positions_table:
+            utils.bi_print(tabulate(positions_table,
+                                    headers=['Symbol', 'Price', 'Quantity', 'Estimated Gain Value'],
+                                    tablefmt='grid'),
+                           self.output_file)
+        self.wait_for_order_to_fill()
+
+    def buy(self, order_type):
         orders_table = []
-        estimate_cost = 0
+        positions = self.alpaca.list_positions()
+        existing_positions = [position.symbol for position in positions]
         for symbol, proportion, _ in self.trading_list:
-            if proportion == 0:
+            if proportion == 0 or symbol in existing_positions:
                 continue
             qty = int(self.cash * proportion / self.prices[symbol])
             if qty > 0:
                 orders_table.append([symbol, self.prices[symbol], qty, self.prices[symbol] * qty])
-                estimate_cost += self.prices[symbol] * qty
                 try:
-                    self.alpaca.submit_order(symbol, qty, 'buy', 'market', 'day')
+                    if order_type == 'limit':
+                        self.alpaca.submit_order(symbol, qty, 'buy', 'limit', 'day',
+                                                 limit_price=self.prices[symbol])
+                    elif order_type == 'market':
+                        self.alpaca.submit_order(symbol, qty, 'buy', 'market', 'day')
+                    else:
+                        raise NotImplementedError('Order type %s not recognized' % (order_type,))
                 except tradeapi.rest.APIError as e:
                     print('Failed to buy %s: %s' % (symbol, e))
         if orders_table:
@@ -273,21 +301,29 @@ class TradingRealTime(utils.TradingBase):
                                     headers=['Symbol', 'Price', 'Quantity', 'Estimated Cost'],
                                     tablefmt='grid'),
                            self.output_file)
-        utils.bi_print('Current Cash: %.2f. Estimated Total Cost: %.2f.' % (
-            self.cash, estimate_cost),
-                       self.output_file)
         self.wait_for_order_to_fill()
 
-    def wait_for_order_to_fill(self):
+    def wait_for_order_to_fill(self, timeout=10):
         orders = self.alpaca.list_orders(status='open')
+        wait_time = 0
         while orders:
-            utils.bi_print('Wait for order to fill. %d open orders remaining...' % (
-                len(orders),), self.output_file)
+            utils.bi_print('[%s] Wait for orders to fill. %d open orders remaining...' % (
+                datetime.datetime.now().strftime('%T'), len(orders),), self.output_file)
             time.sleep(2)
+            wait_time += 2
             orders = self.alpaca.list_orders(status='open')
-        utils.bi_print('All orders filled at ' +
-                       datetime.datetime.now().strftime('%T'),
-                       self.output_file)
+            if wait_time >= timeout:
+                break
+        if not orders:
+            utils.bi_print(
+                '[%s] All orders filled' % (datetime.datetime.now().strftime('%T'),),
+                self.output_file)
+        else:
+            utils.bi_print(
+                '[%s] Cancel %d remaining orders' % (
+                    datetime.datetime.now().strftime('%T'), len(orders)),
+                self.output_file)
+            self.alpaca.cancel_all_orders()
 
     def print_trading_list(self):
         trading_table = []

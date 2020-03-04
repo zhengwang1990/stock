@@ -300,7 +300,7 @@ def web_scraping(url, prefixes, exclusives):
     try:
         r = requests.get(url, timeout=5)
     except requests.exceptions.RequestException as e:
-        raise NetworkError('[%s] %s' %(url, e))
+        raise NetworkError('[%s] %s' % (url, e))
     if r.status_code != 200:
         raise NetworkError('[%s] status %d' % (url, r.status_code))
     c = str(r.content)
