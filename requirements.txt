@@ -1,0 +1,12 @@
+tqdm
+matplotlib
+tabulate
+yfinance
+pandas
+requests
+numpy
+retrying
+sklearn
+alpaca_trade_api
+ta
+tensorflow
