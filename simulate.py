@@ -198,7 +198,7 @@ class TradingSimulate(utils.TradingBase):
                     pass
         for k, v in self.values.items():
             plt.figure(figsize=(15, 7))
-            plt.plot(v[0], v[1], linewidth=2, label='My Portfolio')
+            plt.plot(v[0], v[1], linewidth=3, label='My Portfolio')
             curve_max = 1
             for symbol in plot_symbols:
                 if symbol in self.hists:
