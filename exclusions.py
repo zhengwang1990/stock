@@ -118,4 +118,5 @@ STOCKTWITS_NOT_FOUND = ['MMTM', 'SPSM', 'SPMB', 'SPSB', 'PPLC', 'DRTT', 'FCOR',
                         'DBEM', 'EPAC', 'FHI', 'FNDE', 'HIE', 'HLIO', 'HYND',
                         'MLPO', 'OLEM', 'SFBC', 'TDTF', 'URTH', 'WBIE', 'XHS',
                         'VBND', 'BFOR', 'ENFR', 'EUSC', 'FNDB', 'IMLP', 'ROAM',
-                        'SPLG', 'SSPY', 'WBIF', 'WBIL']
+                        'SPLG', 'SSPY', 'WBIF', 'WBIL', 'BLU', 'DHC', 'FMK',
+                        'FNCB', 'MEAR']

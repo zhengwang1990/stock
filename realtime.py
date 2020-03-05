@@ -25,6 +25,9 @@ class TradingRealTime(utils.TradingBase):
         self.prices = {}
         self.ordered_symbols = []
         self.errors = {}
+        output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
+                                   utils.get_business_day(0) + '.txt')
+        self.output_file = open(output_path, 'a')
 
         self.price_cache_file = os.path.join(
             self.cache_path, utils.get_business_day(0) + '-prices.json')
@@ -55,14 +58,12 @@ class TradingRealTime(utils.TradingBase):
             t.start()
 
         self.trading_list = []
-        for target in [self.update_trading_list_prices, self.trade_clock_watcher]:
+        for target in [self.update_trading_list_prices,
+                       self.trade_clock_watcher,
+                       self.update_trading_list]:
             t = threading.Thread(target=target)
             t.daemon = True
             t.start()
-
-        output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
-                                   utils.get_business_day(0) + '.txt')
-        self.output_file = open(output_path, 'a')
 
     def drop_low_volume_symbols(self):
         dropped_keys = []
@@ -185,6 +186,11 @@ class TradingRealTime(utils.TradingBase):
         self.cash = float(account.cash)
 
     def run(self):
+        next_market_close = self.alpaca.get_clock().next_close.timestamp()
+        while time.time() < next_market_close:
+            time.sleep(10)
+
+    def update_trading_list(self):
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
         while time.time() < next_market_close:
             # Update trading list
