@@ -47,23 +47,11 @@ class TradingRealTime(utils.TradingBase):
 
         self.update_ordered_symbols()
 
-        update_frequencies = [(10, 120), (100, 600),
-                              (len(self.ordered_symbols), 2400)]
+        self.update_frequencies = [(10, 120), (100, 600),
+                                   (len(self.ordered_symbols), 2400)]
         self.last_updates = ({update_frequencies[-1][1]: datetime.datetime.now()}
                              if not read_cache else {})
-
-        for args in update_frequencies:
-            t = threading.Thread(target=self.update_stats, args=args)
-            t.daemon = True
-            t.start()
-
         self.trading_list = []
-        for target in [self.update_trading_list_prices,
-                       self.trade_clock_watcher,
-                       self.update_trading_list]:
-            t = threading.Thread(target=target)
-            t.daemon = True
-            t.start()
 
     def drop_low_volume_symbols(self):
         dropped_keys = []
@@ -186,6 +174,18 @@ class TradingRealTime(utils.TradingBase):
         self.cash = float(account.cash)
 
     def run(self):
+        for args in self.update_frequencies:
+            t = threading.Thread(target=self.update_stats, args=args)
+            t.daemon = True
+            t.start()
+
+        for target in [self.update_trading_list_prices,
+                       self.trade_clock_watcher,
+                       self.update_trading_list]:
+            t = threading.Thread(target=target)
+            t.daemon = True
+            t.start()
+
         next_market_close = self.alpaca.get_clock().next_close.timestamp()
         while time.time() < next_market_close:
             time.sleep(10)
