@@ -52,6 +52,7 @@ class TradingRealTime(utils.TradingBase):
         self.last_updates = ({update_frequencies[-1][1]: datetime.datetime.now()}
                              if not read_cache else {})
         self.trading_list = []
+        self.next_market_close = self.alpaca.get_clock().next_close.timestamp()
 
     def drop_low_volume_symbols(self):
         dropped_keys = []
@@ -67,8 +68,7 @@ class TradingRealTime(utils.TradingBase):
             len(self.closes), utils.VOLUME_FILTER_THRESHOLD))
 
     def trade_clock_watcher(self):
-        next_market_close = self.alpaca.get_clock().next_close.timestamp()
-        while time.time() < next_market_close - 60:
+        while time.time() < self.next_market_close - 60:
             time.sleep(1)
         self.active = False
         # Wait for all printing done
@@ -87,12 +87,11 @@ class TradingRealTime(utils.TradingBase):
             time.sleep(sleep_secs)
 
     def update_trading_list_prices(self):
-        next_market_close = self.alpaca.get_clock().next_close.timestamp()
         while True:
             self.update_prices(['^VIX'] + [symbol for symbol, _, _ in self.trading_list])
             if not self.active:
                 return
-            if time.time() > next_market_close - 60 * 5:
+            if time.time() > self.next_market_close - 60 * 5:
                 time.sleep(1)
             else:
                 time.sleep(60)
@@ -186,13 +185,11 @@ class TradingRealTime(utils.TradingBase):
             t.daemon = True
             t.start()
 
-        next_market_close = self.alpaca.get_clock().next_close.timestamp()
-        while time.time() < next_market_close:
+        while time.time() < self.next_market_close:
             time.sleep(10)
 
     def update_trading_list(self):
-        next_market_close = self.alpaca.get_clock().next_close.timestamp()
-        while time.time() < next_market_close:
+        while time.time() < self.next_market_close:
             # Update trading list
             trading_list = self.get_trading_list(prices=self.prices)
             if not self.active:
@@ -214,11 +211,11 @@ class TradingRealTime(utils.TradingBase):
                 return
 
             # Wait for next update
-            if time.time() > next_market_close - 60 * 2:
+            if time.time() > self.next_market_close - 60 * 2:
                 time.sleep(1)
-            elif time.time() > next_market_close - 60 * 5:
+            elif time.time() > self.next_market_close - 60 * 5:
                 time.sleep(10)
-            elif time.time() > next_market_close - 60 * 20:
+            elif time.time() > self.next_market_close - 60 * 20:
                 time.sleep(100)
             else:
                 time.sleep(300)
