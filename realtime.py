@@ -19,6 +19,7 @@ class TradingRealTime(utils.TradingBase):
     def __init__(self, alpaca):
         super(TradingRealTime, self).__init__(alpaca)
         self.active = True
+        self.equity, self.cash = 0, 0
         self.update_account()
         self.lock = threading.RLock()
         self.thresholds = {}
@@ -49,7 +50,7 @@ class TradingRealTime(utils.TradingBase):
 
         self.update_frequencies = [(10, 120), (100, 600),
                                    (len(self.ordered_symbols), 2400)]
-        self.last_updates = ({update_frequencies[-1][1]: datetime.datetime.now()}
+        self.last_updates = ({self.update_frequencies[-1][1]: datetime.datetime.now()}
                              if not read_cache else {})
         self.trading_list = []
         self.next_market_close = self.alpaca.get_clock().next_close.timestamp()

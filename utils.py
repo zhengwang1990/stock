@@ -62,7 +62,7 @@ class TradingBase(object):
         self.alpaca = alpaca
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.model = keras.models.load_model(os.path.join(self.root_dir, MODELS_DIR, model))
-        self.hists = {}
+        self.hists, self.closes, self.volumes = {}, {}, {}
         self.period = period or DEFAULT_HISTORY_LOAD
         self.cache_path = os.path.join(self.root_dir, CACHE_DIR, get_business_day(1))
         os.makedirs(os.path.join(self.cache_path, self.period), exist_ok=True)
@@ -107,9 +107,6 @@ class TradingBase(object):
 
     def read_series_from_histories(self, period):
         """Reads out close price and volume."""
-        self.closes = {}
-        self.volumes = {}
-
         for symbol, hist in self.hists.items():
             close = hist.get('Close')
             volume = hist.get('Volume')

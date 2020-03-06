@@ -32,7 +32,7 @@ class TradingSimulate(utils.TradingBase):
             year_diff = max(5, year_diff)
             period = '%dy' % (year_diff,)
         if not (data_file or start_date):
-          period = utils.DEFAULT_HISTORY_LOAD
+            period = utils.DEFAULT_HISTORY_LOAD
         super(TradingSimulate, self).__init__(alpaca, period=period, model=model,
                                               load_history=not bool(data_file))
         self.data_file = data_file
