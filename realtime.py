@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 import os
+import retrying
 import utils
 from concurrent import futures
 from tqdm import tqdm
@@ -168,6 +169,7 @@ class TradingRealTime(utils.TradingBase):
         with self.lock:
             self.ordered_symbols = tmp_ordered_symbols
 
+    @retrying.retry(wait_exponential_multiplier=1000)
     def update_account(self):
         account = self.alpaca.get_account()
         self.equity = float(account.equity)
@@ -257,6 +259,7 @@ class TradingRealTime(utils.TradingBase):
                        self.output_file)
         self.buy('market')
 
+    @retrying.retry(wait_exponential_multiplier=1000)
     def sell(self, order_type):
         positions = self.alpaca.list_positions()
         positions_table = []
@@ -280,6 +283,7 @@ class TradingRealTime(utils.TradingBase):
                            self.output_file)
         self.wait_for_order_to_fill()
 
+    @retrying.retry(wait_exponential_multiplier=1000)
     def buy(self, order_type):
         orders_table = []
         positions = self.alpaca.list_positions()
@@ -307,6 +311,7 @@ class TradingRealTime(utils.TradingBase):
                            self.output_file)
         self.wait_for_order_to_fill()
 
+    @retrying.retry(wait_exponential_multiplier=1000)
     def wait_for_order_to_fill(self, timeout=15):
         orders = self.alpaca.list_orders(status='open')
         wait_time = 0
