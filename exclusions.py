@@ -120,4 +120,4 @@ STOCKTWITS_NOT_FOUND = ['MMTM', 'SPSM', 'SPMB', 'SPSB', 'PPLC', 'DRTT', 'FCOR',
                         'VBND', 'BFOR', 'ENFR', 'EUSC', 'FNDB', 'IMLP', 'ROAM',
                         'SPLG', 'SSPY', 'WBIF', 'WBIL', 'BLU', 'DHC', 'FMK',
                         'FNCB', 'MEAR', 'ATMP', 'EMIH', 'FDBC', 'TFII', 'VEGI',
-                        'WEBK']
+                        'WEBK', 'AGND', 'IBCE', 'IBDD']

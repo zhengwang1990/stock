@@ -189,9 +189,6 @@ class TradingRealTime(utils.TradingBase):
             t.start()
             main_threads.append(t)
 
-        while time.time() < self.next_market_close:
-            time.sleep(10)
-
         for t in main_threads:
             t.join()
 
