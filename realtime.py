@@ -89,7 +89,7 @@ class TradingRealTime(utils.TradingBase):
             time.sleep(sleep_secs)
 
     def update_trading_list_prices(self):
-        while True:
+        while time.time() < self.next_market_close:
             self.update_prices(['^VIX'] + [symbol for symbol, _, _ in self.trading_list])
             if not self.active:
                 return
@@ -169,7 +169,7 @@ class TradingRealTime(utils.TradingBase):
         with self.lock:
             self.ordered_symbols = tmp_ordered_symbols
 
-    @retrying.retry(wait_exponential_multiplier=1000)
+    @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
     def update_account(self):
         account = self.alpaca.get_account()
         self.equity = float(account.equity)
@@ -181,15 +181,19 @@ class TradingRealTime(utils.TradingBase):
             t.daemon = True
             t.start()
 
+        main_threads = []
         for target in [self.update_trading_list_prices,
                        self.trade_clock_watcher,
                        self.update_trading_list]:
             t = threading.Thread(target=target)
-            t.daemon = True
             t.start()
+            main_threads.append(t)
 
         while time.time() < self.next_market_close:
             time.sleep(10)
+
+        for t in main_threads:
+            t.join()
 
     def update_trading_list(self):
         while time.time() < self.next_market_close:
@@ -259,7 +263,7 @@ class TradingRealTime(utils.TradingBase):
                        self.output_file)
         self.buy('market')
 
-    @retrying.retry(wait_exponential_multiplier=1000)
+    @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
     def sell(self, order_type):
         positions = self.alpaca.list_positions()
         positions_table = []
@@ -283,7 +287,7 @@ class TradingRealTime(utils.TradingBase):
                            self.output_file)
         self.wait_for_order_to_fill()
 
-    @retrying.retry(wait_exponential_multiplier=1000)
+    @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
     def buy(self, order_type):
         orders_table = []
         positions = self.alpaca.list_positions()
@@ -311,7 +315,7 @@ class TradingRealTime(utils.TradingBase):
                            self.output_file)
         self.wait_for_order_to_fill()
 
-    @retrying.retry(wait_exponential_multiplier=1000)
+    @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
     def wait_for_order_to_fill(self, timeout=15):
         orders = self.alpaca.list_orders(status='open')
         wait_time = 0
