@@ -70,7 +70,7 @@ class TradingRealTime(utils.TradingBase):
             len(self.closes), utils.VOLUME_FILTER_THRESHOLD))
 
     def trade_clock_watcher(self):
-        while time.time() < self.next_market_close - 60:
+        while time.time() < self.next_market_close - 90:
             time.sleep(1)
         self.active = False
         # Wait for all printing done
@@ -229,7 +229,7 @@ class TradingRealTime(utils.TradingBase):
         utils.bi_print(utils.get_header('Place Limit Sell Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
                        self.output_file)
-        self.sell('limit')
+        self.sell('limit', deadline=self.next_market_close-60)
         # Sell remaining positions with market orders
         utils.bi_print(utils.get_header('Place Market Sell Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
@@ -253,7 +253,7 @@ class TradingRealTime(utils.TradingBase):
         utils.bi_print(utils.get_header('Place Limit Buy Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
                        self.output_file)
-        self.buy('limit')
+        self.buy('limit', deadline=self.next_market_close-30)
         # Buy with market orders
         utils.bi_print(utils.get_header('Place Market Buy Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
@@ -261,7 +261,7 @@ class TradingRealTime(utils.TradingBase):
         self.buy('market')
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
-    def sell(self, order_type):
+    def sell(self, order_type, deadline=None):
         positions = self.alpaca.list_positions()
         positions_table = []
         for position in positions:
@@ -282,10 +282,10 @@ class TradingRealTime(utils.TradingBase):
                                     headers=['Symbol', 'Price', 'Quantity', 'Estimated Gain Value'],
                                     tablefmt='grid'),
                            self.output_file)
-        self.wait_for_order_to_fill()
+        self.wait_for_order_to_fill(deadline=deadline)
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
-    def buy(self, order_type):
+    def buy(self, order_type, deadline=None):
         orders_table = []
         positions = self.alpaca.list_positions()
         existing_positions = [position.symbol for position in positions]
@@ -310,10 +310,10 @@ class TradingRealTime(utils.TradingBase):
                                     headers=['Symbol', 'Price', 'Quantity', 'Estimated Cost'],
                                     tablefmt='grid'),
                            self.output_file)
-        self.wait_for_order_to_fill()
+        self.wait_for_order_to_fill(deadline=deadline)
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
-    def wait_for_order_to_fill(self, timeout=15):
+    def wait_for_order_to_fill(self, timeout=15, deadline=None):
         orders = self.alpaca.list_orders(status='open')
         wait_time = 0
         while orders:
@@ -323,6 +323,8 @@ class TradingRealTime(utils.TradingBase):
             wait_time += 2
             orders = self.alpaca.list_orders(status='open')
             if wait_time >= timeout:
+                break
+            if deadline and time.time() >= deadeline:
                 break
         if not orders:
             utils.bi_print(
