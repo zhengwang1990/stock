@@ -324,7 +324,7 @@ class TradingRealTime(utils.TradingBase):
             orders = self.alpaca.list_orders(status='open')
             if wait_time >= timeout:
                 break
-            if deadline and time.time() >= deadeline:
+            if deadline and time.time() >= deadline:
                 break
         if not orders:
             utils.bi_print(
