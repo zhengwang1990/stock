@@ -103,15 +103,10 @@ class TradingRealTime(utils.TradingBase):
                      ['"currentPrice"', '"regularMarketPrice"'], []),
                     ('https://stocktwits.com/symbol/{}',
                      ['"price"', '"last"'],
-                     ['This page may have been deleted or the link might be off']),
-                    ('https://money.cnn.com/quote/quote.html?symb={}',
-                     ['streamFormat="ToHundredth" streamFeed="BatsUS">',
-                      'streamFormat="ToHundredth" streamFeed="MorningstarQuote">'], [])]
+                     ['This page may have been deleted or the link might be off'])]
         special_symbols = {}
-        for s in exclusions.CNN_NOT_FOUND:
-            special_symbols[s] = [0, 1]
         for s in exclusions.STOCKTWITS_NOT_FOUND:
-            special_symbols[s] = [0, 2]
+            special_symbols[s] = [0]
         special_symbols['^VIX'] = [0]
         permutation = np.random.permutation(special_symbols.get(symbol, len(websites)))
         for i in permutation:
@@ -132,7 +127,7 @@ class TradingRealTime(utils.TradingBase):
 
     def update_prices(self, symbols, use_tqdm=False):
         threads = []
-        with futures.ThreadPoolExecutor(max_workers=utils.MAX_THREADS) as pool:
+        with futures.ThreadPoolExecutor(max_workers=3) as pool:
             for symbol in symbols:
                 if not self.active:
                     return

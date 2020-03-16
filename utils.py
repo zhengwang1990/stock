@@ -25,7 +25,6 @@ MODELS_DIR = 'models'
 DEFAULT_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 8
 VOLUME_FILTER_THRESHOLD = 100000
-MAX_THREADS = 5
 ML_FEATURES = [
     'Today_Change',
     'Yesterday_Change',
@@ -91,7 +90,7 @@ class TradingBase(object):
         # Allow at most 10 errors
         error_tol = 10
 
-        with futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as pool:
+        with futures.ThreadPoolExecutor(max_workers=5) as pool:
             for symbol in self.symbols:
                 t = pool.submit(self.load_history, symbol, period)
                 threads.append(t)

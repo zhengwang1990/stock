@@ -64,10 +64,6 @@ SHORTS = ['BIS', 'CROC', 'DDG', 'DOG', 'DPK', 'DRIP', 'DUG', 'DUST', 'DXD',
 
 EXCLUSIONS = DELISTED + SHORTS
 
-# Symbols can not be found from money.cnn.com
-CNN_NOT_FOUND = ['DAX', 'INSYQ', 'ADZ', 'DDP', 'DEE', 'NTX', 'FTSM', 'WEX',
-                 'FRN', 'RWW', 'TAO']
-
 # Symbols can not be found from stocktwits
 STOCKTWITS_NOT_FOUND = ['MMTM', 'SPSM', 'SPMB', 'SPSB', 'PPLC', 'DRTT', 'FCOR',
                         'SPEM', 'SYG', 'USFR', 'TFLO', 'JPGE', 'QMCO', 'SPGP',
