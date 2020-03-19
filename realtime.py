@@ -117,6 +117,8 @@ class TradingRealTime(utils.TradingBase):
                     self.errors[url] -= 0.2
                     continue
                 price = float(utils.web_scraping(url, prefixes, exclusives))
+                if symbol in self.prices and np.abs(price / self.prices[symbol] - 1) > 0.5:
+                    price = float(utils.web_scraping(url, prefixes, exclusives))
             except Exception as e:
                 self.errors[url] = self.errors.get(url, 0) + 1
                 if self.active:
