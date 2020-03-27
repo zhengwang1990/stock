@@ -119,4 +119,6 @@ STOCKTWITS_NOT_FOUND = ['MMTM', 'SPSM', 'SPMB', 'SPSB', 'PPLC', 'DRTT', 'FCOR',
                         'FNCB', 'MEAR', 'ATMP', 'EMIH', 'FDBC', 'TFII', 'VEGI',
                         'WEBK', 'AGND', 'IBCE', 'IBDD', 'FPA', 'GLOW', 'HYIH',
                         'IBDM', 'IBDN', 'IBDO', 'IBDP', 'IBDQ', 'MOM', 'PHDG',
-                        'SPEX']
+                        'SPEX', 'CDMOP', 'CHSCO', 'CTV', 'CTY', 'DTQ', 'EAB',
+                        'EEMO', 'ELU', 'EMFM', 'EUFX', 'FITBI', 'MFO', 'NYMTP',
+                        'PPX', 'QED', 'SDEM', 'TCBIL', 'UZA', 'ZCAN', 'ZIONP']
