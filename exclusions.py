@@ -62,7 +62,7 @@ SHORTS = ['BIS', 'CROC', 'DDG', 'DOG', 'DPK', 'DRIP', 'DUG', 'DUST', 'DXD',
           'DLBR', 'DLBS', 'DRR', 'DSLV', 'DTUS', 'DTYS', 'DWT', 'EXIV', 'FLAT',
           'FNGD', 'FNGZ', 'GNAF', 'KNAB', 'NRGD', 'NRGZ', 'TAPR', 'WTID',
           'XXVFF', 'YGRN', 'ZIV', 'BZQ', 'TVIX', 'UVXY', 'EPV', 'FTSD', 'VIXY',
-          'UVXY']
+          'UVXY', 'SKF', 'HDGE']
 
 EXCLUSIONS = DELISTED + SHORTS
 
