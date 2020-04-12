@@ -27,7 +27,7 @@ class TradingRealTime(utils.TradingBase):
         self.prices = {}
         self.ordered_symbols = []
         self.errors = {}
-        output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
+        output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'history',
                                    utils.get_business_day(0) + '.txt')
         self.output_file = open(output_path, 'a')
 
