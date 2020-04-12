@@ -190,6 +190,7 @@ class TradingRealTime(utils.TradingBase):
             t.join()
 
     def update_trading_list(self):
+        print_all = False
         while time.time() < self.next_market_close:
             # Update trading list
             trading_list = self.get_trading_list(prices=self.prices)
@@ -202,7 +203,7 @@ class TradingRealTime(utils.TradingBase):
             # Print
             utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
                            self.output_file)
-            self.print_trading_list()
+            self.print_trading_list(print_all)
             utils.bi_print('Last updates: %s' % (
                 [second_to_string(update_freq) + ': ' + update_time.strftime('%T')
                  for update_freq, update_time in
@@ -215,6 +216,7 @@ class TradingRealTime(utils.TradingBase):
             if time.time() > self.next_market_close - 60 * 2:
                 time.sleep(1)
             elif time.time() > self.next_market_close - 60 * 5:
+                print_all = True
                 time.sleep(10)
             elif time.time() > self.next_market_close - 60 * 20:
                 time.sleep(100)
@@ -334,11 +336,11 @@ class TradingRealTime(utils.TradingBase):
                 self.output_file)
             self.alpaca.cancel_all_orders()
 
-    def print_trading_list(self):
+    def print_trading_list(self, print_all=False):
         trading_table = []
         cost = 0
         for symbol, proportion, weight in self.trading_list:
-            if proportion == 0:
+            if proportion == 0 and not print_all:
                 continue
             trading_row = [symbol, '%.2f%%' % (proportion * 100,), weight]
             price = self.prices[symbol]
