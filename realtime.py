@@ -312,7 +312,7 @@ class TradingRealTime(utils.TradingBase):
         self.wait_for_order_to_fill(deadline=deadline)
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
-    def wait_for_order_to_fill(self, timeout=15, deadline=None):
+    def wait_for_order_to_fill(self, timeout=20, deadline=None):
         orders = self.alpaca.list_orders(status='open')
         wait_time = 0
         while orders:
