@@ -190,12 +190,15 @@ class TradingBase(object):
             if threshold > day_range_change > DATE_RANGE_CHANGE_CEIL:
                 buy_info.append(symbol)
 
-        buy_symbols = []
+        buy_symbols, ml_features, X = [], [], []
         for symbol in buy_info:
             ml_feature = self.get_ml_feature(symbol, prices=prices, cutoff=cutoff)
-            x = np.array([[ml_feature[key] for key in ML_FEATURES]])
-            weight = self.model.predict(x)[0]
-            buy_symbols.append((symbol, weight, ml_feature))
+            x = [ml_feature[key] for key in ML_FEATURES]
+            ml_features.append(ml_feature)
+            X.append(x)
+        X = np.array(X)
+        weights = self.model.predict(X)
+        buy_symbols = list(zip(buy_info, weights, ml_features))
         return buy_symbols
 
     def get_trading_list(self, buy_symbols=None, **kwargs):
