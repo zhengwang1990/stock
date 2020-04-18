@@ -1,7 +1,6 @@
 import alpaca_trade_api as tradeapi
 import argparse
 import datetime
-import exclusions
 import json
 import numpy as np
 import sys
