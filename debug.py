@@ -4,9 +4,11 @@ import utils
 import alpaca_trade_api as tradeapi
 import time
 import os
+import re
 import ta
 import numpy as np
 import pandas as pd
+from exclusions import EXCLUSIONS
 
 
 def test_alpaca():
@@ -63,8 +65,28 @@ def test_alpaca():
     print('Account buying power:', float(account.buying_power))
 
 
+def test_polygon():
+    polygon = tradeapi.polygon.REST(os.environ['ALPACA_PAPER_API_KEY'])
+    alpaca = tradeapi.REST(os.environ['ALPACA_PAPER_API_KEY'],
+                           os.environ['ALPACA_PAPER_API_SECRET'],
+                           utils.ALPACA_PAPER_API_BASE_URL, 'v2')
+    assets = [asset.symbol for asset in alpaca.list_assets()
+              if re.match('^[A-Z]*$', asset.symbol)
+              and asset.symbol not in EXCLUSIONS
+              and asset.tradable]
+    start = time.time()
+    previous = start
+    for i, symbol in enumerate(assets):
+        last_trade = polygon.last_trade(symbol)
+        current = time.time()
+        print('[%3d] %s: price %f; time cost: %.2f; time elapsed %.2f' % (
+              i, symbol, last_trade.price, current - previous, current - start))
+        previous = current
+
+
 def main():
-    test_alpaca()
+    # test_alpaca()
+    test_polygon()
 
 
 if __name__ == '__main__':

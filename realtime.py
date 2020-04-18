@@ -17,10 +17,11 @@ from tabulate import tabulate
 
 class TradingRealTime(utils.TradingBase):
 
-    def __init__(self, alpaca):
+    def __init__(self, alpaca, polygon):
         super(TradingRealTime, self).__init__(alpaca)
         self.active = True
         self.equity, self.cash = 0, 0
+        self.polygon = polygon
         self.update_account()
         self.lock = threading.RLock()
         self.thresholds = {}
@@ -99,33 +100,12 @@ class TradingRealTime(utils.TradingBase):
                 time.sleep(60)
 
     def get_realtime_price(self, symbol):
-        websites = [('https://finance.yahoo.com/quote/{}',
-                     ['"currentPrice"', '"regularMarketPrice"'], []),
-                    ('https://stocktwits.com/symbol/{}',
-                     ['"price"', '"last"'],
-                     ['This page may have been deleted or the link might be off'])]
-        special_symbols = {}
-        for s in exclusions.STOCKTWITS_NOT_FOUND:
-            special_symbols[s] = [0]
-        special_symbols['^VIX'] = [0]
-        permutation = np.random.permutation(special_symbols.get(symbol, len(websites)))
-        for i in permutation:
-            url_template, prefixes, exclusives = websites[i]
-            url = url_template.format(symbol)
-            try:
-                if self.errors.get(url, 0) >= 2:
-                    self.errors[url] -= 0.2
-                    continue
-                price = float(utils.web_scraping(url, prefixes, exclusives))
-                if symbol in self.prices and np.abs(price / self.prices[symbol] - 1) > 0.5:
-                    price = float(utils.web_scraping(url, prefixes, exclusives))
-            except Exception as e:
-                self.errors[url] = self.errors.get(url, 0) + 1
-                if self.active:
-                    print('%s. Error counter: %d' % (e, self.errors[url]))
-            else:
-                self.prices[symbol] = price
-                break
+        if symbol == '^VIX':
+            price = float(utils.web_scraping('https://finance.yahoo.com/quote/^VIX',
+                                             ['"currentPrice"', '"regularMarketPrice"']))
+        else:
+            price = self.polygon.last_trade(symbol).price
+        self.prices[symbol] = price
 
     def update_prices(self, symbols, use_tqdm=False):
         threads = []
@@ -393,6 +373,7 @@ def main():
         alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
                                args.api_secret or os.environ['ALPACA_API_SECRET'],
                                utils.ALPACA_API_BASE_URL, 'v2')
+        polygon = tradeapi.polygon.REST(os.environ['ALPACA_API_KEY'])
     else:
         print('-' * 80)
         print('Using Alpaca API for paper market')
@@ -400,9 +381,10 @@ def main():
         alpaca = tradeapi.REST(os.environ['ALPACA_PAPER_API_KEY'],
                                os.environ['ALPACA_PAPER_API_SECRET'],
                                utils.ALPACA_PAPER_API_BASE_URL, 'v2')
+        polygon = tradeapi.polygon.REST(os.environ['ALPACA_PAPER_API_KEY'])
 
     if alpaca.get_clock().is_open or args.force:
-        trading = TradingRealTime(alpaca)
+        trading = TradingRealTime(alpaca, polygon)
         trading.run()
     else:
         print('-' * 80)

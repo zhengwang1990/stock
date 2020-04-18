@@ -292,7 +292,7 @@ def get_header(title):
 
 @retrying.retry(stop_max_attempt_number=3, wait_fixed=1000,
                 retry_on_exception=lambda e: isinstance(e, NetworkError))
-def web_scraping(url, prefixes, exclusives):
+def web_scraping(url, prefixes, exclusives=[]):
     try:
         r = requests.get(url, timeout=5)
     except requests.exceptions.RequestException as e:
