@@ -86,7 +86,8 @@ class TradingSimulate(utils.TradingBase):
                 trading_table.append([symbol, '%.2f%%' % (proportion * 100,),
                                       weight,
                                       '%.2f%%' % (today_change * 100,),
-                                      '%.2f%%' % (day_range_change * 100,)])
+                                      '%.2f%%' % (day_range_change * 100,),
+                                      close[cutoff]])
                 continue
             gain = (close[cutoff + 1] - close[cutoff]) / close[cutoff]
             # > 100% gain might caused by stock split. Do not calculate.
@@ -96,6 +97,8 @@ class TradingSimulate(utils.TradingBase):
                                   weight,
                                   '%.2f%%' % (today_change * 100,),
                                   '%.2f%%' % (day_range_change * 100,),
+                                  close[cutoff],
+                                  close[cutoff + 1],
                                   '%.2f%%' % (gain * 100,)])
             daily_gain += gain * proportion
             if gain >= 0:
@@ -103,10 +106,12 @@ class TradingSimulate(utils.TradingBase):
             else:
                 self.loss_transactions += 1
         if trading_table:
-            utils.bi_print(tabulate(trading_table, headers=[
-                'Symbol', 'Proportion', 'Weight', 'Today Change',
-                '%d Day Change' % (utils.DATE_RANGE,), 'Gain'], tablefmt='grid'),
-                           self.output_detail)
+            utils.bi_print(
+                tabulate(trading_table, headers=[
+                    'Symbol', 'Proportion', 'Weight', 'Today Change',
+                    '%d Day Change' % (utils.DATE_RANGE,), 'Buy Price',
+                    'Sell Price', 'Gain'], tablefmt='grid'),
+                self.output_detail)
         if cutoff < self.history_length - 1:
             self._add_profit(sell_date, daily_gain)
 
