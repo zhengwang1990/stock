@@ -318,7 +318,7 @@ class TradingRealTime(utils.TradingBase):
     def print_trading_list(self, print_all=False):
         trading_table = []
         cost = 0
-        for symbol, proportion, weight in self.trading_list:
+        for symbol, proportion, weight in self.trading_list[:100]:
             if proportion == 0 and not print_all:
                 continue
             trading_row = [symbol, '%.2f%%' % (proportion * 100,), weight]
