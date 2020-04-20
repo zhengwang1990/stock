@@ -87,93 +87,93 @@ def send_summary(sender, receiver, user, password, alpaca):
     html = textwrap.dedent("""\
     <html>
     <head>
-        <style>
-            html {{
-              font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
-            }}
-            table {{
-              border-collapse: collapse;
-            }}
-            .table {{
-              width: 80%;
-              margin-bottom: 1rem;
-              color: #212529;
-            }}
-            .table th,
-            .table td {{
-              padding: 0.75rem;
-              vertical-align: top;
-              border-top: 1px solid #dee2e6;
-            }}
-            .table thead th {{
-              vertical-align: bottom;
-              border-bottom: 2px solid #dee2e6;
-            }}
-            .table tbody + tbody {{
-              border-top: 2px solid #dee2e6;
-            }}
-            .table-bordered {{
-              border: 1px solid #dee2e6;
-            }}
-            .table-bordered th,
-            .table-bordered td {{
-              border: 1px solid #dee2e6;
-            }}
-            .table-bordered thead th,
-            .table-bordered thead td {{
-              border-bottom-width: 2px;
-            }}
-            th {{
-              text-align: inherit;
-            }}
-            .table .thead-light th {{
-              background-color: #f5f5f5;
-            }}
-            .display {{
-              font-size: 1.5rem;
-              font-weight: 300;
-              line-height: 1.2;
-            }}
-            .narrow-col {{
-              background-color: #f5f5f5;
-              width: 30%;
-            }}
-        </style>
+      <style>
+        html {{
+          font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+        }}
+        table {{
+          border-collapse: collapse;
+        }}
+        .table {{
+          width: 80%;
+          margin-bottom: 1rem;
+          color: #212529;
+        }}
+        .table th,
+        .table td {{
+          padding: 0.75rem;
+          vertical-align: top;
+          border-top: 1px solid #dee2e6;
+        }}
+        .table thead th {{
+          vertical-align: bottom;
+           border-bottom: 2px solid #dee2e6;
+        }}
+        .table tbody + tbody {{
+           border-top: 2px solid #dee2e6;
+        }}
+        .table-bordered {{
+           border: 1px solid #dee2e6;
+        }}
+        .table-bordered th,
+        .table-bordered td {{
+           border: 1px solid #dee2e6;
+        }}
+        .table-bordered thead th,
+        .table-bordered thead td {{
+          border-bottom-width: 2px;
+        }}
+        th {{
+          text-align: inherit;
+        }}
+        .table .thead-light th {{
+          background-color: #f5f5f5;
+        }}
+        .display {{
+          font-size: 1.5rem;
+          font-weight: 300;
+          line-height: 1.2;
+        }}
+        .narrow-col {{
+          background-color: #f5f5f5;
+          width: 30%;
+        }}
+      </style>
     </head>
     <body>
-        <h1 class="display">Account Summary</h1>
-        <table class="table table-bordered" style="width:40%">
-            {account_html}
-        </table>
-        <h1 class="display">Sell Summary</h1>
-        <table class="table table-bordered">
-            <thead class="thead-light">
-                <tr>
-                    <th scope="col">Symbol</th>
-                    <th scope="col">Buy Price</th>
-                    <th scope="col">Sell Price</th>
-                    <th scope="col">Quantity</th>
-                    <th scope="col">Gain</th>
-                </tr>
-            </thead>
-            <tbody>
-                {sell_html}
-            </tbody>
-        </table>
-        <h1 class="display">Buy Summary</h1>
-        <table class="table table-bordered">
-            <thead class="thead-light">
-                <tr>
-                    <th scope="col">Symbol</th>
-                    <th scope="col">Buy Price</th>
-                    <th scope="col">Quantity</th>
-                    <th scope="col">Cost</th>
-                </tr>
-            </thead>
-            <tbody>
-                {buy_html}
-            </tbody>
-        </table>
+      <h1 class="display">Account Summary</h1>
+      <table class="table table-bordered" style="width:40%">
+        {account_html}
+      </table>
+      <h1 class="display">Sell Summary</h1>
+      <table class="table table-bordered">
+        <thead class="thead-light">
+          <tr>
+            <th scope="col">Symbol</th>
+            <th scope="col">Buy Price</th>
+            <th scope="col">Sell Price</th>
+            <th scope="col">Quantity</th>
+            <th scope="col">Gain</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sell_html}
+        </tbody>
+      </table>
+      <h1 class="display">Buy Summary</h1>
+      <table class="table table-bordered">
+        <thead class="thead-light">
+          <tr>
+            <th scope="col">Symbol</th>
+            <th scope="col">Buy Price</th>
+            <th scope="col">Quantity</th>
+            <th scope="col">Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {buy_html}
+        </tbody>
+      </table>
     </body>
     </html>
     """)
