@@ -53,7 +53,7 @@ def send_summary(sender, receiver, user, password, alpaca):
     for symbol, info in sells.items():
         gain = (info[0] - info[-1]) * info[1]
         percent = info[0] / info[-1] - 1
-        sell_text += '%s: buy at %g, sell at %g, quantity %d, gain %.2f (%.2f%%)\n' % (
+        sell_text += '%s: buy at %g, sell at %g, quantity %d, gain/loss %.2f (%.2f%%)\n' % (
             symbol, info[-1], info[0], info[1], gain, percent * 100)
         sell_html += ('<tr> <th scope="row">%s</th> <td>%g</td> <td>%g</td> <td>%d</td> '
                       '<td style="color:%s">%.2f (%.2f%%)</td> </tr>') % (
@@ -68,11 +68,11 @@ def send_summary(sender, receiver, user, password, alpaca):
             info[0], info[1], info[2], info[1] * info[2])
     account = alpaca.get_account()
     equity = float(account.equity)
-    account_text = 'Equity: %.2f\nCash: %s\nGain: %.2f (%.2f%%)\n' % (
+    account_text = 'Equity: %.2f\nCash: %s\nGain/Loss: %.2f (%.2f%%)\n' % (
         equity, account.cash, total_gain, total_gain / (equity - total_gain) * 100)
     account_html = ('<tr><th scope="row" class="narrow-col">Equity</th><td>%.2f</td></tr>'
                     '<tr><th scope="row" class="narrow-col">Cash</th><td>%s</td></tr>'
-                    '<tr><th scope="row" class="narrow-col">Gain</th><td style="color:%s">%.2f (%.2f%%)</td></tr>') % (
+                    '<tr><th scope="row" class="narrow-col">Gain/Loss</th><td style="color:%s">%.2f (%.2f%%)</td></tr>') % (
         equity, account.cash, 'green' if total_gain >= 0 else 'red', total_gain,
         total_gain / (equity - total_gain) * 100)
 
@@ -153,7 +153,7 @@ def send_summary(sender, receiver, user, password, alpaca):
             <th scope="col">Buy Price</th>
             <th scope="col">Sell Price</th>
             <th scope="col">Quantity</th>
-            <th scope="col">Gain</th>
+            <th scope="col">Gain/Loss</th>
           </tr>
         </thead>
         <tbody>
