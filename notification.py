@@ -24,7 +24,7 @@ def _create_message(sender, receiver):
     return message
 
 
-def send_summary(sender, receiver, user, password, alpaca):
+def send_summary(sender, receiver, bcc, user, password, alpaca):
     calendar = alpaca.get_calendar(start=datetime.date.today() - datetime.timedelta(days=15),
                                    end=datetime.date.today())
     open_dates = sorted([c.date for c in calendar], reverse=True)
@@ -198,7 +198,7 @@ def send_summary(sender, receiver, user, password, alpaca):
         account_text=account_text, sell_text=sell_text, buy_text=buy_text), 'plain'))
     message.attach(MIMEText(html.format(
         account_html=account_html, sell_html=sell_html, buy_html=buy_html), 'html'))
-    server.sendmail(sender, receiver, message.as_string())
+    server.sendmail(sender, [receiver] + bcc, message.as_string())
     server.close()
     print('Email summary sent')
 
@@ -225,12 +225,13 @@ def main():
     parser.add_argument('--receiver', required=True, help='Email receiver address.')
     parser.add_argument('--user', required=True, help='Email user name.')
     parser.add_argument('--password', required=True, help='Email password.')
+    parser.add_argument('--bcc', nargs='*', default=[], help='Email bcc address.')
     args = parser.parse_args()
     if args.exit_code == 0:
         alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
                                args.api_secret or os.environ['ALPACA_API_SECRET'],
                                utils.ALPACA_API_BASE_URL, 'v2')
-        send_summary(args.sender, args.receiver, args.user, args.password, alpaca)
+        send_summary(args.sender, args.receiver, args.bcc, args.user, args.password, alpaca)
     else:
         send_alert(args.sender, args.receiver, args.user, args.password, args.exit_code)
 
