@@ -144,7 +144,7 @@ def send_summary(sender, receiver, user, password, alpaca):
         <h1 class="display">Account Summary</h1>
         <table class="table table-bordered" style="width:40%">
             {account_html}
-        </table>    
+        </table>
         <h1 class="display">Sell Summary</h1>
         <table class="table table-bordered">
             <thead class="thead-light">
