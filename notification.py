@@ -11,6 +11,7 @@ from email.mime.text import MIMEText
 
 Order = collections.namedtuple('Order', ['price', 'qty', 'value'])
 
+
 def _create_server(user, password):
     server = smtplib.SMTP('smtp.live.com', 587)
     server.starttls()
