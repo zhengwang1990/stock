@@ -51,6 +51,8 @@ def send_summary(sender, receiver, bcc, user, password, alpaca):
     sell_text, sell_html = '', ''
     total_gain = 0
     for symbol, info in sells.items():
+        if len(info) != 3:
+            continue
         gain = (info[0] - info[-1]) * info[1]
         percent = info[0] / info[-1] - 1
         sell_text += '%s: buy at %g, sell at %g, quantity %d, gain/loss %+.2f (%+.2f%%)\n' % (
@@ -62,6 +64,8 @@ def send_summary(sender, receiver, bcc, user, password, alpaca):
         total_gain += gain
     buy_text, buy_html = '', ''
     for info in buys:
+        if len(info) != 3:
+            continue
         buy_text += '%s: buy at %g, quantity %d, cost %.2f\n' % (
             info[0], info[1], info[2], info[1] * info[2])
         buy_html += '<tr> <th scope="row">%s</th> <td>%g</td> <td>%d</td> <td>%.2f</td> </tr>' % (
