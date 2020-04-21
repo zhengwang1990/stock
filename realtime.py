@@ -266,11 +266,13 @@ class TradingRealTime(utils.TradingBase):
     def buy(self, order_type, deadline=None):
         orders_table = []
         positions = self.alpaca.list_positions()
-        existing_positions = [position.symbol for position in positions]
+        existing_positions = {position.symbol: int(position.qty) for position in positions}
         for symbol, proportion, _ in self.trading_list:
-            if proportion == 0 or symbol in existing_positions:
+            if proportion == 0:
                 continue
             qty = int(self.cash * proportion / self.prices[symbol])
+            if symbol in existing_positions:
+                qty -= existing_positions[symbol]
             if qty > 0:
                 orders_table.append([symbol, self.prices[symbol], qty, self.prices[symbol] * qty])
                 try:
