@@ -110,7 +110,7 @@ class TradingRealTime(utils.TradingBase):
             else:
                 price = self.polygon.last_trade(symbol).price
         except requests.exceptions.RequestException as e:
-            print('Exception rasied in get_realtime_price: %s' % (e,))
+            print('Exception raised in get_realtime_price: %s' % (e,))
             self.errors.append(sys.exc_info())
         else:
             self.prices[symbol] = price
@@ -183,7 +183,6 @@ class TradingRealTime(utils.TradingBase):
                                    self.output_file)
                     if i == len(self.errors) - 1:
                         raise exc_obj.with_traceback(exc_trace)
-
             time.sleep(1)
 
         for t in main_threads:
@@ -291,7 +290,7 @@ class TradingRealTime(utils.TradingBase):
         for symbol, proportion, _ in self.trading_list:
             if proportion == 0:
                 continue
-            cash = self.cash if order_type == 'limit' else self.cash * 0.99
+            cash = self.cash if order_type == 'limit' else self.cash * 0.98
             qty = int(cash * proportion / self.prices[symbol])
             if symbol in existing_positions:
                 qty -= existing_positions[symbol]
