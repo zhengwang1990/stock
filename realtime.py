@@ -7,11 +7,15 @@ import sys
 import threading
 import time
 import os
+import requests
 import retrying
 import utils
 from concurrent import futures
 from tqdm import tqdm
 from tabulate import tabulate
+
+
+ERROR_TOLERANCE = 10
 
 
 class TradingRealTime(utils.TradingBase):
@@ -26,7 +30,7 @@ class TradingRealTime(utils.TradingBase):
         self.thresholds = {}
         self.prices = {}
         self.ordered_symbols = []
-        self.errors = {}
+        self.errors = []
         output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'history',
                                    utils.get_business_day(0) + '.txt')
         self.output_file = open(output_path, 'a')
@@ -99,12 +103,17 @@ class TradingRealTime(utils.TradingBase):
                 time.sleep(60)
 
     def get_realtime_price(self, symbol):
-        if symbol == '^VIX':
-            price = float(utils.web_scraping('https://finance.yahoo.com/quote/^VIX',
-                                             ['"currentPrice"', '"regularMarketPrice"']))
+        try:
+            if symbol == '^VIX':
+                price = float(utils.web_scraping('https://finance.yahoo.com/quote/^VIX',
+                                                 ['"currentPrice"', '"regularMarketPrice"']))
+            else:
+                price = self.polygon.last_trade(symbol).price
+        except requests.exceptions.RequestException as e:
+            print('Exception rasied in get_realtime_price: %s' % (e,))
+            self.errors.append(sys.exc_info())
         else:
-            price = self.polygon.last_trade(symbol).price
-        self.prices[symbol] = price
+            self.prices[symbol] = price
 
     def update_prices(self, symbols, use_tqdm=False):
         threads = []
@@ -162,8 +171,20 @@ class TradingRealTime(utils.TradingBase):
                        self.trade_clock_watcher,
                        self.update_trading_list]:
             t = threading.Thread(target=target)
+            t.daemon = True
             t.start()
             main_threads.append(t)
+
+        while time.time() < self.next_market_close:
+            if len(self.errors) > ERROR_TOLERANCE:
+                for i in range(len(self.errors)):
+                    _, exc_obj, exc_trace = self.errors[i]
+                    utils.bi_print('Error # %d: %s' % (i+1, exc_obj),
+                                   self.output_file)
+                    if i == len(self.errors) - 1:
+                        raise exc_obj.with_traceback(exc_trace)
+
+            time.sleep(1)
 
         for t in main_threads:
             t.join()
@@ -270,7 +291,8 @@ class TradingRealTime(utils.TradingBase):
         for symbol, proportion, _ in self.trading_list:
             if proportion == 0:
                 continue
-            qty = int(self.cash * proportion / self.prices[symbol])
+            cash = self.cash if order_type == 'limit' else self.cash * 0.99
+            qty = int(cash * proportion / self.prices[symbol])
             if symbol in existing_positions:
                 qty -= existing_positions[symbol]
             if qty > 0:
