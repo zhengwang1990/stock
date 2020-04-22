@@ -4,7 +4,8 @@ import os
 import re
 import requests
 import retrying
-import ta
+import ta.momentum as momentum
+import ta.trend as trend
 import tensorflow.keras as keras
 import numpy as np
 import pandas as pd
@@ -248,10 +249,10 @@ class TradingBase(object):
         pd_close = pd.Series(close)
         pd_high = pd.Series(high)
         pd_low = pd.Series(low)
-        rsi = ta.momentum.rsi(pd_close).values[-1]
-        macd_rate = ta.trend.macd_diff(pd_close).values[-1] / price
-        wr = ta.momentum.wr(pd_high, pd_low, pd_close).values[-1]
-        tsi = ta.momentum.tsi(pd_close).values[-1]
+        rsi = momentum.rsi(pd_close).values[-1]
+        macd_rate = trend.macd_diff(pd_close).values[-1] / price
+        wr = momentum.wr(pd_high, pd_low, pd_close).values[-1]
+        tsi = momentum.tsi(pd_close).values[-1]
         feature = {'Today_Change': today_change,
                    'Yesterday_Change': yesterday_change,
                    'Day_Before_Yesterday_Change': day_before_yesterday_change,
@@ -295,7 +296,7 @@ def get_header(title):
 
 @retrying.retry(stop_max_attempt_number=3, wait_fixed=1000,
                 retry_on_exception=lambda e: isinstance(e, NetworkError))
-def web_scraping(url, prefixes, exclusives=[]):
+def web_scraping(url, prefixes):
     try:
         r = requests.get(url, timeout=5)
     except requests.exceptions.RequestException as e:
@@ -303,9 +304,6 @@ def web_scraping(url, prefixes, exclusives=[]):
     if r.status_code != 200:
         raise NetworkError('[%s] status %d' % (url, r.status_code))
     c = str(r.content)
-    for exclusive in exclusives:
-        if exclusive in c:
-            raise NotFoundError('[%s] %s found' % (url, exclusive))
     for prefix in prefixes:
         prefix_pos = c.find(prefix)
         if prefix_pos >= 0:

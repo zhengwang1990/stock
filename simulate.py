@@ -20,6 +20,7 @@ class TradingSimulate(utils.TradingBase):
                  model=None,
                  data_file=None,
                  write_data=False):
+        period = None
         if data_file:
             self.data_df = pd.read_csv(os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), utils.DATA_DIR, data_file))

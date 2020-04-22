@@ -1,4 +1,5 @@
 import alpaca_trade_api as tradeapi
+import alpaca_trade_api.polygon as polygonapi
 import argparse
 import datetime
 import json
@@ -395,7 +396,7 @@ def main():
         alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
                                args.api_secret or os.environ['ALPACA_API_SECRET'],
                                utils.ALPACA_API_BASE_URL, 'v2')
-        polygon = tradeapi.polygon.REST(os.environ['ALPACA_API_KEY'])
+        polygon = polygonapi.REST(args.api_key or os.environ['ALPACA_API_KEY'])
     else:
         print('-' * 80)
         print('Using Alpaca API for paper market')
@@ -403,7 +404,7 @@ def main():
         alpaca = tradeapi.REST(os.environ['ALPACA_PAPER_API_KEY'],
                                os.environ['ALPACA_PAPER_API_SECRET'],
                                utils.ALPACA_PAPER_API_BASE_URL, 'v2')
-        polygon = tradeapi.polygon.REST(os.environ['ALPACA_PAPER_API_KEY'])
+        polygon = polygonapi.REST(os.environ['ALPACA_PAPER_API_KEY'])
 
     if alpaca.get_clock().is_open or args.force:
         trading = TradingRealTime(alpaca, polygon)
