@@ -290,8 +290,8 @@ class TradingRealTime(utils.TradingBase):
         for symbol, proportion, _ in self.trading_list:
             if proportion == 0:
                 continue
-            cash = self.cash if order_type == 'limit' else self.cash * 0.98
-            qty = int(cash * proportion / self.prices[symbol])
+            adjust = 1 if order_type == 'limit' else 0.98
+            qty = int(self.cash * proportion * adjust / self.prices[symbol])
             if symbol in existing_positions:
                 qty -= existing_positions[symbol]
             if qty > 0:
