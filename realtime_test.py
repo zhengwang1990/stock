@@ -6,6 +6,7 @@ import itertools
 import numpy as np
 import pandas as pd
 import realtime
+import requests
 import os
 import tensorflow.keras as keras
 import time
@@ -19,6 +20,8 @@ Clock = collections.namedtuple('Clock', ['is_open', 'next_close'])
 Asset = collections.namedtuple('Asset', ['symbol', 'tradable'])
 Account = collections.namedtuple('Account', ['equity', 'cash'])
 LastTrade = collections.namedtuple('LastTrade', ['price'])
+Position = collections.namedtuple('Position', ['symbol', 'qty', 'current_price',
+                                               'market_value', 'cost_basis'])
 
 
 class TradingRealTimeTest(unittest.TestCase):
@@ -35,7 +38,7 @@ class TradingRealTimeTest(unittest.TestCase):
         self.patch_mkdirs = mock.patch.object(os, 'makedirs')
         self.patch_mkdirs.start()
         self.patch_sleep = mock.patch.object(time, 'sleep')
-        self.patch_sleep.start()
+        self.mock_sleep = self.patch_sleep.start()
         self.patch_web_scraping = mock.patch.object(utils, 'web_scraping', return_value='50')
         self.patch_web_scraping.start()
         fake_history_data = pd.DataFrame({'Close': np.append(np.random.random(998) * 10 + 100, [90, 89]),
@@ -67,6 +70,19 @@ class TradingRealTimeTest(unittest.TestCase):
         self.patch_sleep.stop()
         self.patch_web_scraping.stop()
 
+    def test_trade_clock_watcher(self):
+        with mock.patch.object(realtime.TradingRealTime, 'trade') as trade:
+            with mock.patch.object(time, 'time', side_effect=itertools.count(900)):
+                self.trade.trade_clock_watcher()
+                trade.assert_called_once()
+                self.assertEqual(self.mock_sleep.call_count, 11)
+
+    def test_get_realtime_price_accumulate_error(self):
+        self.polygon.last_trade.side_effect = requests.exceptions.RequestException('Test error')
+        self.assertEqual(len(self.trade.errors), 0)
+        self.trade.get_realtime_price('SYMA')
+        self.assertEqual(len(self.trade.errors), 1)
+
     def test_update_trading_list(self):
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
             self.trade.update_trading_list()
@@ -79,6 +95,14 @@ class TradingRealTimeTest(unittest.TestCase):
             self.trade.update_trading_list()
         self.trade.buy(order_type)
         self.assertEqual(self.alpaca.submit_order.call_count, 4)
+
+    @parameterized.expand([('limit',), ('market',)])
+    def test_sell(self, order_type):
+        self.alpaca.list_orders.return_value = []
+        self.alpaca.list_positions.return_value = [Position('SYMA', '10', '10.0', '100.0', '99.0'),
+                                                   Position('SYMB', '20', '20.0', '400.0', '555.5')]
+        self.trade.sell(order_type)
+        self.assertEqual(self.alpaca.submit_order.call_count, 2)
 
 
 if __name__ == '__main__':
