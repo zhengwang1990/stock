@@ -10,3 +10,4 @@ sklearn
 alpaca_trade_api
 ta
 tensorflow
+parameterized
