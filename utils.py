@@ -1,15 +1,15 @@
 import datetime
 import functools
+import numpy as np
 import os
+import pandas as pd
 import re
 import requests
 import retrying
+import sys
 import ta.momentum as momentum
 import ta.trend as trend
 import tensorflow.keras as keras
-import numpy as np
-import pandas as pd
-import sys
 import yfinance as yf
 from concurrent import futures
 from exclusions import EXCLUSIONS

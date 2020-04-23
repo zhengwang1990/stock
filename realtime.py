@@ -4,16 +4,16 @@ import argparse
 import datetime
 import json
 import numpy as np
+import os
 import sys
 import threading
 import time
-import os
 import requests
 import retrying
 import utils
 from concurrent import futures
-from tqdm import tqdm
 from tabulate import tabulate
+from tqdm import tqdm
 
 
 ERROR_TOLERANCE = 10

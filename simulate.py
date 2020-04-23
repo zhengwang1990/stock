@@ -1,6 +1,6 @@
-import datetime
 import alpaca_trade_api as tradeapi
 import argparse
+import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import os
