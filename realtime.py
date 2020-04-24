@@ -20,6 +20,7 @@ ERROR_TOLERANCE = 10
 
 
 class TradingRealTime(utils.TradingBase):
+    """Tracks daily stock price changes and make transactions on Alpaca."""
 
     def __init__(self, alpaca, polygon):
         super(TradingRealTime, self).__init__(alpaca)
@@ -62,6 +63,7 @@ class TradingRealTime(utils.TradingBase):
         self.next_market_close = self.alpaca.get_clock().next_close.timestamp()
 
     def drop_low_volume_symbols(self):
+        """Drops to-be-tracked symbols with low volumes."""
         dropped_keys = []
         for symbol in self.closes.keys():
             avg_trading_volume = np.average(np.multiply(
@@ -75,6 +77,7 @@ class TradingRealTime(utils.TradingBase):
             len(self.closes), utils.VOLUME_FILTER_THRESHOLD))
 
     def trade_clock_watcher(self):
+        """Makes transactions near market close."""
         while time.time() < self.next_market_close - 90:
             time.sleep(1)
         self.active = False
@@ -83,6 +86,7 @@ class TradingRealTime(utils.TradingBase):
         self.trade()
 
     def update_stats(self, length, sleep_secs):
+        """Keeps updating a subset of symbols in self.ordered_symbols."""
         while True:
             with self.lock:
                 symbols = [symbol for symbol in self.ordered_symbols[:length]]
@@ -94,6 +98,7 @@ class TradingRealTime(utils.TradingBase):
             time.sleep(sleep_secs)
 
     def update_trading_list_prices(self):
+        """Keeps updating stock prices of symbols in the trading list."""
         while time.time() < self.next_market_close:
             self.update_prices(['^VIX'] + [symbol for symbol, _, _ in self.trading_list])
             if not self.active:
@@ -117,6 +122,7 @@ class TradingRealTime(utils.TradingBase):
             self.prices[symbol] = price
 
     def update_prices(self, symbols, use_tqdm=False):
+        """Updates realtime prices for a list of symbols."""
         threads = []
         with futures.ThreadPoolExecutor(max_workers=3) as pool:
             for symbol in symbols:
@@ -135,6 +141,7 @@ class TradingRealTime(utils.TradingBase):
                 f.write(json.dumps(self.prices))
 
     def update_ordered_symbols(self):
+        """Re-orders self.ordered_symbols based on how likely symbols will be selected."""
         tmp_ordered_symbols = []
         order_weights = {}
         for symbol, close in self.closes.items():
@@ -190,6 +197,7 @@ class TradingRealTime(utils.TradingBase):
             t.join()
 
     def update_trading_list(self):
+        """Keeps updating trading list with ML models."""
         print_all = False
         while time.time() < self.next_market_close:
             # Update trading list
@@ -224,6 +232,7 @@ class TradingRealTime(utils.TradingBase):
                 time.sleep(300)
 
     def trade(self):
+        """Performs sell and buy transactions."""
         # Sell all current positions with limit orders
         utils.bi_print(utils.get_header('Place Limit Sell Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
@@ -261,6 +270,7 @@ class TradingRealTime(utils.TradingBase):
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
     def sell(self, order_type, deadline=None):
+        """Sells all current positions."""
         positions = self.alpaca.list_positions()
         positions_table = []
         for position in positions:
@@ -285,6 +295,7 @@ class TradingRealTime(utils.TradingBase):
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
     def buy(self, order_type, deadline=None):
+        """Buys stocks in the trading list."""
         orders_table = []
         positions = self.alpaca.list_positions()
         existing_positions = {position.symbol: int(position.qty) for position in positions}

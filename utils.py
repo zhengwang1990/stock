@@ -63,6 +63,7 @@ class TradingBase(object):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.model = keras.models.load_model(os.path.join(self.root_dir, MODELS_DIR, model))
         self.hists, self.closes, self.volumes = {}, {}, {}
+        self.symbols = []
         self.period = period or DEFAULT_HISTORY_LOAD
         self.cache_path = os.path.join(self.root_dir, CACHE_DIR, get_business_day(1))
         os.makedirs(os.path.join(self.cache_path, self.period), exist_ok=True)
@@ -76,6 +77,7 @@ class TradingBase(object):
         self.read_series_from_histories(self.period)
 
     def load_all_symbols(self):
+        """Loads all tradable symbols on Alpaca."""
         assets = self.alpaca.list_assets()
         self.symbols = ['^VIX'] + [
             asset.symbol for asset in assets
@@ -203,6 +205,7 @@ class TradingBase(object):
         return buy_symbols
 
     def get_trading_list(self, buy_symbols=None, **kwargs):
+        """Gets a list of symbols with trading information."""
         if buy_symbols is None:
             buy_symbols = self.get_buy_symbols(**kwargs)
         buy_symbols.sort(key=lambda s: s[1], reverse=True)
@@ -271,8 +274,7 @@ class TradingBase(object):
 
     @functools.lru_cache(maxsize=10000)
     def get_threshold(self, symbol, cutoff=None):
-        """Gets threshold for a symbol.
-        """
+        """Gets threshold for a symbol."""
         if cutoff:
             close_year = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
         else:
@@ -297,6 +299,7 @@ def get_header(title):
 @retrying.retry(stop_max_attempt_number=3, wait_fixed=1000,
                 retry_on_exception=lambda e: isinstance(e, NetworkError))
 def web_scraping(url, prefixes):
+    """Scrapes a webpage for stock price."""
     try:
         r = requests.get(url, timeout=5)
     except requests.exceptions.RequestException as e:
