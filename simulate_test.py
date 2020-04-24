@@ -58,7 +58,7 @@ class TradingSimulateTest(unittest.TestCase):
         self.patch_history.stop()
         self.patch_savefig.stop()
 
-    def test_run(self):
+    def test_run_default(self):
         self.trading.run()
         self.assertGreater(self.trading.gain_transactions + self.trading.loss_transactions, 0)
 

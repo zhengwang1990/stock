@@ -72,11 +72,11 @@ class TradingRealTimeTest(unittest.TestCase):
         self.patch_web_scraping.stop()
 
     def test_trade_clock_watcher(self):
-        with mock.patch.object(realtime.TradingRealTime, 'trade') as trade:
-            with mock.patch.object(time, 'time', side_effect=itertools.count(900)):
-                self.trading.trade_clock_watcher()
-                trade.assert_called_once()
-                self.assertEqual(self.mock_sleep.call_count, 11)
+        with mock.patch.object(realtime.TradingRealTime, 'trade') as trade, \
+                mock.patch.object(time, 'time', side_effect=itertools.count(900)):
+            self.trading.trade_clock_watcher()
+            trade.assert_called_once()
+            self.assertEqual(self.mock_sleep.call_count, 11)
 
     def test_get_realtime_price_accumulate_error(self):
         self.polygon.last_trade.side_effect = requests.exceptions.RequestException('Test error')
@@ -87,7 +87,13 @@ class TradingRealTimeTest(unittest.TestCase):
     def test_update_trading_list(self):
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
             self.trading.update_trading_list()
-            self.assertEqual(len(self.trading.trading_list), 4)
+        self.assertEqual(len(self.trading.trading_list), 4)
+
+    def test_update_trading_list_prices(self):
+        with mock.patch.object(time, 'time', side_effect=itertools.count(999)), \
+                mock.patch.object(utils, 'web_scraping', return_value='35'):
+            self.trading.update_trading_list_prices()
+        self.assertEqual(self.trading.prices['^VIX'], 35)
 
     @parameterized.expand([('limit',), ('market',)])
     def test_buy(self, order_type):
@@ -120,6 +126,30 @@ class TradingRealTimeTest(unittest.TestCase):
         self.trading.trade()
         # Sell 2 + 1, Buy 4 + 3
         self.assertEqual(self.alpaca.submit_order.call_count, 10)
+
+    def test_run_success(self):
+        with mock.patch.object(time, 'time', side_effect=itertools.count(990)), \
+                mock.patch.object(realtime.TradingRealTime, 'update_stats') as mock_update_stats, \
+                mock.patch.object(realtime.TradingRealTime, 'update_trading_list_prices') as mock_update_prices, \
+                mock.patch.object(realtime.TradingRealTime, 'update_trading_list') as mock_update_trading_list, \
+                mock.patch.object(realtime.TradingRealTime, 'trade') as mock_trade:
+            self.trading.run()
+        self.assertEqual(mock_update_stats.call_count, 3)
+        mock_update_prices.assert_called_once()
+        mock_update_trading_list.assert_called_once()
+        mock_trade.assert_called_once()
+
+    def test_run_fail(self):
+        with mock.patch.object(time, 'time', side_effect=itertools.repeat(800)), \
+                mock.patch.object(realtime.TradingRealTime, 'update_stats') as mock_update_stats, \
+                mock.patch.object(realtime.TradingRealTime, 'update_trading_list') as mock_update_trading_list, \
+                mock.patch.object(realtime.TradingRealTime, 'trade_clock_watcher') as trade_clock_watcher, \
+                mock.patch.object(utils, 'web_scraping', side_effect=requests.exceptions.HTTPError('Test error')), \
+                self.assertRaises(requests.exceptions.HTTPError):
+            self.trading.run()
+        self.assertEqual(mock_update_stats.call_count, 3)
+        mock_update_trading_list.assert_called_once()
+        trade_clock_watcher.assert_called_once()
 
 
 if __name__ == '__main__':

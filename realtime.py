@@ -185,6 +185,7 @@ class TradingRealTime(utils.TradingBase):
 
         while time.time() < self.next_market_close:
             if len(self.errors) > ERROR_TOLERANCE:
+                self.active = False
                 for i in range(len(self.errors)):
                     _, exc_obj, exc_trace = self.errors[i]
                     utils.bi_print('Error # %d: %s' % (i+1, exc_obj),
