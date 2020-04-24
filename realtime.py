@@ -87,7 +87,7 @@ class TradingRealTime(utils.TradingBase):
 
     def update_stats(self, length, sleep_secs):
         """Keeps updating a subset of symbols in self.ordered_symbols."""
-        while True:
+        while time.time() < self.next_market_close:
             with self.lock:
                 symbols = [symbol for symbol in self.ordered_symbols[:length]]
             self.update_prices(symbols)
@@ -335,11 +335,11 @@ class TradingRealTime(utils.TradingBase):
                 datetime.datetime.now().strftime('%T'), len(orders),), self.output_file)
             time.sleep(2)
             wait_time += 2
-            orders = self.alpaca.list_orders(status='open')
             if wait_time >= timeout:
                 break
             if deadline and time.time() >= deadline:
                 break
+            orders = self.alpaca.list_orders(status='open')
         if not orders:
             utils.bi_print(
                 '[%s] All orders filled' % (datetime.datetime.now().strftime('%T'),),

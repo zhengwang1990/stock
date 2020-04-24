@@ -95,6 +95,22 @@ class TradingRealTimeTest(unittest.TestCase):
             self.trading.update_trading_list_prices()
         self.assertEqual(self.trading.prices['^VIX'], 35)
 
+    def test_update_stats(self):
+        self.polygon.last_trade.return_value = LastTrade(666)
+        with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
+            self.trading.update_stats(4, 1)
+        self.assertEqual(self.trading.prices['SYMA'], 666)
+        self.assertEqual(self.trading.prices['SYMB'], 666)
+        self.assertEqual(self.trading.prices['SYMC'], 666)
+
+    @parameterized.expand([(20, None, 10), (1000, 999, 1)])
+    def test_wait_for_order_to_fill(self, timeout, deadline, list_call_count):
+        self.alpaca.list_orders.return_value = ['fake_order']
+        with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
+            self.trading.wait_for_order_to_fill(timeout, deadline)
+        self.assertEqual(self.alpaca.list_orders.call_count, list_call_count)
+        self.alpaca.cancel_all_orders.assert_called_once()
+
     @parameterized.expand([('limit',), ('market',)])
     def test_buy(self, order_type):
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
