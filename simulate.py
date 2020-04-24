@@ -37,11 +37,11 @@ class TradingSimulate(utils.TradingBase):
         super(TradingSimulate, self).__init__(alpaca, period=period, model=model,
                                               load_history=not bool(data_file))
         self.data_file = data_file
-        if data_file:
+        if self.data_file:
             self.start_date = start_date or self.data_df.iloc[0].Date
             self.end_date = end_date or self.data_df.iloc[-1].Date
             self.values = {'Total': (
-                [self._get_prev_market_date(pd.to_datetime(self.start_date))],
+                [self.get_prev_market_date(pd.to_datetime(self.start_date))],
                 [1.0])}
         else:
             self.start_date = (start_date or
@@ -66,14 +66,14 @@ class TradingSimulate(utils.TradingBase):
 
     def safe_exit(self, signum, frame):
         print('\nSafe exiting with signal %d...' % (signum,))
-        self._print_summary()
+        self.print_summary()
         exit(1)
 
-    def _analyze_date(self, sell_date, cutoff):
+    def analyze_date(self, sell_date, cutoff):
         utils.bi_print(utils.get_header(sell_date.date()), self.output_detail)
         buy_symbols = self.get_buy_symbols(cutoff=cutoff)
         if self.write_data and cutoff < self.history_length - 1:
-            self._append_stats(buy_symbols, sell_date, cutoff)
+            self.append_stats(buy_symbols, sell_date, cutoff)
         trading_list = self.get_trading_list(buy_symbols=buy_symbols)
         trading_table = []
         daily_gain = 0
@@ -114,9 +114,9 @@ class TradingSimulate(utils.TradingBase):
                     'Sell Price', 'Gain'], tablefmt='grid'),
                 self.output_detail)
         if cutoff < self.history_length - 1:
-            self._add_profit(sell_date, daily_gain)
+            self.add_profit(sell_date, daily_gain)
 
-    def _analyze_rows(self, sell_date_str, rows):
+    def analyze_rows(self, sell_date_str, rows):
         utils.bi_print(utils.get_header(sell_date_str), self.output_detail)
         ml_features, symbols, gains = [], [], {}
         for row in rows:
@@ -149,9 +149,9 @@ class TradingSimulate(utils.TradingBase):
                 trading_table,
                 headers=['Symbol', 'Proportion', 'Weight', 'Gain'],
                 tablefmt='grid'), self.output_detail)
-        self._add_profit(pd.to_datetime(sell_date_str), daily_gain)
+        self.add_profit(pd.to_datetime(sell_date_str), daily_gain)
 
-    def _add_profit(self, sell_date, daily_gain):
+    def add_profit(self, sell_date, daily_gain):
         """Adds daily gain to values memory."""
         total_value = self.values['Total'][1][-1] * (1 + daily_gain)
         self.values['Total'][0].append(sell_date)
@@ -161,7 +161,7 @@ class TradingSimulate(utils.TradingBase):
         year = '%d' % (sell_date.year,)
         for t in [quarter, year]:
             if t not in self.values:
-                self.values[t] = ([self._get_prev_market_date(sell_date)],
+                self.values[t] = ([self.get_prev_market_date(sell_date)],
                                   [1.0])
             self.values[t][0].append(sell_date)
             t_value = self.values[t][1][-1] * (1 + daily_gain)
@@ -174,7 +174,7 @@ class TradingSimulate(utils.TradingBase):
                                       self.loss_transactions + 1E-7) * 100),
                        self.output_detail)
 
-    def _print_summary(self):
+    def print_summary(self):
         output_summary = open(os.path.join(self.root_dir, utils.OUTPUTS_DIR,
                                            'simulate_summary.txt'), 'w')
         utils.bi_print(utils.get_header('Summary'), output_summary)
@@ -193,7 +193,7 @@ class TradingSimulate(utils.TradingBase):
                                                            self.end_date[:4])),
                 index=False)
 
-    def _plot_summary(self):
+    def plot_summary(self):
         pd.plotting.register_matplotlib_converters()
         plot_symbols = ['QQQ', 'SPY', 'TQQQ']
         for symbol in [utils.REFERENCE_SYMBOL] + plot_symbols:
@@ -231,23 +231,23 @@ class TradingSimulate(utils.TradingBase):
                 if current_date < self.start_date or current_date > self.end_date:
                     continue
                 if current_date != prev_date and prev_date:
-                    self._analyze_rows(prev_date, rows)
+                    self.analyze_rows(prev_date, rows)
                     rows = []
                 rows.append(row)
                 prev_date = current_date
-            self._analyze_rows(prev_date, rows)
+            self.analyze_rows(prev_date, rows)
         else:
             for cutoff in range(self.start_point - 1, self.end_point):
                 sell_date = self.history_dates[cutoff + 1]
-                self._analyze_date(sell_date, cutoff)
+                self.analyze_date(sell_date, cutoff)
             if pd.to_datetime(self.end_date) > self.history_dates[-1]:
-                self._analyze_date(self.history_dates[-1] + pd.tseries.offsets.BDay(1),
-                                   self.history_length - 1)
+                self.analyze_date(self.history_dates[-1] + pd.tseries.offsets.BDay(1),
+                                  self.history_length - 1)
 
-        self._print_summary()
-        self._plot_summary()
+        self.print_summary()
+        self.plot_summary()
 
-    def _append_stats(self, buy_symbols, date, cutoff):
+    def append_stats(self, buy_symbols, date, cutoff):
         for symbol, _, ml_feature in buy_symbols:
             close = self.closes[symbol]
             gain = (close[cutoff + 1] - close[cutoff]) / close[cutoff]
@@ -260,7 +260,7 @@ class TradingSimulate(utils.TradingBase):
             stat_value['Gain'] = gain
             self.stats = self.stats.append(stat_value, ignore_index=True)
 
-    def _get_prev_market_date(self, date):
+    def get_prev_market_date(self, date):
         p = 0
         while date > self.history_dates[p]:
             p += 1

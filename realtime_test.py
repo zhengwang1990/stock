@@ -59,7 +59,7 @@ class TradingRealTimeTest(unittest.TestCase):
         self.alpaca.get_clock.return_value = Clock(True, fake_next_close)
         self.polygon = mock.create_autospec(polygonapi.REST)
         self.polygon.last_trade.return_value = LastTrade(88)
-        self.trade = realtime.TradingRealTime(self.alpaca, self.polygon)
+        self.trading = realtime.TradingRealTime(self.alpaca, self.polygon)
 
     def tearDown(self):
         self.patch_open.stop()
@@ -73,27 +73,27 @@ class TradingRealTimeTest(unittest.TestCase):
     def test_trade_clock_watcher(self):
         with mock.patch.object(realtime.TradingRealTime, 'trade') as trade:
             with mock.patch.object(time, 'time', side_effect=itertools.count(900)):
-                self.trade.trade_clock_watcher()
+                self.trading.trade_clock_watcher()
                 trade.assert_called_once()
                 self.assertEqual(self.mock_sleep.call_count, 11)
 
     def test_get_realtime_price_accumulate_error(self):
         self.polygon.last_trade.side_effect = requests.exceptions.RequestException('Test error')
-        self.assertEqual(len(self.trade.errors), 0)
-        self.trade.get_realtime_price('SYMA')
-        self.assertEqual(len(self.trade.errors), 1)
+        self.assertEqual(len(self.trading.errors), 0)
+        self.trading.get_realtime_price('SYMA')
+        self.assertEqual(len(self.trading.errors), 1)
 
     def test_update_trading_list(self):
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
-            self.trade.update_trading_list()
-            self.assertEqual(len(self.trade.trading_list), 4)
+            self.trading.update_trading_list()
+            self.assertEqual(len(self.trading.trading_list), 4)
 
     @parameterized.expand([('limit',), ('market',)])
     def test_buy(self, order_type):
         self.alpaca.list_orders.return_value = []
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
-            self.trade.update_trading_list()
-        self.trade.buy(order_type)
+            self.trading.update_trading_list()
+        self.trading.buy(order_type)
         self.assertEqual(self.alpaca.submit_order.call_count, 4)
 
     @parameterized.expand([('limit',), ('market',)])
@@ -101,7 +101,7 @@ class TradingRealTimeTest(unittest.TestCase):
         self.alpaca.list_orders.return_value = []
         self.alpaca.list_positions.return_value = [Position('SYMA', '10', '10.0', '100.0', '99.0'),
                                                    Position('SYMB', '20', '20.0', '400.0', '555.5')]
-        self.trade.sell(order_type)
+        self.trading.sell(order_type)
         self.assertEqual(self.alpaca.submit_order.call_count, 2)
 
 
