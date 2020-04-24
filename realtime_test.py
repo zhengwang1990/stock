@@ -57,6 +57,7 @@ class TradingRealTimeTest(unittest.TestCase):
         fake_next_close = mock.Mock()
         fake_next_close.timestamp.return_value = 1000
         self.alpaca.get_clock.return_value = Clock(True, fake_next_close)
+        self.alpaca.list_orders.return_value = []
         self.polygon = mock.create_autospec(polygonapi.REST)
         self.polygon.last_trade.return_value = LastTrade(88)
         self.trading = realtime.TradingRealTime(self.alpaca, self.polygon)
@@ -90,7 +91,6 @@ class TradingRealTimeTest(unittest.TestCase):
 
     @parameterized.expand([('limit',), ('market',)])
     def test_buy(self, order_type):
-        self.alpaca.list_orders.return_value = []
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
             self.trading.update_trading_list()
         self.trading.buy(order_type)
@@ -98,11 +98,28 @@ class TradingRealTimeTest(unittest.TestCase):
 
     @parameterized.expand([('limit',), ('market',)])
     def test_sell(self, order_type):
-        self.alpaca.list_orders.return_value = []
-        self.alpaca.list_positions.return_value = [Position('SYMA', '10', '10.0', '100.0', '99.0'),
-                                                   Position('SYMB', '20', '20.0', '400.0', '555.5')]
+        self.alpaca.list_positions.return_value = [Position('SYMX', '10', '10.0', '100.0', '99.0'),
+                                                   Position('SYMY', '20', '20.0', '400.0', '555.5')]
         self.trading.sell(order_type)
         self.assertEqual(self.alpaca.submit_order.call_count, 2)
+
+    def test_trade(self):
+        with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
+            self.trading.update_trading_list()
+        self.alpaca.list_positions.side_effect = [
+            # Original positions
+            [Position('SYMX', '10', '10.0', '100.0', '99.0'),
+             Position('SYMY', '20', '20.0', '400.0', '555.5')],
+            # SYMY sold with limit order
+            [Position('SYMX', '10', '10.0', '100.0', '99.0')],
+            # SYMX sold with market order
+            [],
+            # SYMA filled with limit order, SYMB partially filled
+            [Position('SYMA', '5', '88.0', '440.0', '440.0'),
+             Position('SYMB', '1', '88.0', '88.0', '88.0')]]
+        self.trading.trade()
+        # Sell 2 + 1, Buy 4 + 3
+        self.assertEqual(self.alpaca.submit_order.call_count, 10)
 
 
 if __name__ == '__main__':

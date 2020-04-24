@@ -31,6 +31,7 @@ class TradingSimulateTest(unittest.TestCase):
         self.patch_mkdirs.start()
         self.patch_savefig = mock.patch.object(plt, 'savefig')
         self.patch_savefig.start()
+        np.random.seed(0)
         fake_history_data = pd.DataFrame({'Close': np.append(np.random.random(990) * 10 + 100,
                                                              np.random.random(10) * 10 + 90),
                                           'High': np.random.random(1000) * 10 + 110,
@@ -59,7 +60,19 @@ class TradingSimulateTest(unittest.TestCase):
 
     def test_run(self):
         self.trading.run()
-        self.assertGreater(self.trading.gain_transactions+self.trading.loss_transactions, 0)
+        self.assertGreater(self.trading.gain_transactions + self.trading.loss_transactions, 0)
+
+    def test_run_with_data_file(self):
+        data_dict = {feature: np.random.random(30) for feature in utils.ML_FEATURES}
+        data_dict['Date'] = ['2020-01-01'] * 10 + ['2020-01-02'] * 10 + ['2020-01-03'] * 10
+        data_dict['Gain'] = np.random.random(30) - 0.5
+        data_dict['Symbol'] = ['SYMX'] * 30
+        fake_data = pd.DataFrame(data_dict)
+        with mock.patch.object(pd, 'read_csv', return_value=fake_data):
+            trading = simulate.TradingSimulate(
+                self.alpaca, data_file='fake_data_file')
+            trading.run()
+        self.assertGreater(trading.gain_transactions + trading.loss_transactions, 0)
 
 
 if __name__ == '__main__':
