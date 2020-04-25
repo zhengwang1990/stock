@@ -1,4 +1,5 @@
 import alpaca_trade_api as tradeapi
+import argparse
 import collections
 import datetime
 import matplotlib.pyplot as plt
@@ -30,7 +31,9 @@ class TradingSimulateTest(unittest.TestCase):
         self.patch_mkdirs = mock.patch.object(os, 'makedirs')
         self.patch_mkdirs.start()
         self.patch_savefig = mock.patch.object(plt, 'savefig')
-        self.patch_savefig.start()
+        self.mock_savefig = self.patch_savefig.start()
+        self.patch_to_csv = mock.patch.object(pd.DataFrame, 'to_csv')
+        self.patch_to_csv.start()
         np.random.seed(0)
         fake_history_data = pd.DataFrame({'Close': np.append(np.random.random(990) * 10 + 100,
                                                              np.random.random(10) * 10 + 90),
@@ -48,7 +51,8 @@ class TradingSimulateTest(unittest.TestCase):
         self.alpaca.get_clock.return_value = Clock(False)
         self.trading = simulate.TradingSimulate(
             self.alpaca,
-            start_date=(datetime.datetime.today().date() - pd.tseries.offsets.BDay(30)).strftime('%F'))
+            start_date=(datetime.datetime.today().date() - pd.tseries.offsets.BDay(30)).strftime('%F'),
+            write_data=True)
 
     def tearDown(self):
         self.patch_open.stop()
@@ -57,10 +61,12 @@ class TradingSimulateTest(unittest.TestCase):
         self.patch_mkdirs.stop()
         self.patch_history.stop()
         self.patch_savefig.stop()
+        self.patch_to_csv.stop()
 
     def test_run_default(self):
         self.trading.run()
         self.assertGreater(self.trading.gain_transactions + self.trading.loss_transactions, 0)
+        self.assertGreaterEqual(self.mock_savefig.call_count, 3)  # quarter, year, total plots
 
     def test_run_with_data_file(self):
         data_dict = {feature: np.random.random(30) for feature in utils.ML_FEATURES}
@@ -73,6 +79,22 @@ class TradingSimulateTest(unittest.TestCase):
                 self.alpaca, data_file='fake_data_file')
             trading.run()
         self.assertGreater(trading.gain_transactions + trading.loss_transactions, 0)
+
+    def test_main(self):
+        mock_trading = mock.create_autospec(simulate.TradingSimulate)
+        with mock.patch.object(tradeapi, 'REST', return_value=self.alpaca) as alpaca_init, \
+                mock.patch.object(simulate, 'TradingSimulate', return_value=mock_trading) as trading_init, \
+                mock.patch.object(
+                    argparse.ArgumentParser, 'parse_args',
+                    return_value=argparse.Namespace(start_date=None, end_date=None,
+                                                    api_key='fake_api_key',
+                                                    api_secret='fake_api_secret',
+                                                    model=None, data_file=None, write_data=False)):
+            simulate.main()
+        alpaca_init.assert_called_once_with('fake_api_key', 'fake_api_secret',
+                                            utils.ALPACA_PAPER_API_BASE_URL, 'v2')
+        trading_init.assert_called_once()
+        mock_trading.run.assert_called_once()
 
 
 if __name__ == '__main__':

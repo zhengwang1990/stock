@@ -1,5 +1,6 @@
 import alpaca_trade_api as tradeapi
 import alpaca_trade_api.polygon as polygonapi
+import argparse
 import collections
 import datetime
 import itertools
@@ -37,6 +38,8 @@ class TradingRealTimeTest(unittest.TestCase):
         self.patch_keras.start()
         self.patch_mkdirs = mock.patch.object(os, 'makedirs')
         self.patch_mkdirs.start()
+        self.patch_to_csv = mock.patch.object(pd.DataFrame, 'to_csv')
+        self.patch_to_csv.start()
         self.patch_sleep = mock.patch.object(time, 'sleep')
         self.mock_sleep = self.patch_sleep.start()
         self.patch_web_scraping = mock.patch.object(utils, 'web_scraping', return_value='50')
@@ -70,6 +73,7 @@ class TradingRealTimeTest(unittest.TestCase):
         self.patch_history.stop()
         self.patch_sleep.stop()
         self.patch_web_scraping.stop()
+        self.patch_to_csv.stop()
 
     def test_trade_clock_watcher(self):
         with mock.patch.object(realtime.TradingRealTime, 'trade') as trade, \
@@ -85,7 +89,7 @@ class TradingRealTimeTest(unittest.TestCase):
         self.assertEqual(len(self.trading.errors), 1)
 
     def test_update_trading_list(self):
-        with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
+        with mock.patch.object(time, 'time', side_effect=itertools.count(500, 50)):
             self.trading.update_trading_list()
         self.assertEqual(len(self.trading.trading_list), 4)
 
@@ -166,6 +170,36 @@ class TradingRealTimeTest(unittest.TestCase):
         self.assertEqual(mock_update_stats.call_count, 3)
         mock_update_trading_list.assert_called_once()
         trade_clock_watcher.assert_called_once()
+
+    @parameterized.expand([(True,), (False,)])
+    def test_main(self, real_trade):
+        saved_environ = dict(os.environ)
+        os.environ['ALPACA_API_KEY'] = 'fake_api_key'
+        os.environ['ALPACA_API_SECRET'] = 'fake_api_secret'
+        os.environ['ALPACA_PAPER_API_KEY'] = 'fake_paper_api_key'
+        os.environ['ALPACA_PAPER_API_SECRET'] = 'fake_paper_api_secret'
+        mock_trading = mock.create_autospec(realtime.TradingRealTime)
+        with mock.patch.object(tradeapi, 'REST', return_value=self.alpaca) as alpaca_init, \
+                mock.patch.object(polygonapi, 'REST', return_value=self.polygon) as polygon_init, \
+                mock.patch.object(realtime, 'TradingRealTime', return_value=mock_trading) as trading_init, \
+                mock.patch.object(argparse.ArgumentParser, 'parse_args',
+                                  return_value=argparse.Namespace(real_trade=real_trade,
+                                                                  api_key=None,
+                                                                  api_secret=None,
+                                                                  force=False)):
+            realtime.main()
+        if real_trade:
+            alpaca_init.assert_called_once_with('fake_api_key', 'fake_api_secret',
+                                                utils.ALPACA_API_BASE_URL, 'v2')
+            polygon_init.assert_called_once_with('fake_api_key')
+        else:
+            alpaca_init.assert_called_once_with('fake_paper_api_key', 'fake_paper_api_secret',
+                                                utils.ALPACA_PAPER_API_BASE_URL, 'v2')
+            polygon_init.assert_called_once_with('fake_paper_api_key')
+        trading_init.assert_called_once()
+        mock_trading.run.assert_called_once()
+        os.environ.clear()
+        os.environ.update(saved_environ)
 
 
 if __name__ == '__main__':
