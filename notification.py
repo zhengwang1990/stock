@@ -3,12 +3,16 @@ import alpaca_trade_api.polygon as polygonapi
 import argparse
 import collections
 import datetime
+import io
+import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pandas as pd
 import smtplib
 import textwrap
 import utils
 import yfinance as yf
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -44,36 +48,13 @@ def _get_trade_info(orders, side):
     return trade_info
 
 
-def _get_trading_history(historical_value, v_min, v_scale, color, line_width):
-    trading_history = ''
-    for i, value in enumerate(historical_value):
-        y_pos = (value - v_min) / v_scale + 15
-        trading_history += ('<li style="--x: %dvw; --y: %fvw; --color: %s">'
-                            '<div class="data-point">') % (i + 1, y_pos, color)
-        if i > 0:
-            daily_gain = (value / historical_value[i - 1] - 1) * 100
-            trading_history += '<span class="tooltip" style="color:%s">%.2f (%+.2f%%)</span>' % (
-                'green' if daily_gain >= 0 else 'red', value, daily_gain)
-        else:
-            trading_history += '<span class="tooltip">1.0</span>'
-        trading_history += '</div>'
-        if i < len(historical_value) - 1:
-            y_next_pos = (historical_value[i + 1] - v_min) / v_scale + 15
-            trading_history += ('<div class="line-segment" style="--width: %fvw; height: %dpx; '
-                                '--angle:%frad;"></div></li>') % (
-                                   (6.4 ** 2 + (0.36 * (y_pos - y_next_pos)) ** 2) ** 0.5,
-                                   line_width,
-                                   np.arctan(0.36 * (y_pos - y_next_pos) / 6.4))
-    return trading_history
-
-
 def send_summary(sender, receiver, bcc, user, password, alpaca, polygon):
-    calendar = alpaca.get_calendar(start=datetime.date.today() - datetime.timedelta(days=30),
+    calendar = alpaca.get_calendar(start=datetime.date.today() - datetime.timedelta(days=40),
                                    end=datetime.date.today())
     open_dates = sorted([c.date for c in calendar], reverse=True)
     if open_dates[0].strftime('%F') != datetime.date.today().strftime('%F'):
         print('Today is not a trading day')
-    #    return
+        return
 
     server = _create_server(user, password)
     message = _create_message(sender, receiver)
@@ -116,19 +97,23 @@ def send_summary(sender, receiver, bcc, user, password, alpaca, polygon):
                        account_equity, account.cash, 'green' if total_gain >= 0 else 'red', total_gain,
                        total_gain / (account_equity - total_gain) * 100)
 
-    history = alpaca.get_portfolio_history(date_start=open_dates[10].strftime('%F'),
+    history_length = 20
+    history = alpaca.get_portfolio_history(date_start=open_dates[history_length].strftime('%F'),
                                            date_end=open_dates[1].strftime('%F'),
                                            timeframe='1D')
     historical_value = [equity / history.equity[0] for equity in history.equity]
     historical_value.append(account_equity / history.equity[0])
-    historical_date = [datetime.datetime.fromtimestamp(timestamp).strftime('%m-%d')
+    historical_date = [datetime.datetime.fromtimestamp(timestamp).date()
                        for timestamp in history.timestamp]
-    historical_date.append(open_dates[0].strftime('%m-%d'))
-    historical_values = {}
+    historical_date.append(open_dates[0].date())
 
-    last_prices = {}
-    for symbol, color in [('SPY', '#ffb04f'), ('QQQ', '#d2b8ff')]:
-        ref_historical_value = yf.Ticker(symbol).history(start=open_dates[10].strftime('%F'),
+    pd.plotting.register_matplotlib_converters()
+    plt.figure(figsize=(15, 7))
+    plt.plot(historical_date, historical_value, linewidth=3, label='My Portfolio')
+    last_prices, historical_values = {}, {}
+    market_symbols = ['DIA', 'SPY', 'QQQ']
+    for symbol in market_symbols:
+        ref_historical_value = yf.Ticker(symbol).history(start=open_dates[history_length].strftime('%F'),
                                                          end=open_dates[0].strftime('%F'),
                                                          interval='1d').get('Close')
         last_prices[symbol] = polygon.last_trade(symbol).price
@@ -136,48 +121,23 @@ def send_summary(sender, receiver, bcc, user, password, alpaca, polygon):
                                          last_prices[symbol])
         for i in range(len(ref_historical_value) - 1, -1, -1):
             ref_historical_value[i] /= ref_historical_value[0]
-        if len(historical_value) == len(historical_date) == len(ref_historical_value):
-            historical_values[symbol] = (color, ref_historical_value)
-    historical_values['My Portfolio'] = ('#276ecc', historical_value)
-
-    v_min, v_max = 1E9, 0
-    for _, value in historical_values.values():
-        v_max = max(v_max, max(value))
-        v_min = min(v_min, min(value))
-    v_scale = (v_max - v_min) / 72
-    trading_history_html = ''
-    line_width = 3
-    for symbol in ['SPY', 'QQQ', 'My Portfolio']:
-        if symbol not in historical_values:
-            continue
-        color, value = historical_values[symbol]
-        trading_history_html += _get_trading_history(value, v_min, v_scale, color, line_width)
-    for i, symbol in enumerate(['My Portfolio', 'QQQ', 'SPY']):
-        if symbol not in historical_values:
-            continue
-        color, _ = historical_values[symbol]
-        trading_history_html += ('<li style="--y: 95vw; --color: %s;">'
-                                 '<div class="data-point" style="--x: %fvw;"></div>'
-                                 '<div class="line-segment" style="--x: %dvw; --width: 6vw; '
-                                 '--angle:0; height: %dpx;"></div>'
-                                 '<div class="legend" style="--x: %dvw;">%s</div></li>\n') % (
-                                    color, i * 4 + 1.46875, i * 4 + 1, line_width, i * 4 + 2, symbol)
-
-    grid_html = ''
-    for i, date in enumerate(historical_date[:len(historical_value)]):
-        grid_html += '<div class="ticker x-ticker%s" style="--x: %dvw;">%s</div>\n' % (
-            ' hidden-ticker' if i % 2 == 1 else '', i + 1, date)
-    for i in range(5):
-        grid_html += ('<div style="--y: %dvw;"><div class ="ticker y-ticker">%.2f</div>'
-                      '<div class="dashed-line-segment"></div></div>\n') % (
-                         15 + 18 * i, v_min + (v_max - v_min) / 4 * i)
+        if len(historical_date) == len(ref_historical_value):
+            historical_values[symbol] = ref_historical_value
+            plt.plot(historical_date, ref_historical_value, label=symbol)
+    plt.legend()
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    image = MIMEImage(buf.read())
+    image.add_header('Content-Disposition', "attachment; filename=twenty_day_history.png")
+    image.add_header('Content-ID', '<twenty_day_history>')
 
     account_html += ('<tr><th scope="row" class="narrow-col">Market Change</th>'
                      '<td style="padding: 0px;"><table>')
-    for symbol in ['QQQ', 'SPY']:
+    for symbol in market_symbols:
         if symbol not in historical_values:
             continue
-        _, value = historical_values[symbol]
+        value = historical_values[symbol]
         gain = (value[-1] / value[-2] - 1) * 100
         account_html += ('<tr><td style="border: none; padding: 0.5rem;">%s </td>'
                          '<td style="border: none; padding: 0.5rem;">'
@@ -199,6 +159,10 @@ def send_summary(sender, receiver, bcc, user, password, alpaca, polygon):
       <style>
         html {{
           font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+        }}
+        img {{
+          width: 80%;
+          height: auto;
         }}
         table {{
           border-collapse: collapse;
@@ -250,108 +214,6 @@ def send_summary(sender, receiver, bcc, user, password, alpaca, polygon):
         #table-account {{
           width: 40%;
         }}
-        .css-chart {{
-          border-bottom: 1px solid;
-          border-left: 1px solid;
-          display: inline-block;
-          height: 36vw;
-          margin: 25px 50px;
-          padding: 0;
-          position: relative;
-          width: 77%;
-        }}
-        .line-chart {{
-          list-style: none;
-          margin: 0;
-          padding: 0;
-        }}
-        .data-point {{
-          background-color: white;
-          border: 2px solid var(--color);
-          border-radius: 50%;
-          bottom: calc(var(--y) * 0.36 - 6px);
-          left: calc(var(--x) * 6.4 - 6px);
-          position: absolute;
-          height: 10px;
-          width: 10px;
-          z-index: 1;
-        }}
-        .ticker {{
-          position: absolute;
-          font-weight: bold;
-          font-size: 14px;
-          color: #666;
-          font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        }}
-        .x-ticker {{
-          bottom: 5px;
-          left: calc(var(--x) * 6.4 - 18px);
-        }}
-        .y-ticker {{
-          bottom: calc(var(--y) * 0.36 - 7px);
-          left: 5px;
-        }}
-        .hidden-ticker {{
-          visibility: visible;
-        }}
-        .line-segment {{
-          background-color: var(--color);
-          left: calc(var(--x) * 6.4);
-          bottom: calc(var(--y) * 0.36);
-          position: absolute;
-          transform: rotate(var(--angle));
-          transform-origin: left bottom;
-          width: var(--width);
-        }}
-        .dashed-line-segment {{
-          border: none;
-          border-top: 1px dashed #c6c6c6;
-          position: absolute;
-          left: 40px;
-          bottom: calc(var(--y) * 0.36);
-          width: 70vw;
-          z-index: -1;
-        }}
-        .data-point .tooltip {{
-          visibility: hidden;
-          width: 120px;
-          background-color: #fff;
-          font-weight: bold;
-          font-size: 14px;
-          color: #666;
-          font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-          text-align: center;
-          border-radius: 6px;
-          border: 1px solid #e1e1e1;
-          padding: 5px 0;
-          position: absolute;
-          z-index: 2;
-          bottom: 135%;
-          left: 50%;
-          margin-left: -61px;
-          opacity: 0;
-          transition: opacity 0.3s;
-        }}
-        .data-point .tooltip::after {{
-          content: "";
-          position: absolute;
-          top: 100%;
-          left: 50%;
-          margin-left: -5px;
-          border-width: 5px;
-          border-style: solid;
-          border-color: #555 transparent transparent transparent;
-        }}
-        .data-point:hover .tooltip {{
-          visibility: visible;
-          opacity: 1;
-        }}
-        .legend {{
-          color: var(--color);
-          left: calc(var(--x) * 6.4);
-          bottom: calc(var(--y) * 0.36 - 7px);
-          position: absolute;
-        }}
         @media screen and (max-width: 1200px) {{
           #table-account {{
             width: 55%;
@@ -361,42 +223,11 @@ def send_summary(sender, receiver, bcc, user, password, alpaca, polygon):
           .table {{
             width: 100%;
           }}
+          img {{
+            width: 100%;
+          }}
           #table-account {{
             width: 70%;
-          }}
-          .css-chart {{
-            height: 45vw;
-            width: 100%;
-            margin: 12px 0px;
-          }}
-          .data-point {{
-            left: calc(var(--x) * 8 - 4px);
-            bottom: calc(var(--y) * 0.45 - 4px);
-            height: 6px;
-            width: 6px;
-          }}
-          .line-segment {{
-            left: calc(var(--x) * 8);
-            bottom: calc(var(--y) * 0.45);
-            width: calc(var(--width) * 1.25);
-            transform: rotate(var(--angle));
-          }}
-          .x-ticker {{
-           left: calc(var(--x) * 8 - 18px);
-          }}
-          .y-ticker {{
-            bottom: calc(var(--y) * 0.45 - 7px);
-          }}
-          .hidden-ticker {{
-            visibility: hidden;
-          }}
-          .dashed-line-segment {{
-            bottom: calc(var(--y) * 0.45);
-            width: 82vw;
-          }}
-          .legend {{
-            left: calc(var(--x) * 8);
-            bottom: calc(var(--y) * 0.45 - 7px);
           }}
         }}
         @media screen and (max-width: 600px) {{
@@ -440,25 +271,16 @@ def send_summary(sender, receiver, bcc, user, password, alpaca, polygon):
           {buy_html}
         </tbody>
       </table>
-      <h1 class="display">10-day History</h1>
-      <figure class="css-chart">
-        <ul class="line-chart">
-          {trading_history_html}
-        </ul>
-        {grid_html}
-      </figure>
+      <h1 class="display">20-day History</h1>
+      <img src="cid:twenty_day_history">
     </body>
     </html>
     """)
     message.attach(MIMEText(text.format(
         account_text=account_text, sell_text=sell_text, buy_text=buy_text), 'plain'))
     message.attach(MIMEText(html.format(
-        account_html=account_html, sell_html=sell_html, buy_html=buy_html,
-        trading_history_html=trading_history_html, grid_html=grid_html), 'html'))
-    with open('test1.html', 'w') as f:
-        f.write(html.format(account_html=account_html, sell_html=sell_html, buy_html=buy_html,
-                            trading_history_html=trading_history_html, grid_html=grid_html))
-    server.sendmail(sender, [receiver] + bcc, message.as_string())
+        account_html=account_html, sell_html=sell_html, buy_html=buy_html), 'html'))
+    message.attach(image)
     server.close()
     print('Email summary sent')
 
