@@ -48,13 +48,14 @@ def _get_trade_info(orders, side):
     return trade_info
 
 
-def send_summary(sender, receiver, bcc, user, password, alpaca, polygon):
+def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
     calendar = alpaca.get_calendar(start=datetime.date.today() - datetime.timedelta(days=40),
                                    end=datetime.date.today())
     open_dates = sorted([c.date for c in calendar], reverse=True)
     if open_dates[0].strftime('%F') != datetime.date.today().strftime('%F'):
         print('Today is not a trading day')
-        return
+        if not force:
+            return
 
     server = _create_server(user, password)
     message = _create_message(sender, receiver)
@@ -309,6 +310,8 @@ def main():
     parser.add_argument('--user', required=True, help='Email user name.')
     parser.add_argument('--password', required=True, help='Email password.')
     parser.add_argument('--bcc', nargs='*', default=[], help='Email bcc address.')
+    parser.add_argument('-f', '--force', help='Force to run even at market close.',
+                        action="store_true")
     args = parser.parse_args()
     if args.exit_code == 0:
         alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
@@ -316,7 +319,7 @@ def main():
                                utils.ALPACA_API_BASE_URL, 'v2')
         polygon = polygonapi.REST(os.environ['ALPACA_API_KEY'])
         send_summary(args.sender, args.receiver, args.bcc, args.user, args.password,
-                     alpaca, polygon)
+                     args.force, alpaca, polygon)
     else:
         send_alert(args.sender, args.receiver, args.user, args.password, args.exit_code)
 
