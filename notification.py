@@ -98,7 +98,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
                        account_equity, account.cash, 'green' if total_gain >= 0 else 'red', total_gain,
                        total_gain / (account_equity - total_gain) * 100)
 
-    history_length = 20
+    history_length = 10
     history = alpaca.get_portfolio_history(date_start=open_dates[history_length].strftime('%F'),
                                            date_end=open_dates[1].strftime('%F'),
                                            timeframe='1D')
@@ -109,10 +109,13 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
     historical_date.append(open_dates[0].date())
 
     pd.plotting.register_matplotlib_converters()
-    plt.figure(figsize=(15, 7))
-    plt.plot(historical_date, historical_value, linewidth=3, label='My Portfolio')
+    plt.figure(figsize=(10, 4))
+    plt.plot(historical_value, marker='o',
+             label='My Portfolio (%+.2f%%)' % ((historical_value[-1] - 1) * 100,),
+             color='#28b4c8')
     last_prices, historical_values = {}, {}
     market_symbols = ['DIA', 'SPY', 'QQQ']
+    color_map = {'QQQ': '#78d237', 'SPY': '#FF6358', 'DIA': '#aa46be'}
     for symbol in market_symbols:
         ref_historical_value = yf.Ticker(symbol).history(start=open_dates[history_length].strftime('%F'),
                                                          end=open_dates[0].strftime('%F'),
@@ -124,14 +127,27 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
             ref_historical_value[i] /= ref_historical_value[0]
         if len(historical_date) == len(ref_historical_value):
             historical_values[symbol] = ref_historical_value
-            plt.plot(historical_date, ref_historical_value, label=symbol)
-    plt.legend()
+            plt.plot(ref_historical_value, marker='o',
+                     label='%s (%+.2f%%)' % (symbol, (ref_historical_value[-1] - 1) * 100),
+                     color=color_map[symbol])
+    text_kwargs = {'family': 'monospace'}
+    plt.xticks(range(len(historical_date)), [date.strftime('%m-%d') for date in historical_date],
+               **text_kwargs)
+    plt.xlabel('Date', **text_kwargs)
+    plt.ylabel('Normalized Value', **text_kwargs)
+    plt.grid(linestyle='--', alpha=0.5)
+    plt.legend(ncol=len(market_symbols)+1, bbox_to_anchor=(0, 1),
+               loc='lower left', prop=text_kwargs)
+    ax = plt.gca()
+    ax.set_yticklabels(ax.get_yticks(), text_kwargs)
+    ax.spines['right'].set_color('none')
+    ax.spines['top'].set_color('none')
     buf = io.BytesIO()
     plt.savefig(buf, format='png')
     buf.seek(0)
     image = MIMEImage(buf.read())
-    image.add_header('Content-Disposition', "attachment; filename=twenty_day_history.png")
-    image.add_header('Content-ID', '<twenty_day_history>')
+    image.add_header('Content-Disposition', "attachment; filename=history.png")
+    image.add_header('Content-ID', '<history>')
 
     account_html += ('<tr><th scope="row" class="narrow-col">Market Change</th>'
                      '<td style="padding: 0px;"><table>')
@@ -272,8 +288,8 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
           {buy_html}
         </tbody>
       </table>
-      <h1 class="display">20-day History</h1>
-      <img src="cid:twenty_day_history">
+      <h1 class="display">10-day History</h1>
+      <img src="cid:history">
     </body>
     </html>
     """)
