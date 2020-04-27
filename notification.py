@@ -281,6 +281,7 @@ def send_summary(sender, receiver, bcc, user, password, alpaca, polygon):
     message.attach(MIMEText(html.format(
         account_html=account_html, sell_html=sell_html, buy_html=buy_html), 'html'))
     message.attach(image)
+    server.sendmail(sender, [receiver] + bcc, message.as_string())
     server.close()
     print('Email summary sent')
 
