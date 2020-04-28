@@ -236,7 +236,8 @@ class TradingSimulate(utils.TradingBase):
             ax = plt.gca()
             ax.spines['right'].set_color('none')
             ax.spines['top'].set_color('none')
-            ax.set_xticks([dates_str[1]] + dates_str[unit:-unit+1:unit] + [dates_str[-1]])
+            ax.set_xticks([dates_str[min(1, len(dates_str)-1)]]
+                          + dates_str[unit:-unit+1:unit] + [dates_str[-1]])
             if np.abs(values[-1]) > 5 * curve_max:
                 plt.yscale('log')
             plt.tight_layout()
