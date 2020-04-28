@@ -25,6 +25,7 @@ OUTPUTS_DIR = 'outputs'
 MODELS_DIR = 'models'
 DEFAULT_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 8
+MAX_PROPORTION = 0.25
 VOLUME_FILTER_THRESHOLD = 1000000
 ML_FEATURES = [
     'Today_Change',
@@ -130,6 +131,8 @@ class TradingBase(object):
                 hist = tk.history(period=period, interval='1d')
                 if len(hist):
                     hist.to_csv(cache_name)
+                else:
+                    raise NotFoundError('History of %s not found' % (symbol,))
             except Exception as e:
                 print('Can not get history of %s: %s' % (symbol, e))
                 raise e
@@ -214,7 +217,7 @@ class TradingBase(object):
         for i in range(len(buy_symbols)):
             symbol = buy_symbols[i][0]
             weight = buy_symbols[i][1]
-            proportion = 1 / n_symbols if i < n_symbols else 0
+            proportion = min(1 / n_symbols, MAX_PROPORTION) if i < n_symbols else 0
             trading_list.append((symbol, proportion, weight))
         return trading_list
 
