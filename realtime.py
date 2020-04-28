@@ -119,7 +119,7 @@ class TradingRealTime(utils.TradingBase):
             else:
                 price = self.polygon.last_trade(symbol).price
         except requests.exceptions.RequestException as e:
-            print('Exception raised in get_realtime_price: %s' % (e,))
+            print('Exception raised in get_realtime_price for %s: %s' % (symbol, e))
             self.errors.append(sys.exc_info())
         else:
             self.prices[symbol] = price
@@ -149,7 +149,9 @@ class TradingRealTime(utils.TradingBase):
         order_weights = {}
         for symbol, close in self.closes.items():
             if symbol not in self.prices:
-                continue
+                self.get_realtime_price(symbol)
+                if symbol not in self.prices:
+                    continue
             price = self.prices[symbol]
             today_change = price / close[-1] - 1
             day_range_change = price / np.max(close[-utils.DATE_RANGE:]) - 1
