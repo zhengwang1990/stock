@@ -2,8 +2,9 @@ sudo: true
 language: python
 python:
   - "3.6"
-install:
+before_install:
   - sudo apt install font-manager
+install:
   - pip install -r requirements.txt
   - pip install codecov
 script:
