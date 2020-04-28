@@ -165,9 +165,9 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
     text = textwrap.dedent("""\
     [ Account Summary ]
     {account_text}
-    [ Sell Summary ]
+    [ Closed Positions ]
     {sell_text}
-    [ Buy Summary ]
+    [ Open Positions ]
     {buy_text}
     """)
     html = textwrap.dedent("""\
@@ -259,7 +259,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
       <table class="table table-bordered" id="table-account">
         {account_html}
       </table>
-      <h1 class="display">Sell Summary</h1>
+      <h1 class="display">Closed Positions</h1>
       <table class="table table-bordered">
         <thead class="thead-light">
           <tr>
@@ -274,7 +274,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
           {sell_html}
         </tbody>
       </table>
-      <h1 class="display">Buy Summary</h1>
+      <h1 class="display">Open Positions</h1>
       <table class="table table-bordered">
         <thead class="thead-light">
           <tr>
