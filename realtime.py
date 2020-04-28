@@ -95,7 +95,10 @@ class TradingRealTime(utils.TradingBase):
             self.last_updates[sleep_secs] = datetime.datetime.now()
             if not self.active:
                 return
-            time.sleep(sleep_secs)
+            if time.time() > self.next_market_close - 60 * 5:
+                time.sleep(sleep_secs / 20)
+            else:
+                time.sleep(sleep_secs)
 
     def update_trading_list_prices(self):
         """Keeps updating stock prices of symbols in the trading list."""
