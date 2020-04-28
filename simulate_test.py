@@ -34,6 +34,8 @@ class TradingSimulateTest(unittest.TestCase):
         self.mock_savefig = self.patch_savefig.start()
         self.patch_tight_layout = mock.patch.object(plt, 'tight_layout')
         self.patch_tight_layout.start()
+        self.patch_to_csv = mock.patch.object(pd.DataFrame, 'to_csv')
+        self.patch_to_csv.start()
         np.random.seed(0)
         fake_history_data = pd.DataFrame({'Close': np.append(np.random.random(990) * 10 + 100,
                                                              np.random.random(10) * 10 + 90),
