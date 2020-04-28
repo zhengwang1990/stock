@@ -57,7 +57,7 @@ class TradingRealTime(utils.TradingBase):
 
         self.update_frequencies = [(10, 120), (100, 600),
                                    (len(self.ordered_symbols), 2400)]
-        self.last_updates = ({self.update_frequencies[-1][1]: datetime.datetime.now()}
+        self.last_updates = ({self.update_frequencies[-1][0]: datetime.datetime.now()}
                              if not read_cache else {})
         self.trading_list = []
         self.next_market_close = self.alpaca.get_clock().next_close.timestamp()
@@ -92,7 +92,7 @@ class TradingRealTime(utils.TradingBase):
                 symbols = [symbol for symbol in self.ordered_symbols[:length]]
             self.update_prices(symbols)
             self.update_ordered_symbols()
-            self.last_updates[sleep_secs] = datetime.datetime.now()
+            self.last_updates[length] = datetime.datetime.now()
             if not self.active:
                 return
             if time.time() > self.next_market_close - 60 * 5:
@@ -217,8 +217,8 @@ class TradingRealTime(utils.TradingBase):
                            self.output_file)
             self.print_trading_list(print_all)
             utils.bi_print('Last updates: %s' % (
-                [second_to_string(update_freq) + ': ' + update_time.strftime('%T')
-                 for update_freq, update_time in
+                ['TOP ' + str(update_length) + ': ' + update_time.strftime('%T')
+                 for update_length, update_time in
                  sorted(self.last_updates.items(), key=lambda t: t[0])],),
                            self.output_file)
             if not self.active:
@@ -383,15 +383,6 @@ class TradingRealTime(utils.TradingBase):
             utils.bi_print('Estimated Cost: %.2f' % (cost,), self.output_file)
         else:
             utils.bi_print('NO stock satisfying trading criteria.', self.output_file)
-
-
-def second_to_string(secs):
-    if secs < 60:
-        return str(secs) + 's'
-    elif secs < 3600:
-        return str(secs // 60) + 'm'
-    else:
-        return str(secs // 3600) + 'h'
 
 
 def main():
