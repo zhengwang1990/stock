@@ -279,12 +279,12 @@ class TradingBase(object):
             close_year = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
         else:
             close_year = self.closes[symbol][-DAYS_IN_A_YEAR:]
-        down_changes = [close_year[i] / np.max(close_year[i - DATE_RANGE:i]) - 1
+        down_percent = [close_year[i] / np.max(close_year[i - DATE_RANGE:i]) - 1
                         for i in range(DATE_RANGE, len(close_year))
                         if close_year[i] < np.max(close_year[i - DATE_RANGE:i])]
-        if not down_changes:
+        if not down_percent:
             return 0
-        threshold = np.percentile(down_changes, 2)
+        threshold = np.mean(down_percent) - 2.5 * np.std(down_percent)
         return threshold
 
 
