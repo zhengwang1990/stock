@@ -135,11 +135,11 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
                **text_kwargs)
     plt.xlabel('Date', **text_kwargs)
     plt.ylabel('Normalized Value', **text_kwargs)
+    plt.yticks(fontname='monospace')
     plt.grid(linestyle='--', alpha=0.5)
     plt.legend(ncol=len(market_symbols)+1, bbox_to_anchor=(0, 1),
                loc='lower left', prop=text_kwargs)
     ax = plt.gca()
-    ax.set_yticklabels(ax.get_yticks(), text_kwargs)
     ax.spines['right'].set_color('none')
     ax.spines['top'].set_color('none')
     buf = io.BytesIO()
