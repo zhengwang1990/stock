@@ -196,6 +196,7 @@ class TradingSimulate(utils.TradingBase):
     def plot_summary(self):
         pd.plotting.register_matplotlib_converters()
         plot_symbols = ['QQQ', 'SPY', 'TQQQ']
+        color_map = {'QQQ': '#78d237', 'SPY': '#FF6358', 'TQQQ': '#aa46be'}
         for symbol in [utils.REFERENCE_SYMBOL] + plot_symbols:
             if symbol not in self.hists:
                 try:
@@ -203,19 +204,39 @@ class TradingSimulate(utils.TradingBase):
                 except Exception:
                     pass
         for k, v in self.values.items():
-            plt.figure(figsize=(15, 7))
-            plt.plot(v[0], v[1], linewidth=3, label='My Portfolio')
+            dates, values = v
+            if k == 'Total':
+                dates_str = [date.strftime('%Y-%m-%d') for date in dates]
+                unit = max(len(dates_str) // 4, 1)
+            else:
+                dates_str = [date.strftime('%m-%d') for date in dates]
+                dates_str[0] = dates[0].strftime('%Y-%m-%d')
+                unit = max(len(dates_str) // 6, 1)
+            plt.figure(figsize=(10, 4))
+            plt.plot(dates_str, values,
+                     label='My Portfolio (%+.2f%%)' % ((values[-1] - 1) * 100,),
+                     color='#28b4c8')
             curve_max = 1
             for symbol in plot_symbols:
                 if symbol in self.hists:
-                    curve = [self.hists[symbol].get('Close')[dt] for dt in v[0]]
-                    for i in range(len(v[0]) - 1, -1, -1):
+                    curve = [self.hists[symbol].get('Close')[dt] for dt in dates]
+                    for i in range(len(dates) - 1, -1, -1):
                         curve[i] /= curve[0]
                     curve_max = max(curve_max, np.abs(curve[-1]))
-                    plt.plot(v[0], curve, label=symbol)
-            plt.legend()
-            plt.title(k)
-            if np.abs(v[1][-1]) > 5 * curve_max:
+                    plt.plot(dates_str, curve,
+                             label='%s (%+.2f%%)' % (symbol, (curve[-1] - 1) * 100),
+                             color=color_map[symbol])
+            text_kwargs = {'family': 'monospace'}
+            plt.xlabel('Date', **text_kwargs)
+            plt.ylabel('Normalized Value', **text_kwargs)
+            plt.grid(linestyle='--', alpha=0.5)
+            plt.legend(ncol=len(plot_symbols) + 1, bbox_to_anchor=(0, 1),
+                       loc='lower left', prop=text_kwargs)
+            ax = plt.gca()
+            ax.spines['right'].set_color('none')
+            ax.spines['top'].set_color('none')
+            ax.set_xticks([dates_str[1]] + dates_str[unit:-unit+1:unit] + [dates_str[-1]])
+            if np.abs(values[-1]) > 5 * curve_max:
                 plt.yscale('log')
             plt.savefig(os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'plots', k + '.png'))
             plt.close()
