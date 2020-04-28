@@ -32,16 +32,8 @@ class TradingSimulateTest(unittest.TestCase):
         self.patch_mkdirs.start()
         self.patch_savefig = mock.patch.object(plt, 'savefig')
         self.mock_savefig = self.patch_savefig.start()
-        self.patch_xlabel = mock.patch.object(plt, 'xlabel')
-        self.patch_xlabel.start()
-        self.patch_ylabel = mock.patch.object(plt, 'ylabel')
-        self.patch_ylabel.start()
-        self.patch_title = mock.patch.object(plt, 'title')
-        self.patch_title.start()
-        self.patch_legend = mock.patch.object(plt, 'legend')
-        self.patch_legend.start()
-        self.patch_to_csv = mock.patch.object(pd.DataFrame, 'to_csv')
-        self.patch_to_csv.start()
+        self.patch_tight_layout = mock.patch.object(plt, 'tight_layout')
+        self.patch_tight_layout.start()
         np.random.seed(0)
         fake_history_data = pd.DataFrame({'Close': np.append(np.random.random(990) * 10 + 100,
                                                              np.random.random(10) * 10 + 90),
@@ -70,10 +62,7 @@ class TradingSimulateTest(unittest.TestCase):
         self.patch_history.stop()
         self.patch_savefig.stop()
         self.patch_to_csv.stop()
-        self.patch_xlabel.stop()
-        self.patch_ylabel.stop()
-        self.patch_title.stop()
-        self.patch_legend.stop()
+        self.patch_tight_layout.stop()
 
     def test_run_default(self):
         self.trading.run()
