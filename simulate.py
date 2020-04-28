@@ -229,6 +229,7 @@ class TradingSimulate(utils.TradingBase):
             text_kwargs = {'family': 'monospace'}
             plt.xlabel('Date', **text_kwargs)
             plt.ylabel('Normalized Value', **text_kwargs)
+            plt.title(k, **text_kwargs, y=1.15)
             plt.grid(linestyle='--', alpha=0.5)
             plt.legend(ncol=len(plot_symbols) + 1, bbox_to_anchor=(0, 1),
                        loc='lower left', prop=text_kwargs)
@@ -238,6 +239,7 @@ class TradingSimulate(utils.TradingBase):
             ax.set_xticks([dates_str[1]] + dates_str[unit:-unit+1:unit] + [dates_str[-1]])
             if np.abs(values[-1]) > 5 * curve_max:
                 plt.yscale('log')
+            plt.tight_layout()
             plt.savefig(os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'plots', k + '.png'))
             plt.close()
 
