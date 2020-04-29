@@ -15,7 +15,6 @@ from concurrent import futures
 from tabulate import tabulate
 from tqdm import tqdm
 
-
 ERROR_TOLERANCE = 10
 
 
@@ -112,12 +111,18 @@ class TradingRealTime(utils.TradingBase):
                 time.sleep(60)
 
     def get_realtime_price(self, symbol):
-        try:
-            if symbol == '^VIX':
-                price = float(utils.web_scraping('https://finance.yahoo.com/quote/^VIX',
-                                                 ['"currentPrice"', '"regularMarketPrice"']))
+        """Obtains realtime price for a symbol."""
+        @retrying.retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
+        def _get_realtime_price_impl(sym):
+            if sym == '^VIX':
+                p = float(utils.web_scraping('https://finance.yahoo.com/quote/^VIX',
+                                             ['"currentPrice"', '"regularMarketPrice"']))
             else:
-                price = self.polygon.last_trade(symbol).price
+                p = self.polygon.last_trade(sym).price
+            return p
+
+        try:
+            price = _get_realtime_price_impl(symbol)
         except requests.exceptions.RequestException as e:
             print('Exception raised in get_realtime_price for %s: %s' % (symbol, e))
             self.errors.append(sys.exc_info())
@@ -193,7 +198,7 @@ class TradingRealTime(utils.TradingBase):
                 self.active = False
                 for i in range(len(self.errors)):
                     _, exc_obj, exc_trace = self.errors[i]
-                    utils.bi_print('Error # %d: %s' % (i+1, exc_obj),
+                    utils.bi_print('Error # %d: %s' % (i + 1, exc_obj),
                                    self.output_file)
                     if i == len(self.errors) - 1:
                         raise exc_obj.with_traceback(exc_trace)
@@ -243,7 +248,7 @@ class TradingRealTime(utils.TradingBase):
         utils.bi_print(utils.get_header('Place Limit Sell Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
                        self.output_file)
-        self.sell('limit', deadline=self.next_market_close-60)
+        self.sell('limit', deadline=self.next_market_close - 60)
         # Sell remaining positions with market orders
         utils.bi_print(utils.get_header('Place Market Sell Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
@@ -267,7 +272,7 @@ class TradingRealTime(utils.TradingBase):
         utils.bi_print(utils.get_header('Place Limit Buy Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
                        self.output_file)
-        self.buy('limit', deadline=self.next_market_close-30)
+        self.buy('limit', deadline=self.next_market_close - 30)
         # Buy with market orders
         utils.bi_print(utils.get_header('Place Market Buy Orders At ' +
                                         datetime.datetime.now().strftime('%T')),
