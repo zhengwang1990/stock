@@ -1,7 +1,9 @@
 import alpaca_trade_api as tradeapi
 import argparse
 import datetime
+import logging
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import numpy as np
 import os
 import pandas as pd
@@ -59,18 +61,19 @@ class TradingSimulate(utils.TradingBase):
                 stats_cols = ['Symbol', 'Date'] + utils.ML_FEATURES + ['Gain']
                 self.stats = pd.DataFrame(columns=stats_cols)
             self.values = {'Total': ([self.history_dates[self.start_point - 1]], [1.0])}
-        self.output_detail = open(os.path.join(self.root_dir, utils.OUTPUTS_DIR,
-                                               'simulate_detail.txt'), 'w')
-        self.gain_transactions, self.loss_transactions = 0, 0
+        self.output_dir = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
+                                       'simulate',
+                                       datetime.datetime.now().strftime('%Y-%m-%d-%H-%M'))
+        os.makedirs(self.output_dir, exist_ok=True)
+        logging.getLogger().addHandler(logging.FileHandler(os.path.join(self.output_dir, 'result.txt')))
         signal.signal(signal.SIGINT, self.safe_exit)
 
     def safe_exit(self, signum, frame):
-        print('\nSafe exiting with signal %d...' % (signum,))
+        logging.info('\nSafe exiting with signal %d...' % (signum,))
         self.print_summary()
         exit(1)
 
     def analyze_date(self, sell_date, cutoff):
-        utils.bi_print(utils.get_header(sell_date.date()), self.output_detail)
         buy_symbols = self.get_buy_symbols(cutoff=cutoff)
         if self.write_data and cutoff < self.history_length - 1:
             self.append_stats(buy_symbols, sell_date, cutoff)
@@ -102,22 +105,19 @@ class TradingSimulate(utils.TradingBase):
                                   close[cutoff + 1],
                                   '%.2f%%' % (gain * 100,)])
             daily_gain += gain * proportion
-            if gain >= 0:
-                self.gain_transactions += 1
-            else:
-                self.loss_transactions += 1
+
+        outputs = [utils.get_header(sell_date.date())]
         if trading_table:
-            utils.bi_print(
-                tabulate(trading_table, headers=[
+            outputs.append(tabulate(trading_table, headers=[
                     'Symbol', 'Proportion', 'Weight', 'Today Change',
                     '%d Day Change' % (utils.DATE_RANGE,), 'Buy Price',
-                    'Sell Price', 'Gain'], tablefmt='grid'),
-                self.output_detail)
+                    'Sell Price', 'Gain'], tablefmt='grid'))
         if cutoff < self.history_length - 1:
-            self.add_profit(sell_date, daily_gain)
+            self.add_profit(sell_date, daily_gain, outputs)
+        else:
+            logging.info('\n'.join(outputs))
 
     def analyze_rows(self, sell_date_str, rows):
-        utils.bi_print(utils.get_header(sell_date_str), self.output_detail)
         ml_features, symbols, gains = [], [], {}
         for row in rows:
             ml_features.append([getattr(row, key) for key in utils.ML_FEATURES])
@@ -140,18 +140,15 @@ class TradingSimulate(utils.TradingBase):
                                   weight,
                                   '%.2f%%' % (gain * 100,)])
             daily_gain += gain * proportion
-            if gain >= 0:
-                self.gain_transactions += 1
-            else:
-                self.loss_transactions += 1
+        outputs = [utils.get_header(sell_date_str)]
         if trading_table:
-            utils.bi_print(tabulate(
+            outputs.append(tabulate(
                 trading_table,
                 headers=['Symbol', 'Proportion', 'Weight', 'Gain'],
-                tablefmt='grid'), self.output_detail)
-        self.add_profit(pd.to_datetime(sell_date_str), daily_gain)
+                tablefmt='grid'))
+        self.add_profit(pd.to_datetime(sell_date_str), daily_gain, outputs)
 
-    def add_profit(self, sell_date, daily_gain):
+    def add_profit(self, sell_date, daily_gain, outputs):
         """Adds daily gain to values memory."""
         total_value = self.values['Total'][1][-1] * (1 + daily_gain)
         self.values['Total'][0].append(sell_date)
@@ -166,24 +163,20 @@ class TradingSimulate(utils.TradingBase):
             self.values[t][0].append(sell_date)
             t_value = self.values[t][1][-1] * (1 + daily_gain)
             self.values[t][1].append(t_value)
-        utils.bi_print('DAILY GAIN: %.2f%%, TOTAL GAIN: %.2f%%' % (
-            daily_gain * 100, (total_value - 1) * 100), self.output_detail)
-        utils.bi_print('NUM GAIN TRANSACTIONS: %d, NUM LOSS TRANSACTIONS: %d, PRECISION: %.2f%%' % (
-            self.gain_transactions, self.loss_transactions,
-            self.gain_transactions / (self.gain_transactions +
-                                      self.loss_transactions + 1E-7) * 100),
-                       self.output_detail)
+        summary_table = [['Daily Gain', '%+.2f%%' % (daily_gain * 100)],
+                         ['Quarterly Gain', '%+.2f%%' % ((self.values[quarter][1][-1] - 1) * 100,)],
+                         ['Yearly Gain', '%+.2f%%' % ((self.values[year][1][-1] - 1) * 100,)],
+                         ['Total Gain', '%+.2f%%' % ((total_value - 1) * 100,)]]
+        outputs.append(tabulate(summary_table, tablefmt='grid'))
+        logging.info('\n'.join(outputs))
 
     def print_summary(self):
-        output_summary = open(os.path.join(self.root_dir, utils.OUTPUTS_DIR,
-                                           'simulate_summary.txt'), 'w')
-        utils.bi_print(utils.get_header('Summary'), output_summary)
         time_range = '%s ~ %s' % (self.start_date, self.end_date)
         summary_table = [['Time Range', time_range]]
         gain_texts = [(k + ' Gain', '%.2f%%' % ((v[1][-1] - 1) * 100,))
                       for k, v in self.values.items()]
         summary_table.extend(sorted(gain_texts))
-        utils.bi_print(tabulate(summary_table, tablefmt='grid'), output_summary)
+        logging.info(utils.get_header('Summary') + '\n' + tabulate(summary_table, tablefmt='grid'))
 
         if not self.data_file and self.write_data:
             self.stats.to_csv(
@@ -206,14 +199,11 @@ class TradingSimulate(utils.TradingBase):
         for k, v in self.values.items():
             dates, values = v
             if k == 'Total':
-                dates_str = [date.strftime('%Y-%m-%d') for date in dates]
-                unit = max(len(dates_str) // 4, 1)
+                formatter = mdates.DateFormatter('%Y-%m-%d')
             else:
-                dates_str = [date.strftime('%m-%d') for date in dates]
-                dates_str[0] = dates[0].strftime('%Y-%m-%d')
-                unit = max(len(dates_str) // 6, 1)
+                formatter = mdates.DateFormatter('%m-%d')
             plt.figure(figsize=(10, 4))
-            plt.plot(dates_str, values,
+            plt.plot(dates, values,
                      label='My Portfolio (%+.2f%%)' % ((values[-1] - 1) * 100,),
                      color='#28b4c8')
             curve_max = 1
@@ -223,7 +213,7 @@ class TradingSimulate(utils.TradingBase):
                     for i in range(len(dates) - 1, -1, -1):
                         curve[i] /= curve[0]
                     curve_max = max(curve_max, np.abs(curve[-1]))
-                    plt.plot(dates_str, curve,
+                    plt.plot(dates, curve,
                              label='%s (%+.2f%%)' % (symbol, (curve[-1] - 1) * 100),
                              color=color_map[symbol])
             text_kwargs = {'family': 'monospace'}
@@ -236,12 +226,11 @@ class TradingSimulate(utils.TradingBase):
             ax = plt.gca()
             ax.spines['right'].set_color('none')
             ax.spines['top'].set_color('none')
-            ax.set_xticks([dates_str[min(1, len(dates_str)-1)]]
-                          + dates_str[unit:-unit+1:unit] + [dates_str[-1]])
+            ax.xaxis.set_major_formatter(formatter)
             if np.abs(values[-1]) > 5 * curve_max:
                 plt.yscale('log')
             plt.tight_layout()
-            plt.savefig(os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'plots', k + '.png'))
+            plt.savefig(os.path.join(self.output_dir, k + '.png'))
             plt.close()
 
     def run(self):
@@ -304,6 +293,7 @@ def main():
     parser.add_argument("--write_data", help='Write data with ML features.',
                         action="store_true")
     args = parser.parse_args()
+    utils.logging_config()
 
     alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_PAPER_API_KEY'],
                            args.api_secret or os.environ['ALPACA_PAPER_API_SECRET'],

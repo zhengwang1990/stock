@@ -68,7 +68,6 @@ class TradingSimulateTest(unittest.TestCase):
 
     def test_run_default(self):
         self.trading.run()
-        self.assertGreater(self.trading.gain_transactions + self.trading.loss_transactions, 0)
         self.assertGreaterEqual(self.mock_savefig.call_count, 3)  # quarter, year, total plots
 
     def test_run_with_data_file(self):
@@ -81,7 +80,7 @@ class TradingSimulateTest(unittest.TestCase):
             trading = simulate.TradingSimulate(
                 self.alpaca, data_file='fake_data_file')
             trading.run()
-        self.assertGreater(trading.gain_transactions + trading.loss_transactions, 0)
+        self.assertGreaterEqual(self.mock_savefig.call_count, 3)  # quarter, year, total plots
 
     def test_main(self):
         mock_trading = mock.create_autospec(simulate.TradingSimulate)

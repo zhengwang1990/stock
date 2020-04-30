@@ -1,5 +1,6 @@
 import datetime
 import functools
+import logging
 import numpy as np
 import os
 import pandas as pd
@@ -89,7 +90,7 @@ class TradingBase(object):
     @retrying.retry(stop_max_attempt_number=10, wait_fixed=1000 * 60 * 10)
     def load_histories(self, period):
         """Loads history of all stock symbols."""
-        print('Loading stock histories...')
+        logging.info('Loading stock histories...')
         threads = []
         # Allow at most 10 errors
         error_tol = 10
@@ -103,7 +104,7 @@ class TradingBase(object):
                 try:
                     t.result()
                 except Exception as e:
-                    print(e)
+                    logging.error('Error occurred in load_histories: %s', e)
                     error_tol -= 1
                     if error_tol <= 0:
                         raise e
@@ -115,27 +116,23 @@ class TradingBase(object):
             volume = hist.get('Volume')
             self.closes[symbol] = np.array(close)
             self.volumes[symbol] = np.array(volume)
-        print('Attempt to load %d symbols' % (len(self.symbols)))
-        print('%d loaded symbols after drop symbols traded less than %s' % (
-            len(self.closes), period))
+        logging.info('Attempt to load %d symbols', len(self.symbols))
+        logging.info('%d loaded symbols after drop symbols traded less than %s',
+                     len(self.closes), period)
 
-    @retrying.retry(stop_max_attempt_number=2, wait_fixed=500)
+    @retrying.retry(stop_max_attempt_number=3, wait_fixed=1000)
     def load_history(self, symbol, period):
         """Loads history for a single symbol."""
         cache_name = os.path.join(self.cache_path, self.period, 'history_%s.csv' % (symbol,))
         if os.path.isfile(cache_name):
             hist = pd.read_csv(cache_name, index_col=0, parse_dates=True)
         else:
-            try:
-                tk = yf.Ticker(symbol)
-                hist = tk.history(period=period, interval='1d')
-                if len(hist):
-                    hist.to_csv(cache_name)
-                else:
-                    raise NotFoundError('History of %s not found' % (symbol,))
-            except Exception as e:
-                print('Can not get history of %s: %s' % (symbol, e))
-                raise e
+            tk = yf.Ticker(symbol)
+            hist = tk.history(period=period, interval='1d')
+            if len(hist):
+                hist.to_csv(cache_name)
+            else:
+                raise NotFoundError('History of %s not found' % (symbol,))
         drop_key = datetime.datetime.today().date()
         if self.is_market_open and drop_key in hist.index:
             hist.drop(drop_key, inplace=True)
@@ -202,9 +199,10 @@ class TradingBase(object):
             x = [ml_feature[key] for key in ML_FEATURES]
             ml_features.append(ml_feature)
             X.append(x)
-        X = np.array(X)
-        weights = self.model.predict(X)
-        buy_symbols = list(zip(buy_info, weights, ml_features))
+        if buy_info:
+            X = np.array(X)
+            weights = self.model.predict(X)
+            buy_symbols = list(zip(buy_info, weights, ml_features))
         return buy_symbols
 
     def get_trading_list(self, buy_symbols=None, **kwargs):
@@ -329,10 +327,7 @@ def web_scraping(url, prefixes):
         raise NotFoundError('[%s] %s not found' % (url, prefixes))
 
 
-def bi_print(message, output_file):
-    """Prints to both stdout and a file."""
-    print(message)
-    if output_file:
-        output_file.write(message)
-        output_file.write('\n')
-        output_file.flush()
+def logging_config():
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(levelname)s] [%(asctime)s] [%(filename)s:%(lineno)d] [%(threadName)s]\n%(message)s')

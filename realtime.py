@@ -3,6 +3,7 @@ import alpaca_trade_api.polygon as polygonapi
 import argparse
 import datetime
 import json
+import logging
 import numpy as np
 import os
 import sys
@@ -32,20 +33,22 @@ class TradingRealTime(utils.TradingBase):
         self.prices = {}
         self.ordered_symbols = []
         self.errors = []
-        output_path = os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'history',
-                                   utils.get_business_day(0) + '.txt')
-        self.output_file = open(output_path, 'a')
+        output_dir = os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'realtime',
+                                  utils.get_business_day(0))
+        os.makedirs(output_dir, exist_ok=True)
 
-        self.price_cache_file = os.path.join(
-            self.cache_path, utils.get_business_day(0) + '-prices.json')
+        logging.getLogger().addHandler(logging.FileHandler(os.path.join('log.txt')))
+
+        self.price_cache_file = os.path.join(output_dir, 'prices.json')
         self.drop_low_volume_symbols()
 
         read_cache = os.path.isfile(self.price_cache_file)
         if read_cache:
+            logging.info('Reading cached stock prices...')
             with open(self.price_cache_file) as f:
                 self.prices = json.loads(f.read())
         else:
-            print('Loading current stock prices...')
+            logging.info('Loading current stock prices...')
             self.update_prices(self.closes.keys(), use_tqdm=True)
 
         for symbol in self.closes.keys():
@@ -72,8 +75,8 @@ class TradingRealTime(utils.TradingBase):
         for symbol in dropped_keys:
             self.closes.pop(symbol)
             self.volumes.pop(symbol)
-        print('%d loaded symbols after drop symbols with cash volume lower than $%.1E' % (
-            len(self.closes), utils.VOLUME_FILTER_THRESHOLD))
+        logging.info('%d loaded symbols after drop symbols with cash volume lower than $%.1E',
+                     len(self.closes), utils.VOLUME_FILTER_THRESHOLD)
 
     def trade_clock_watcher(self):
         """Makes transactions near market close."""
@@ -112,6 +115,7 @@ class TradingRealTime(utils.TradingBase):
 
     def get_realtime_price(self, symbol):
         """Obtains realtime price for a symbol."""
+
         @retrying.retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
         def _get_realtime_price_impl(sym):
             if sym == '^VIX':
@@ -124,7 +128,7 @@ class TradingRealTime(utils.TradingBase):
         try:
             price = _get_realtime_price_impl(symbol)
         except requests.exceptions.RequestException as e:
-            print('Exception raised in get_realtime_price for %s: %s' % (symbol, e))
+            logging.error('Exception raised in get_realtime_price for %s: %s', symbol, e)
             self.errors.append(sys.exc_info())
         else:
             self.prices[symbol] = price
@@ -198,8 +202,7 @@ class TradingRealTime(utils.TradingBase):
                 self.active = False
                 for i in range(len(self.errors)):
                     _, exc_obj, exc_trace = self.errors[i]
-                    utils.bi_print('Error # %d: %s' % (i + 1, exc_obj),
-                                   self.output_file)
+                    logging.error('Error # %d: %s', i + 1, exc_obj)
                     if i == len(self.errors) - 1:
                         raise exc_obj.with_traceback(exc_trace)
             time.sleep(1)
@@ -220,14 +223,7 @@ class TradingRealTime(utils.TradingBase):
             self.update_account()
 
             # Print
-            utils.bi_print(utils.get_header(datetime.datetime.now().strftime('%T')),
-                           self.output_file)
             self.print_trading_list(print_all)
-            utils.bi_print('Last updates: %s' % (
-                ['TOP ' + str(update_length) + ': ' + update_time.strftime('%T')
-                 for update_length, update_time in
-                 sorted(self.last_updates.items(), key=lambda t: t[0])],),
-                           self.output_file)
             if not self.active:
                 return
 
@@ -245,14 +241,8 @@ class TradingRealTime(utils.TradingBase):
     def trade(self):
         """Performs sell and buy transactions."""
         # Sell all current positions with limit orders
-        utils.bi_print(utils.get_header('Place Limit Sell Orders At ' +
-                                        datetime.datetime.now().strftime('%T')),
-                       self.output_file)
         self.sell('limit', deadline=self.next_market_close - 60)
         # Sell remaining positions with market orders
-        utils.bi_print(utils.get_header('Place Market Sell Orders At ' +
-                                        datetime.datetime.now().strftime('%T')),
-                       self.output_file)
         self.sell('market')
 
         for _ in range(10):
@@ -261,22 +251,12 @@ class TradingRealTime(utils.TradingBase):
                 break
             time.sleep(1)
         else:
-            utils.bi_print('-' * 80, self.output_file)
-            utils.bi_print(
-                'Warning: timeout while waiting for cash to settle. Equity: %s; Cash: %s.' % (
-                    self.equity, self.cash),
-                self.output_file)
-            utils.bi_print('-' * 80, self.output_file)
+            logging.warning(
+                'Timeout while waiting for cash to settle. Equity: %s; Cash: %s.', self.equity, self.cash)
 
         # Buy with limit orders
-        utils.bi_print(utils.get_header('Place Limit Buy Orders At ' +
-                                        datetime.datetime.now().strftime('%T')),
-                       self.output_file)
         self.buy('limit', deadline=self.next_market_close - 30)
         # Buy with market orders
-        utils.bi_print(utils.get_header('Place Market Buy Orders At ' +
-                                        datetime.datetime.now().strftime('%T')),
-                       self.output_file)
         self.buy('market')
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
@@ -296,12 +276,13 @@ class TradingRealTime(utils.TradingBase):
                 positions_table.append([position.symbol, position.current_price, position.qty,
                                         float(position.market_value) - float(position.cost_basis)])
             except tradeapi.rest.APIError as e:
-                print('Failed to sell %s: %s' % (position.symbol, e))
+                logging.error('Failed to sell %s: %s', position.symbol, e)
+        outputs = [utils.get_header('Place ' + order_type.capitalize() + ' Sell Order')]
         if positions_table:
-            utils.bi_print(tabulate(positions_table,
+            outputs.append(tabulate(positions_table,
                                     headers=['Symbol', 'Price', 'Quantity', 'Estimated Gain Value'],
-                                    tablefmt='grid'),
-                           self.output_file)
+                                    tablefmt='grid'))
+        logging.info('\n'.join(outputs))
         self.wait_for_order_to_fill(deadline=deadline)
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
@@ -328,12 +309,13 @@ class TradingRealTime(utils.TradingBase):
                     else:
                         raise NotImplementedError('Order type %s not recognized' % (order_type,))
                 except tradeapi.rest.APIError as e:
-                    print('Failed to buy %s: %s' % (symbol, e))
+                    logging.error('Failed to buy %s: %s', symbol, e)
+        outputs = [utils.get_header('Place ' + order_type.capitalize() + ' Buy Order')]
         if orders_table:
-            utils.bi_print(tabulate(orders_table,
+            outputs.append(tabulate(orders_table,
                                     headers=['Symbol', 'Price', 'Quantity', 'Estimated Cost'],
-                                    tablefmt='grid'),
-                           self.output_file)
+                                    tablefmt='grid'))
+        logging.info('\n'.join(outputs))
         self.wait_for_order_to_fill(deadline=deadline)
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
@@ -341,8 +323,7 @@ class TradingRealTime(utils.TradingBase):
         orders = self.alpaca.list_orders(status='open')
         wait_time = 0
         while orders:
-            utils.bi_print('[%s] Wait for orders to fill. %d open orders remaining...' % (
-                datetime.datetime.now().strftime('%T'), len(orders),), self.output_file)
+            logging.info('Wait for orders to fill. %d open orders remaining...', len(orders))
             time.sleep(2)
             wait_time += 2
             if wait_time >= timeout:
@@ -351,14 +332,9 @@ class TradingRealTime(utils.TradingBase):
                 break
             orders = self.alpaca.list_orders(status='open')
         if not orders:
-            utils.bi_print(
-                '[%s] All orders filled' % (datetime.datetime.now().strftime('%T'),),
-                self.output_file)
+            logging.info('All orders filled')
         else:
-            utils.bi_print(
-                '[%s] Cancel %d remaining orders' % (
-                    datetime.datetime.now().strftime('%T'), len(orders)),
-                self.output_file)
+            logging.info('Cancel %d remaining orders', len(orders))
             self.alpaca.cancel_all_orders()
 
     def print_trading_list(self, print_all=False):
@@ -383,13 +359,19 @@ class TradingRealTime(utils.TradingBase):
         headers = ['Symbol', 'Proportion', 'Weight', 'Today Change',
                    '%d Day Change' % (utils.DATE_RANGE,), 'Threshold', 'Price',
                    'Cost', 'Quantity']
+        outputs = []
         if trading_table:
-            utils.bi_print(tabulate(trading_table, headers=headers, tablefmt='grid'),
-                           self.output_file)
-            utils.bi_print('Equity: %.2f' % (self.equity,), self.output_file)
-            utils.bi_print('Estimated Cost: %.2f' % (cost,), self.output_file)
+            outputs.append(tabulate(trading_table, headers=headers, tablefmt='grid'))
         else:
-            utils.bi_print('NO stock satisfying trading criteria.', self.output_file)
+            logging.warning('NO stock satisfying trading criteria!')
+        outputs.append(tabulate(
+            [['Equity', '%.2f' % (self.equity,),
+              'Estimated Cost', '%.2f' % (cost,),
+              'Price Updates',
+              str(['TOP ' + str(update_length) + ': ' + update_time.strftime('%T')
+                   for update_length, update_time in
+                   sorted(self.last_updates.items(), key=lambda t: t[0])])]], tablefmt='grid'))
+        logging.info('\n'.join(outputs))
 
 
 def main():
@@ -401,19 +383,16 @@ def main():
     parser.add_argument('-f', '--force', help='Force to run even at market close.',
                         action="store_true")
     args = parser.parse_args()
+    utils.logging_config()
 
     if args.api_key and args.api_secret or args.real_trade:
-        print('-' * 80)
-        print('Using Alpaca API for live trading')
-        print('-' * 80)
+        logging.info('Using Alpaca API for live trading')
         alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
                                args.api_secret or os.environ['ALPACA_API_SECRET'],
                                utils.ALPACA_API_BASE_URL, 'v2')
         polygon = polygonapi.REST(args.api_key or os.environ['ALPACA_API_KEY'])
     else:
-        print('-' * 80)
-        print('Using Alpaca API for paper market')
-        print('-' * 80)
+        logging.info('Using Alpaca API for live trading')
         alpaca = tradeapi.REST(os.environ['ALPACA_PAPER_API_KEY'],
                                os.environ['ALPACA_PAPER_API_SECRET'],
                                utils.ALPACA_PAPER_API_BASE_URL, 'v2')
@@ -423,9 +402,7 @@ def main():
         trading = TradingRealTime(alpaca, polygon)
         trading.run()
     else:
-        print('-' * 80)
-        print('Market is closed. Use "-f" flag to force run.')
-        print('-' * 80)
+        logging.warning('Market is closed. Use "-f" flag to force run.')
 
 
 if __name__ == '__main__':
