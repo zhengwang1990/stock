@@ -71,7 +71,7 @@ class TradingSimulate(utils.TradingBase):
         signal.signal(signal.SIGINT, self.safe_exit)
 
     def safe_exit(self, signum, frame):
-        logging.info('\nSafe exiting with signal %d...' % (signum,))
+        logging.info('Safe exiting with signal %d...', signum)
         self.print_summary()
         exit(1)
 
@@ -105,7 +105,7 @@ class TradingSimulate(utils.TradingBase):
                                   '%.2f%%' % (day_range_change * 100,),
                                   close[cutoff],
                                   close[cutoff + 1],
-                                  '%.2f%%' % (gain * 100,)])
+                                  '%+.2f%%' % (gain * 100,)])
             daily_gain += gain * proportion
 
         outputs = [utils.get_header(sell_date.date())]
@@ -165,10 +165,10 @@ class TradingSimulate(utils.TradingBase):
             self.values[t][0].append(sell_date)
             t_value = self.values[t][1][-1] * (1 + daily_gain)
             self.values[t][1].append(t_value)
-        summary_table = [['Daily Gain', '%+.2f%%' % (daily_gain * 100)],
-                         ['Quarterly Gain', '%+.2f%%' % ((self.values[quarter][1][-1] - 1) * 100,)],
-                         ['Yearly Gain', '%+.2f%%' % ((self.values[year][1][-1] - 1) * 100,)],
-                         ['Total Gain', '%+.2f%%' % ((total_value - 1) * 100,)]]
+        summary_table = [['Daily Gain', '%+.2f%%' % (daily_gain * 100),
+                          'Quarterly Gain', '%+.2f%%' % ((self.values[quarter][1][-1] - 1) * 100,),
+                          'Yearly Gain', '%+.2f%%' % ((self.values[year][1][-1] - 1) * 100,),
+                          'Total Gain', '%+.2f%%' % ((total_value - 1) * 100,)]]
         outputs.append(tabulate(summary_table, tablefmt='grid'))
         logging.info('\n'.join(outputs))
 

@@ -351,9 +351,9 @@ class TradingRealTime(utils.TradingBase):
             qty = int(value / price)
             share_cost = qty * price
             cost += share_cost
-            trading_row.extend(['%.2f%%' % (change * 100,),
-                                '%.2f%%' % (day_range_change * 100,),
-                                '%.2f%%' % (self.thresholds[symbol] * 100,), price,
+            trading_row.extend(['%+.2f%%' % (change * 100,),
+                                '%+.2f%%' % (day_range_change * 100,),
+                                '%+.2f%%' % (self.thresholds[symbol] * 100,), price,
                                 share_cost, qty])
             trading_table.append(trading_row)
         headers = ['Symbol', 'Proportion', 'Weight', 'Today Change',
