@@ -388,18 +388,19 @@ def main():
         print('-' * 80)
         print('Using Alpaca API for live trading')
         print('-' * 80)
-        alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
-                               args.api_secret or os.environ['ALPACA_API_SECRET'],
-                               utils.ALPACA_API_BASE_URL, 'v2')
-        polygon = polygonapi.REST(args.api_key or os.environ['ALPACA_API_KEY'])
+        api_key = args.api_key or os.environ['ALPACA_API_KEY']
+        api_secret = args.api_secret or os.environ['ALPACA_API_SECRET']
+        base_url = utils.ALPACA_API_BASE_URL
     else:
         print('-' * 80)
         print('Using Alpaca API for paper market')
         print('-' * 80)
-        alpaca = tradeapi.REST(os.environ['ALPACA_PAPER_API_KEY'],
-                               os.environ['ALPACA_PAPER_API_SECRET'],
-                               utils.ALPACA_PAPER_API_BASE_URL, 'v2')
-        polygon = polygonapi.REST(os.environ['ALPACA_PAPER_API_KEY'])
+        api_key = os.environ['ALPACA_PAPER_API_KEY']
+        api_secret = os.environ['ALPACA_PAPER_API_SECRET']
+        base_url = utils.ALPACA_PAPER_API_BASE_URL
+    sys.stdout.flush()
+    alpaca = tradeapi.REST(api_key, api_secret, base_url, 'v2')
+    polygon = polygonapi.REST(api_key)
 
     if alpaca.get_clock().is_open or args.force:
         trading = TradingRealTime(alpaca, polygon)

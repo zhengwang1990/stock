@@ -47,7 +47,7 @@ DELISTED = ['AABA', 'ACETQ', 'AETI', 'AGC', 'AKP', 'ALDR', 'ALN', 'ALQA',
             'ATHN', 'TBRGU', 'BJZ', 'SEND', 'MCRN', 'EIA', 'MMV', 'ALOG',
             'DVMT', 'SYNT', 'EIP', 'XCRA', 'PAY', 'IPAS', 'COBZ', 'BRQS',
             'MIW', 'CAVM', 'GBNK', 'EMI', 'DGSE', 'DDR', 'ZGYH', 'CCAC',
-            'ZGYHR', 'DTO', 'DRV', 'DMYT']
+            'ZGYHR', 'DTO', 'DRV', 'DMYT', 'STSB']
 
 # These stocks are shorts
 SHORTS = ['BIS', 'CROC', 'DDG', 'DOG', 'DPK', 'DRIP', 'DUG', 'DUST', 'DXD',
