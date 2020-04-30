@@ -66,8 +66,19 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
     buys = _get_trade_info(orders, 'buy')
     sells = _get_trade_info(orders, 'sell')
     prev_buys = _get_trade_info(prev_orders, 'buy')
+    account = alpaca.get_account()
+    account_equity = float(account.equity)
+    history_length = 10
+    history = alpaca.get_portfolio_history(date_start=open_dates[history_length].strftime('%F'),
+                                           date_end=open_dates[1].strftime('%F'),
+                                           timeframe='1D')
+    historical_value = [equity / history.equity[0] for equity in history.equity]
+    historical_value.append(account_equity / history.equity[0])
+    historical_date = [datetime.datetime.fromtimestamp(timestamp).date()
+                       for timestamp in history.timestamp]
+    historical_date.append(open_dates[0].date())
+
     sell_text, sell_html = '', ''
-    total_gain = 0
     for symbol, sell_info in sells.items():
         if symbol not in prev_buys:
             continue
@@ -80,15 +91,14 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
                       '<td style="color:%s;">%+.2f (%+.2f%%)</td> </tr>') % (
                          symbol, buy_info.price, sell_info.price, sell_info.qty,
                          'green' if gain >= 0 else 'red', gain, percent * 100)
-        total_gain += gain
     buy_text, buy_html = '', ''
     for symbol, buy_info in buys.items():
         buy_text += '%s: buy at %g, quantity %d, cost %.2f\n' % (
             symbol, buy_info.price, buy_info.qty, buy_info.value)
         buy_html += '<tr> <th scope="row">%s</th> <td>%g</td> <td>%d</td> <td>%.2f</td> </tr>' % (
             symbol, buy_info.price, buy_info.qty, buy_info.value)
-    account = alpaca.get_account()
-    account_equity = float(account.equity)
+
+    total_gain = account_equity - history.equity[-1]
     account_text = 'Equity: %.2f\nCash: %s\nGain / Loss: %+.2f (%+.2f%%)\n' % (
         account_equity, account.cash, total_gain, total_gain / (account_equity - total_gain) * 100)
     account_html = ('<tr><th scope="row" class="narrow-col">Equity</th><td>%.2f</td></tr>'
@@ -97,16 +107,6 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
                     '<td style="color:%s;">%+.2f (%+.2f%%)</td></tr>\n') % (
                        account_equity, account.cash, 'green' if total_gain >= 0 else 'red', total_gain,
                        total_gain / (account_equity - total_gain) * 100)
-
-    history_length = 10
-    history = alpaca.get_portfolio_history(date_start=open_dates[history_length].strftime('%F'),
-                                           date_end=open_dates[1].strftime('%F'),
-                                           timeframe='1D')
-    historical_value = [equity / history.equity[0] for equity in history.equity]
-    historical_value.append(account_equity / history.equity[0])
-    historical_date = [datetime.datetime.fromtimestamp(timestamp).date()
-                       for timestamp in history.timestamp]
-    historical_date.append(open_dates[0].date())
 
     pd.plotting.register_matplotlib_converters()
     plt.figure(figsize=(10, 4))
