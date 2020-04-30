@@ -84,8 +84,8 @@ class TradingBase(object):
         self.symbols = ['^VIX'] + [
             asset.symbol for asset in assets
             if re.match('^[A-Z]*$', asset.symbol)
-            and asset.symbol not in EXCLUSIONS
-            and asset.tradable]
+               and asset.symbol not in EXCLUSIONS
+               and asset.tradable]
 
     @retrying.retry(stop_max_attempt_number=10, wait_fixed=1000 * 60 * 10)
     def load_histories(self, period):
@@ -327,7 +327,21 @@ def web_scraping(url, prefixes):
         raise NotFoundError('[%s] %s not found' % (url, prefixes))
 
 
-def logging_config():
-    logging.basicConfig(
-        level=logging.INFO,
-        format='[%(levelname)s] [%(asctime)s] [%(filename)s:%(lineno)d] [%(threadName)s]\n%(message)s')
+def logging_config(logging_file=None):
+    """Configuration for logging."""
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        '[%(levelname)s] [%(asctime)s] [%(filename)s:%(lineno)d] [%(threadName)s]\n%(message)s')
+    stream_handler = logging.StreamHandler()
+    if sys.stdout.isatty():
+        stream_handler.setLevel(logging.INFO)
+    else:
+        stream_handler.setLevel(logging.WARNING)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+    if logging_file:
+        file_handler = logging.FileHandler(logging_file)
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)

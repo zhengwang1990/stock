@@ -22,6 +22,13 @@ class TradingSimulate(utils.TradingBase):
                  model=None,
                  data_file=None,
                  write_data=False):
+        self.root_dir = os.path.dirname(os.path.realpath(__file__))
+        self.output_dir = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
+                                       'simulate',
+                                       datetime.datetime.now().strftime('%Y-%m-%d-%H-%M'))
+        os.makedirs(self.output_dir, exist_ok=True)
+        utils.logging_config(os.path.join(self.output_dir, 'result.txt'))
+
         period = None
         if data_file:
             self.data_df = pd.read_csv(os.path.join(
@@ -61,11 +68,6 @@ class TradingSimulate(utils.TradingBase):
                 stats_cols = ['Symbol', 'Date'] + utils.ML_FEATURES + ['Gain']
                 self.stats = pd.DataFrame(columns=stats_cols)
             self.values = {'Total': ([self.history_dates[self.start_point - 1]], [1.0])}
-        self.output_dir = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
-                                       'simulate',
-                                       datetime.datetime.now().strftime('%Y-%m-%d-%H-%M'))
-        os.makedirs(self.output_dir, exist_ok=True)
-        logging.getLogger().addHandler(logging.FileHandler(os.path.join(self.output_dir, 'result.txt')))
         signal.signal(signal.SIGINT, self.safe_exit)
 
     def safe_exit(self, signum, frame):
@@ -293,7 +295,6 @@ def main():
     parser.add_argument("--write_data", help='Write data with ML features.',
                         action="store_true")
     args = parser.parse_args()
-    utils.logging_config()
 
     alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_PAPER_API_KEY'],
                            args.api_secret or os.environ['ALPACA_PAPER_API_SECRET'],

@@ -23,6 +23,11 @@ class TradingRealTime(utils.TradingBase):
     """Tracks daily stock price changes and make transactions on Alpaca."""
 
     def __init__(self, alpaca, polygon):
+        self.root_dir = os.path.dirname(os.path.realpath(__file__))
+        output_dir = os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'realtime',
+                                  utils.get_business_day(0))
+        os.makedirs(output_dir, exist_ok=True)
+        utils.logging_config(os.path.join(output_dir, 'log.txt'))
         super(TradingRealTime, self).__init__(alpaca)
         self.active = True
         self.equity, self.cash = 0, 0
@@ -33,11 +38,6 @@ class TradingRealTime(utils.TradingBase):
         self.prices = {}
         self.ordered_symbols = []
         self.errors = []
-        output_dir = os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'realtime',
-                                  utils.get_business_day(0))
-        os.makedirs(output_dir, exist_ok=True)
-
-        logging.getLogger().addHandler(logging.FileHandler(os.path.join('log.txt')))
 
         self.price_cache_file = os.path.join(output_dir, 'prices.json')
         self.drop_low_volume_symbols()
@@ -368,9 +368,9 @@ class TradingRealTime(utils.TradingBase):
             [['Equity', '%.2f' % (self.equity,),
               'Estimated Cost', '%.2f' % (cost,),
               'Price Updates',
-              str(['TOP ' + str(update_length) + ': ' + update_time.strftime('%T')
-                   for update_length, update_time in
-                   sorted(self.last_updates.items(), key=lambda t: t[0])])]], tablefmt='grid'))
+              ', '.join(['TOP ' + str(update_length) + ': ' + update_time.strftime('%T')
+                         for update_length, update_time in
+                         sorted(self.last_updates.items(), key=lambda t: t[0])])]], tablefmt='grid'))
         logging.info('\n'.join(outputs))
 
 
@@ -383,16 +383,19 @@ def main():
     parser.add_argument('-f', '--force', help='Force to run even at market close.',
                         action="store_true")
     args = parser.parse_args()
-    utils.logging_config()
 
     if args.api_key and args.api_secret or args.real_trade:
-        logging.info('Using Alpaca API for live trading')
+        print('-' * 80)
+        print('Using Alpaca API for live trading')
+        print('-' * 80)
         alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
                                args.api_secret or os.environ['ALPACA_API_SECRET'],
                                utils.ALPACA_API_BASE_URL, 'v2')
         polygon = polygonapi.REST(args.api_key or os.environ['ALPACA_API_KEY'])
     else:
-        logging.info('Using Alpaca API for live trading')
+        print('-' * 80)
+        print('Using Alpaca API for paper market')
+        print('-' * 80)
         alpaca = tradeapi.REST(os.environ['ALPACA_PAPER_API_KEY'],
                                os.environ['ALPACA_PAPER_API_SECRET'],
                                utils.ALPACA_PAPER_API_BASE_URL, 'v2')
@@ -402,7 +405,7 @@ def main():
         trading = TradingRealTime(alpaca, polygon)
         trading.run()
     else:
-        logging.warning('Market is closed. Use "-f" flag to force run.')
+        print('Market is closed. Use "-f" flag to force run.')
 
 
 if __name__ == '__main__':
