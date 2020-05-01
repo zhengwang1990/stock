@@ -47,7 +47,7 @@ DELISTED = ['AABA', 'ACETQ', 'AETI', 'AGC', 'AKP', 'ALDR', 'ALN', 'ALQA',
             'ATHN', 'TBRGU', 'BJZ', 'SEND', 'MCRN', 'EIA', 'MMV', 'ALOG',
             'DVMT', 'SYNT', 'EIP', 'XCRA', 'PAY', 'IPAS', 'COBZ', 'BRQS',
             'MIW', 'CAVM', 'GBNK', 'EMI', 'DGSE', 'DDR', 'ZGYH', 'CCAC',
-            'ZGYHR', 'DTO', 'DRV', 'DMYT', 'STSB']
+            'ZGYHR', 'DTO', 'DRV', 'DMYT']
 
 # These stocks are shorts
 SHORTS = ['BIS', 'CROC', 'DDG', 'DOG', 'DPK', 'DRIP', 'DUG', 'DUST', 'DXD',
@@ -64,4 +64,6 @@ SHORTS = ['BIS', 'CROC', 'DDG', 'DOG', 'DPK', 'DRIP', 'DUG', 'DUST', 'DXD',
           'XXVFF', 'YGRN', 'ZIV', 'BZQ', 'TVIX', 'UVXY', 'EPV', 'FTSD', 'VIXY',
           'UVXY', 'SKF', 'HDGE']
 
-EXCLUSIONS = DELISTED + SHORTS
+HISTORY_NOT_FOUND = ['STSB', 'NBAC']
+
+EXCLUSIONS = DELISTED + SHORTS + HISTORY_NOT_FOUND
