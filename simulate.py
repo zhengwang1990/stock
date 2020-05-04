@@ -31,8 +31,7 @@ class TradingSimulate(utils.TradingBase):
 
         period = None
         if data_file:
-            self.data_df = pd.read_csv(os.path.join(
-                os.path.dirname(os.path.realpath(__file__)), utils.DATA_DIR, data_file))
+            self.data_df = pd.read_csv(data_file)
             year_diff = (datetime.datetime.today().date().year -
                          pd.to_datetime(self.data_df.iloc[0].Date).year + 1)
             period = '%dy' % (year_diff,)
@@ -183,7 +182,7 @@ class TradingSimulate(utils.TradingBase):
         if not self.data_file and self.write_data:
             self.stats.to_csv(
                 os.path.join(self.root_dir,
-                             utils.OUTPUTS_DIR,
+                             utils.DATA_DIR,
                              'simulate_stats_%s_%s.csv' % (self.start_date[:4],
                                                            self.end_date[:4])),
                 index=False)

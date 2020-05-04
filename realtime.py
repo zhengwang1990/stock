@@ -204,6 +204,7 @@ class TradingRealTime(utils.TradingBase):
                     _, exc_obj, exc_trace = self.errors[i]
                     logging.error('Error # %d: %s', i + 1, exc_obj)
                     if i == len(self.errors) - 1:
+                        self.active = False
                         raise exc_obj.with_traceback(exc_trace)
             time.sleep(1)
 
