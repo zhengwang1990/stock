@@ -10,7 +10,7 @@ from tabulate import tabulate
 
 DEFAULT_DATA_FILE = 'simulate_stats.csv'
 NON_ML_FEATURE_COLUMNS = ['Gain', 'Symbol', 'Date']
-DEFAULT_TRAIN_ITER = 10
+DEFAULT_TRAIN_ITER = 1
 
 
 class ML(object):
@@ -20,15 +20,11 @@ class ML(object):
         self.model = model
         self.train_iter = train_iter
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
-        self.df = pd.concat([pd.read_csv(
-            os.path.join(self.root_dir, utils.DATA_DIR, data_file))
-            for data_file in data_files])
-        self.ml_features = [col for col, _ in self.df.iteritems()
-                            if col not in NON_ML_FEATURE_COLUMNS]
+        self.df = pd.concat([pd.read_csv(data_file) for data_file in data_files])
         self.X, self.y = [], []
-        for row in self.df.itertuples():
-            x_value = [getattr(row, col) for col in self.ml_features]
-            y_value = row.Gain / 0.05 if np.abs(row.Gain) < 0.05 else np.sign(row.Gain)
+        for _, row in self.df.iterrows():
+            x_value = [row[col] for col in utils.ML_FEATURES]
+            y_value = row['Gain'] / 0.05 if np.abs(row['Gain']) < 0.05 else np.sign(row['Gain'])
             self.X.append(x_value)
             self.y.append(y_value)
         self.X = np.array(self.X)
@@ -58,21 +54,24 @@ class ML(object):
 
     def evaluate(self, model, plot=False):
         y_pred = model.predict(self.X)
+        y_true = self.y
         boundary_90 = np.percentile(y_pred, 90)
-        precision_90 = get_precision(self.y, y_pred, boundary_90)
-        precision_model = get_precision(self.y, y_pred, 0)
+        precision_90 = get_precision(y_true, y_pred, boundary_90)
+        precision_model = get_precision(y_true, y_pred, 0)
+        baseline = np.sum(np.array(y_true) >= 0) / len(y_true)
         output = [['Precision_90', precision_90],
                   ['Model Precision', precision_model],
-                  ['Boundary_90', boundary_90]]
+                  ['Boundary_90', boundary_90],
+                  ['Baseline Precision', baseline]]
         print(tabulate(output, tablefmt='grid'))
         if plot:
             plt.figure()
-            plt.plot(y_pred, self.y, 'o', markersize=3)
+            plt.plot(y_pred, y_true, 'o', markersize=3)
             plt.xlabel('Predicted')
             plt.ylabel('Truth')
             plt.plot([np.min(y_pred), np.max(y_pred)], [0, 0], '--')
-            plt.plot([0, 0], [np.min(self.y), np.max(self.y)], '--', label='0')
-            plt.plot([boundary_90, boundary_90], [np.min(self.y), np.max(self.y)], '--', label='Percentile 90')
+            plt.plot([0, 0], [np.min(y_true), np.max(y_true)], '--', label='0')
+            plt.plot([boundary_90, boundary_90], [np.min(y_true), np.max(y_true)], '--', label='Percentile 90')
             plt.legend()
             plt.show()
         return precision_90

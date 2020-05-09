@@ -133,6 +133,7 @@ class TradingBase(object):
                 hist.to_csv(cache_name)
             else:
                 raise NotFoundError('History of %s not found' % (symbol,))
+        hist.dropna(inplace=True)
         drop_key = datetime.datetime.today().date()
         if self.is_market_open and drop_key in hist.index:
             hist.drop(drop_key, inplace=True)
