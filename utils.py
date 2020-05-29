@@ -154,7 +154,7 @@ class TradingBase(object):
         self.load_history(REFERENCE_SYMBOL, period=period)
         return self.hists[REFERENCE_SYMBOL].index
 
-    def get_buy_symbols(self, prices=None, cutoff=None):
+    def get_buy_symbols(self, prices=None, cutoff=None, skip_prediction=False):
         """Gets symbols which trigger buy signals.
 
         A list of tuples will be returned with symbol, weight and all ML features.
@@ -202,7 +202,10 @@ class TradingBase(object):
             X.append(x)
         if buy_info:
             X = np.array(X)
-            weights = self.model.predict(X)
+            if skip_prediction:
+                weights = [1] * len(X)
+            else:
+                weights = self.model.predict(X)
             buy_symbols = list(zip(buy_info, weights, ml_features))
         return buy_symbols
 
