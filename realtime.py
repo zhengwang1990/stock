@@ -337,6 +337,13 @@ class TradingRealTime(utils.TradingBase):
         else:
             logging.info('Cancel %d remaining orders', len(orders))
             self.alpaca.cancel_all_orders()
+            orders = self.alpaca.list_orders(status='open')
+            for _ in range(5):
+                if not orders:
+                    break
+                logging.info('Wait for orders to cancel. %d open orders remaining...', len(orders))
+                time.sleep(1)
+                orders = self.alpaca.list_orders(status='open')
 
     def print_trading_list(self, print_all=False):
         trading_table = []

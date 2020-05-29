@@ -107,7 +107,7 @@ class TradingRealTimeTest(unittest.TestCase):
         self.assertEqual(self.trading.prices['SYMB'], 666)
         self.assertEqual(self.trading.prices['SYMC'], 666)
 
-    @parameterized.expand([(20, None, 10), (1000, 999, 1)])
+    @parameterized.expand([(20, None, 16), (1000, 999, 7)])
     def test_wait_for_order_to_fill(self, timeout, deadline, list_call_count):
         self.alpaca.list_orders.return_value = ['fake_order']
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
