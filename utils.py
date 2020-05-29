@@ -33,6 +33,7 @@ ML_FEATURES = [
     'Yesterday_Change',
     'Day_Before_Yesterday_Change',
     'Twenty_Day_Change',
+    'Sixty_Day_Change',
     'Day_Range_Change',
     'Year_High_Change',
     'Year_Low_Change',
@@ -41,8 +42,7 @@ ML_FEATURES = [
     'RSI',
     'MACD_Rate',
     'TSI',
-    'WR',
-    'VIX']
+    'VIX'] + ['c_' + str(i) for i in range(1, 51)]
 ALPACA_API_BASE_URL = 'https://api.alpaca.markets'
 ALPACA_PAPER_API_BASE_URL = 'https://paper-api.alpaca.markets'
 DEFAULT_MODEL = 'model_p727217.hdf5'
@@ -187,6 +187,10 @@ class TradingBase(object):
             day_range_max = np.max(close_year[-DATE_RANGE:])
             day_range_change = price / day_range_max - 1
             today_change = price / close_year[-1] - 1
+            price_month_ago = np.average(close_year[-25:-20])
+            # Already surge
+            if day_range_max > price_month_ago * 1.5:
+                continue
             # Today change is tamed
             if np.abs(today_change) > 0.5 * np.abs(day_range_change):
                 continue
@@ -233,18 +237,15 @@ class TradingBase(object):
 
         if cutoff:
             close = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
-            high = np.array(self.hists[symbol].get('High')[cutoff - DAYS_IN_A_YEAR:cutoff])
-            low = np.array(self.hists[symbol].get('Low')[cutoff - DAYS_IN_A_YEAR:cutoff])
         else:
             close = self.closes[symbol][-DAYS_IN_A_YEAR:]
-            high = np.array(self.hists[symbol].get('High')[-DAYS_IN_A_YEAR:])
-            low = np.array(self.hists[symbol].get('Low')[-DAYS_IN_A_YEAR:])
         # Basic stats
         day_range_change = price / np.max(close[-DATE_RANGE:]) - 1
         today_change = price / close[-1] - 1
         yesterday_change = close[-1] / close[-2] - 1
         day_before_yesterday_change = close[-2] / close[-3] - 1
         twenty_day_change = price / close[-20] - 1
+        sixty_day_change = price / close[-60] - 1
         year_high_change = price / np.max(close) - 1
         year_low_change = price / np.min(close) - 1
         all_changes = [close[t + 1] / close[t] - 1
@@ -252,29 +253,26 @@ class TradingBase(object):
                        if close[t + 1] > 0 and close[t] > 0]
         # Technical indicators
         close = np.append(close, price)
-        high = np.append(high, price)
-        low = np.append(low, price)
         pd_close = pd.Series(close)
-        pd_high = pd.Series(high)
-        pd_low = pd.Series(low)
         rsi = momentum.rsi(pd_close).values[-1]
         macd_rate = trend.macd_diff(pd_close).values[-1] / price
-        wr = momentum.wr(pd_high, pd_low, pd_close).values[-1]
         tsi = momentum.tsi(pd_close).values[-1]
         feature = {'Today_Change': today_change,
                    'Yesterday_Change': yesterday_change,
                    'Day_Before_Yesterday_Change': day_before_yesterday_change,
                    'Twenty_Day_Change': twenty_day_change,
+                   'Sixty_Day_Change': sixty_day_change,
                    'Day_Range_Change': day_range_change,
                    'Year_High_Change': year_high_change,
                    'Year_Low_Change': year_low_change,
                    'Change_Average': np.mean(all_changes),
                    'Change_Variance': np.var(all_changes),
-                   'RSI': rsi,
+                   'RSI': rsi / 100,
+                   'TSI': tsi / 100,
                    'MACD_Rate': macd_rate,
-                   'WR': wr,
-                   'TSI': tsi,
                    'VIX': vix}
+        for i in range(1, 51):
+            feature['c_' + str(i)] = close[-51 + i] / close[-50]
         return feature
 
     @functools.lru_cache(maxsize=10000)
@@ -289,7 +287,7 @@ class TradingBase(object):
                         if close_year[i] < np.max(close_year[i - DATE_RANGE:i])]
         if not down_percent:
             return 0
-        threshold = np.mean(down_percent) - 2.5 * np.std(down_percent)
+        threshold = np.percentile(down_percent, 5)
         return threshold
 
 

@@ -78,9 +78,11 @@ class TradingSimulate(utils.TradingBase):
         exit(1)
 
     def analyze_date(self, sell_date, cutoff):
+        outputs = [utils.get_header(sell_date.date())]
         buy_symbols = self.get_buy_symbols(cutoff=cutoff, skip_prediction=self.write_data)
         if self.write_data and cutoff < self.history_length - 1:
             self.append_stats(buy_symbols, sell_date, cutoff)
+            logging.info('\n'.join(outputs))
             return
         trading_list = self.get_trading_list(buy_symbols=buy_symbols)
         trading_table = []
@@ -111,7 +113,6 @@ class TradingSimulate(utils.TradingBase):
                                   '%+.2f%%' % (gain * 100,)])
             daily_gain += gain * proportion
 
-        outputs = [utils.get_header(sell_date.date())]
         if trading_table:
             outputs.append(tabulate(trading_table, headers=[
                     'Symbol', 'Proportion', 'Weight', 'Today Change',
