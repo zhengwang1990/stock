@@ -54,7 +54,7 @@ class TradingSimulateTest(unittest.TestCase):
         self.trading = simulate.TradingSimulate(
             self.alpaca,
             start_date=(datetime.datetime.today().date() - pd.tseries.offsets.BDay(30)).strftime('%F'),
-            write_data=True)
+            write_data=False)
 
     def tearDown(self):
         self.patch_open.stop()
