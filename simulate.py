@@ -28,6 +28,7 @@ class TradingSimulate(utils.TradingBase):
                                        datetime.datetime.now().strftime('%Y-%m-%d-%H-%M'))
         os.makedirs(self.output_dir, exist_ok=True)
         utils.logging_config(os.path.join(self.output_dir, 'result.txt'))
+        self.write_data = write_data
 
         period = None
         if data_file:
@@ -62,7 +63,6 @@ class TradingSimulate(utils.TradingBase):
             while (self.end_point > 0 and
                    pd.to_datetime(self.end_date) < self.history_dates[self.end_point]):
                 self.end_point -= 1
-            self.write_data = write_data
             if self.write_data:
                 stats_cols = ['Symbol', 'Date'] + utils.ML_FEATURES + ['Gain']
                 self.stats = pd.DataFrame(columns=stats_cols)
