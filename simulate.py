@@ -28,6 +28,7 @@ class TradingSimulate(utils.TradingBase):
                                        datetime.datetime.now().strftime('%Y-%m-%d-%H-%M'))
         os.makedirs(self.output_dir, exist_ok=True)
         utils.logging_config(os.path.join(self.output_dir, 'result.txt'))
+        self.write_data = write_data
 
         period = None
         if data_file:
@@ -62,7 +63,6 @@ class TradingSimulate(utils.TradingBase):
             while (self.end_point > 0 and
                    pd.to_datetime(self.end_date) < self.history_dates[self.end_point]):
                 self.end_point -= 1
-            self.write_data = write_data
             if self.write_data:
                 stats_cols = ['Symbol', 'Date'] + utils.ML_FEATURES + ['Gain']
                 self.stats = pd.DataFrame(columns=stats_cols)
@@ -71,13 +71,19 @@ class TradingSimulate(utils.TradingBase):
 
     def safe_exit(self, signum, frame):
         logging.info('Safe exiting with signal %d...', signum)
-        self.print_summary()
+        if self.write_data:
+            self.save_data()
+        else:
+            self.print_summary()
         exit(1)
 
     def analyze_date(self, sell_date, cutoff):
-        buy_symbols = self.get_buy_symbols(cutoff=cutoff)
+        outputs = [utils.get_header(sell_date.date())]
+        buy_symbols = self.get_buy_symbols(cutoff=cutoff, skip_prediction=self.write_data)
         if self.write_data and cutoff < self.history_length - 1:
             self.append_stats(buy_symbols, sell_date, cutoff)
+            logging.info('\n'.join(outputs))
+            return
         trading_list = self.get_trading_list(buy_symbols=buy_symbols)
         trading_table = []
         daily_gain = 0
@@ -107,7 +113,6 @@ class TradingSimulate(utils.TradingBase):
                                   '%+.2f%%' % (gain * 100,)])
             daily_gain += gain * proportion
 
-        outputs = [utils.get_header(sell_date.date())]
         if trading_table:
             outputs.append(tabulate(trading_table, headers=[
                     'Symbol', 'Proportion', 'Weight', 'Today Change',
@@ -171,6 +176,14 @@ class TradingSimulate(utils.TradingBase):
         outputs.append(tabulate(summary_table, tablefmt='grid'))
         logging.info('\n'.join(outputs))
 
+    def save_data(self):
+        self.stats.to_csv(
+            os.path.join(self.root_dir,
+                         utils.DATA_DIR,
+                         'simulate_stats_%s_%s.csv' % (self.start_date[:4],
+                                                       self.end_date[:4])),
+            index=False)
+
     def print_summary(self):
         time_range = '%s ~ %s' % (self.start_date, self.end_date)
         summary_table = [['Time Range', time_range]]
@@ -178,14 +191,6 @@ class TradingSimulate(utils.TradingBase):
                       for k, v in self.values.items()]
         summary_table.extend(sorted(gain_texts))
         logging.info(utils.get_header('Summary') + '\n' + tabulate(summary_table, tablefmt='grid'))
-
-        if not self.data_file and self.write_data:
-            self.stats.to_csv(
-                os.path.join(self.root_dir,
-                             utils.DATA_DIR,
-                             'simulate_stats_%s_%s.csv' % (self.start_date[:4],
-                                                           self.end_date[:4])),
-                index=False)
 
     def plot_summary(self):
         pd.plotting.register_matplotlib_converters()
@@ -258,8 +263,11 @@ class TradingSimulate(utils.TradingBase):
                 self.analyze_date(self.history_dates[-1] + pd.tseries.offsets.BDay(1),
                                   self.history_length - 1)
 
-        self.print_summary()
-        self.plot_summary()
+        if self.write_data:
+            self.save_data()
+        else:
+            self.print_summary()
+            self.plot_summary()
 
     def append_stats(self, buy_symbols, date, cutoff):
         for symbol, _, ml_feature in buy_symbols:
