@@ -136,7 +136,7 @@ class TradingSimulate(utils.TradingBase):
         T = np.array(T)
         weights, confidences = self.model.predict([X, T])
         buy_symbols = [(symbol, weight) for symbol, weight, confidence in zip(symbols, weights, confidences)
-                       if confidence > 0.5]
+                       if confidence > 0.9]
         trading_list = self.get_trading_list(buy_symbols=buy_symbols)
         trading_table = []
         daily_gain = 0

@@ -27,7 +27,12 @@ class ML(object):
             x_value = [row[col] for col in utils.ML_TECH_FEATURES]
             t_value = [[row[col]] for col in utils.ML_TIME_FEATURES]
             gain = row['Gain']
-            y_value = gain / 0.05 if np.abs(gain) < 0.05 else np.sign(gain)
+            if gain >= 0.01:
+                y_value = [1, 0, 0]
+            elif gain <= -0.01:
+                y_value = [0, 1, 0]
+            else:
+                y_value = [0, 0, 1]
             self.X.append(x_value)
             self.T.append(t_value)
             self.y.append(y_value)
@@ -46,82 +51,98 @@ class ML(object):
         def _loss(y_true, y_pred):
             if not tf.is_tensor(y_pred):
                 y_pred = tf.constant(y_pred)
-            return K.mean(c_layer * K.square(y_pred - y_true) + 0.15 * (1 - c_layer), axis=-1)
+            return K.mean(c_layer * K.square(y_pred - y_true) + 0.8 * (1 - c_layer), axis=-1)
 
         return _loss
 
     @staticmethod
     def create_model():
         x_input = keras.layers.Input(shape=(len(utils.ML_TECH_FEATURES, )), name='x_input')
-        x = keras.layers.Dense(50, activation='relu', name='x_dense')(x_input)
+        x = keras.layers.Dense(50, activation='relu', name='x_dense_1')(x_input)
+        x = keras.layers.Dense(20, activation='relu', name='x_dense_2')(x)
+        x = keras.layers.Dense(10, activation='relu', name='x_dense_3')(x)
         x = keras.layers.Dropout(0.2, name='x_dropout')(x)
 
         t_input = keras.layers.Input(shape=(len(utils.ML_TIME_FEATURES), 1), name='t_input')
-        t = keras.layers.Conv1D(5, kernel_size=3, activation='relu', use_bias=False, name='t_conv_1')(t_input)
-        t = keras.layers.MaxPool1D(pool_size=2, name='t_pool_1')(t)
+        t = keras.layers.Conv1D(4, kernel_size=3, activation='relu', use_bias=False, name='t_conv_1')(t_input)
         t = keras.layers.Conv1D(8, kernel_size=3, activation='relu', use_bias=False, name='t_conv_2')(t)
+        t = keras.layers.MaxPool1D(pool_size=2, name='t_pool_1')(t)
+        t = keras.layers.Conv1D(8, kernel_size=3, activation='relu', use_bias=False, name='t_conv_3')(t)
+        t = keras.layers.Conv1D(16, kernel_size=3, activation='relu', use_bias=False, name='t_conv_4')(t)
         t = keras.layers.MaxPool1D(pool_size=2, name='t_pool_2')(t)
+        t = keras.layers.Conv1D(32, kernel_size=3, activation='relu', use_bias=False, name='t_conv_5')(t)
+        t = keras.layers.Conv1D(64, kernel_size=3, activation='relu', use_bias=False, name='t_conv_6')(t)
+        t = keras.layers.MaxPool1D(pool_size=2, name='t_pool_3')(t)
         t = keras.layers.Flatten(name='t_flatten')(t)
-        t = keras.layers.Dropout(0.5, name='t_dropout')(t)
+        t = keras.layers.Dropout(0.3, name='t_dropout')(t)
 
         info = keras.layers.concatenate([x, t])
 
-        c = keras.layers.Dense(1, activation='sigmoid',)(info)
-        r = keras.layers.Dense(1, activation='tanh', name='regression')(info)
+        r = keras.layers.Dense(3, activation='softmax', name='classification',
+                               kernel_regularizer=keras.regularizers.l2(0.1))(info)
 
-        main_model = keras.Model(inputs=[x_input, t_input], outputs=r)
-        save_model = keras.Model(inputs=[x_input, t_input], outputs=[r, c])
-        main_model.compile(optimizer='adam', loss=ML.loss_function(c),
-                           experimental_run_tf_function=False)
-        main_model.summary()
-        return main_model, save_model
+        model = keras.Model(inputs=[x_input, t_input], outputs=r)
+
+        model.compile(optimizer='adam', loss='mse')
+        model.summary()
+        return model
 
     def fit_model(self, model):
         early_stopping = keras.callbacks.EarlyStopping(
-            monitor='val_loss', patience=50, restore_best_weights=True)
-        model.fit([self.X_train, self.T_train], self.y_train, batch_size=512, epochs=5000,
+            monitor='val_loss', patience=5, restore_best_weights=True)
+        model.fit([self.X_train, self.T_train], self.y_train, batch_size=512, epochs=1000,
                   sample_weight=self.w_train,
                   validation_data=([self.X_test, self.T_test], self.y_test, self.w_test),
                   callbacks=[early_stopping])
 
     def evaluate(self, model):
-        y_pred, c_pred = model.predict([self.X, self.T])
+        y_pred = model.predict([self.X, self.T])
         y_true = self.y
-        y_boundary, c_boundary = 0, 0.5
-        precision, recall = get_accuracy(y_true, y_pred, c_pred, y_boundary, c_boundary)
-        baseline = np.sum(y_true > 0) / (np.sum(y_true > 0) + np.sum(y_true < 0))
+        precision, recall, accuracy = get_accuracy(y_true, y_pred)
+
+        c_matrix = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+        for yi, pi in zip(y_true, y_pred):
+            c_true = np.argmax(yi)
+            c_pred = np.argmax(pi)
+            c_matrix[c_true][c_pred] += 1
+        pos_true = np.sum(c_matrix[0])
+        neg_true = np.sum(c_matrix[2])
+        pos_pred = c_matrix[0][0] + c_matrix[1][0] + c_matrix[2][0]
+        baseline = pos_true / (pos_true + neg_true + 1E-7)
         print(utils.get_header('Examples'))
         example_count = 30
         examples = []
         for i in range(example_count):
-            correct = 'N/A'
-            if c_pred[i] >= c_boundary:
-                if ((y_true[i] > y_boundary and y_pred[i] > y_boundary) or
-                        (y_true[i] < -y_boundary and y_pred[i] < -y_boundary)):
-                    correct = 'Y'
-                elif y_true[i] == 0:
-                    correct = 'I'
-                else:
-                    correct = 'N'
-
-            examples.append([y_true[i], y_pred[i], c_pred[i], correct])
-        print(tabulate(examples, tablefmt='grid', headers=['Truth', 'Prediction', 'Confidence', 'Correct']))
+            if np.argmax(y_true[i]) == np.argmax(y_pred[i]):
+                correct = 'Y'
+            elif np.argmax(y_true[i]) == 1:
+                correct = 'I'
+            else:
+                correct = 'N'
+            examples.append([y_true[i], y_pred[i], correct])
+        print(tabulate(examples, tablefmt='grid', headers=['Truth', 'Prediction', 'Correct']))
+        print(utils.get_header('Classification Matrix'))
+        matrix = [['', 'Prediction Gain', 'Prediction Flat', 'Prediction Loss'],
+                  ['Truth Gain'] + c_matrix[0],
+                  ['Truth Flat'] + c_matrix[1],
+                  ['Truth Loss'] + c_matrix[2]]
+        print(tabulate(matrix, tablefmt='grid'))
         print(utils.get_header('Model Stats'))
-        output = [['Model Precision', '%.2f%%' % (precision * 100,)],
-                  ['Model Recall', '%.2f%%' % (recall * 100,)],
+        output = [['Precision', '%.2f%%' % (precision * 100,)],
+                  ['Recall', '%.2f%%' % (recall * 100,)],
+                  ['Accuracy', '%.2f%%' % (accuracy * 100,)],
                   ['Baseline Precision', '%.2f%%' % (baseline * 100,)],
-                  ['Positive Count', np.sum(np.logical_and(y_pred > y_boundary, c_pred > c_boundary))],
-                  ['Classification Filter Rate', '%.2f%%' % (np.sum(c_pred <= c_boundary) / len(c_pred) * 100,)]]
+                  ['Positive Count', pos_pred]]
         print(tabulate(output, tablefmt='grid'))
-        plot(y_true, y_pred, c_pred, c_boundary)
+        #plot(y_true, y_pred)
         return precision
 
     def train(self):
-        model, save_model = self.create_model()
+        model = self.create_model()
         self.fit_model(model)
-        precision = self.evaluate(save_model)
+        precision = self.evaluate(model)
         model_name = 'model_p%d.hdf5' % (int(precision * 1E6),)
-        save_model.save(os.path.join(self.root_dir, utils.MODELS_DIR, model_name))
+        model.save(os.path.join(self.root_dir, utils.MODELS_DIR, model_name))
 
     def load(self):
         model = keras.models.load_model(
@@ -168,22 +189,25 @@ def plot(y_true, y_pred, c_pred, c_boundary):
     plt.show()
 
 
-def get_accuracy(y_true, y_pred, c_pred, y_boundary, c_boundary):
+def get_accuracy(y_true, y_pred):
     tp, tn, fp, fn = 0, 0, 0, 0
-    for pi, ci, yi in zip(y_pred, c_pred, y_true):
-        if ci < c_boundary:
-            continue
-        if pi > y_boundary:
-            if yi > y_boundary:
+    for pi, yi in zip(y_pred, y_true):
+        yc = np.argmax(yi)
+        pc = np.argmax(pi)
+        if pc == 0:
+            if yc == 0:
                 tp += 1
-            elif yi < -y_boundary:
+            elif yc == 2:
                 fp += 1
-        else:
-            if yi > y_boundary:
+        elif pc == 2:
+            if yc == 0:
                 fn += 1
+            elif yc == 2:
+                tn += 1
     precision = tp / (tp + fp + 1E-7)
     recall = tp / (tp + fn + 1E-7)
-    return precision, recall
+    accuracy = (tp + tn) / (tp + fp + fn + tn + 1E-7)
+    return precision, recall, accuracy
 
 
 def main():
