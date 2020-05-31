@@ -20,7 +20,7 @@ class TradingSimulate(utils.TradingBase):
                  start_date=None,
                  end_date=None,
                  model=None,
-                 data_file=None,
+                 data_files=None,
                  write_data=False):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.output_dir = os.path.join(self.root_dir, utils.OUTPUTS_DIR,
@@ -31,8 +31,8 @@ class TradingSimulate(utils.TradingBase):
         self.write_data = write_data
 
         period = None
-        if data_file:
-            self.data_df = pd.read_csv(data_file)
+        if data_files:
+            self.data_df = pd.concat([pd.read_csv(data_file) for data_file in data_files])
             year_diff = (datetime.datetime.today().date().year -
                          pd.to_datetime(self.data_df.iloc[0].Date).year + 1)
             period = '%dy' % (year_diff,)
@@ -41,12 +41,12 @@ class TradingSimulate(utils.TradingBase):
                          pd.to_datetime(start_date).year + 2)
             year_diff = max(5, year_diff)
             period = '%dy' % (year_diff,)
-        if not (data_file or start_date):
+        if not (data_files or start_date):
             period = utils.DEFAULT_HISTORY_LOAD
         super(TradingSimulate, self).__init__(alpaca, period=period, model=model,
-                                              load_history=not bool(data_file))
-        self.data_file = data_file
-        if self.data_file:
+                                              load_history=not bool(data_files))
+        self.data_files = data_files
+        if self.data_files:
             self.start_date = start_date or self.data_df.iloc[0].Date
             self.end_date = end_date or self.data_df.iloc[-1].Date
             self.values = {'Total': (
@@ -247,7 +247,7 @@ class TradingSimulate(utils.TradingBase):
     def run(self):
         """Starts simulation."""
         # Buy on cutoff day, sell on cutoff + 1 day
-        if self.data_file:
+        if self.data_files:
             rows = []
             prev_date = ''
             for _, row in self.data_df.iterrows():
@@ -303,7 +303,7 @@ def main():
     parser.add_argument('--api_key', default=None, help='Alpaca API key.')
     parser.add_argument('--api_secret', default=None, help='Alpaca API secret.')
     parser.add_argument('--model', default=None, help='Keras model for weight prediction.')
-    parser.add_argument('--data_file', default=None, help='Read datafile for simulation.')
+    parser.add_argument('--data_files', default=None, nargs='*', help='Read datafile for simulation.')
     parser.add_argument("--write_data", help='Write data with ML features.',
                         action="store_true")
     args = parser.parse_args()
@@ -312,7 +312,7 @@ def main():
                            args.api_secret or os.environ['ALPACA_PAPER_API_SECRET'],
                            utils.ALPACA_PAPER_API_BASE_URL, 'v2')
     trading = TradingSimulate(alpaca, args.start_date, args.end_date,
-                              args.model, args.data_file,
+                              args.model, args.data_files,
                               args.write_data)
     trading.run()
 

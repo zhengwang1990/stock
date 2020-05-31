@@ -190,7 +190,7 @@ def main():
     parser = argparse.ArgumentParser(description='Stock trading ML model.')
     parser.add_argument('--model', default=None,
                         help='Model name to load')
-    parser.add_argument('--data_files', required=True, nargs='*',
+    parser.add_argument('--data_files', required=True, nargs='+',
                         help='Data to train on.')
     parser.add_argument('--train_iter', type=int, default=DEFAULT_TRAIN_ITER,
                         help='Iterations in training.')
