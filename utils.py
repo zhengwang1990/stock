@@ -28,7 +28,7 @@ DEFAULT_HISTORY_LOAD = '5y'
 MAX_STOCK_PICK = 8
 MAX_PROPORTION = 0.25
 VOLUME_FILTER_THRESHOLD = 1000000
-ML_FEATURES = [
+ML_TECH_FEATURES = [
     'Today_Change',
     'Yesterday_Change',
     'Day_Before_Yesterday_Change',
@@ -42,7 +42,9 @@ ML_FEATURES = [
     'RSI',
     'MACD_Rate',
     'TSI',
-    'VIX'] + ['c_' + str(i) for i in range(1, 51)]
+    'VIX']
+ML_TIME_FEATURES = ['c_' + str(i) for i in range(1, 51)]
+ML_FEATURES = ML_TECH_FEATURES + ML_TIME_FEATURES
 ALPACA_API_BASE_URL = 'https://api.alpaca.markets'
 ALPACA_PAPER_API_BASE_URL = 'https://paper-api.alpaca.markets'
 DEFAULT_MODEL = 'model_p727217.hdf5'
@@ -287,7 +289,7 @@ class TradingBase(object):
                         if close_year[i] < np.max(close_year[i - DATE_RANGE:i])]
         if not down_percent:
             return 0
-        threshold = np.percentile(down_percent, 5)
+        threshold = np.mean(down_percent) - 2.5 * np.std(down_percent)
         return threshold
 
 

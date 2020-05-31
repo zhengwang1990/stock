@@ -124,14 +124,19 @@ class TradingSimulate(utils.TradingBase):
             logging.info('\n'.join(outputs))
 
     def analyze_rows(self, sell_date_str, rows):
-        ml_features, symbols, gains = [], [], {}
+        X, T, symbols, gains = [], [], [], {}
         for row in rows:
-            ml_features.append([getattr(row, key) for key in utils.ML_FEATURES])
+            x_value = [row[col] for col in utils.ML_TECH_FEATURES]
+            t_value = [[row[col]] for col in utils.ML_TIME_FEATURES]
+            X.append(x_value)
+            T.append(t_value)
             symbols.append(row.Symbol)
             gains[row.Symbol] = row.Gain
-        ml_features = np.array(ml_features)
-        weights = self.model.predict(ml_features)
-        buy_symbols = [(symbol, weight) for symbol, weight in zip(symbols, weights)]
+        X = np.array(X)
+        T = np.array(T)
+        weights, confidences = self.model.predict([X, T])
+        buy_symbols = [(symbol, weight) for symbol, weight, confidence in zip(symbols, weights, confidences)
+                       if confidence > 0.5]
         trading_list = self.get_trading_list(buy_symbols=buy_symbols)
         trading_table = []
         daily_gain = 0
@@ -245,7 +250,7 @@ class TradingSimulate(utils.TradingBase):
         if self.data_file:
             rows = []
             prev_date = ''
-            for row in self.data_df.itertuples():
+            for _, row in self.data_df.iterrows():
                 current_date = row.Date
                 if current_date < self.start_date or current_date > self.end_date:
                     continue
