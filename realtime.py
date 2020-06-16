@@ -292,7 +292,7 @@ class TradingRealTime(utils.TradingBase):
         orders_table = []
         positions = self.alpaca.list_positions()
         existing_positions = {position.symbol: int(position.qty) for position in positions}
-        for symbol, proportion, _ in self.trading_list:
+        for symbol, proportion, _, _ in self.trading_list:
             if proportion == 0:
                 continue
             adjust = 1 if order_type == 'limit' else 0.98
@@ -348,7 +348,7 @@ class TradingRealTime(utils.TradingBase):
     def print_trading_list(self, print_all=False):
         trading_table = []
         cost = 0
-        for symbol, proportion, weight in self.trading_list[:100]:
+        for symbol, proportion, weight, _ in self.trading_list[:100]:
             if proportion == 0 and not print_all:
                 continue
             trading_row = [symbol, '%.2f%%' % (proportion * 100,), weight]

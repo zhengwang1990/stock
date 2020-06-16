@@ -18,7 +18,8 @@ import yfinance as yf
 from parameterized import parameterized
 
 Clock = collections.namedtuple('Clock', ['is_open', 'next_close'])
-Asset = collections.namedtuple('Asset', ['symbol', 'tradable'])
+Asset = collections.namedtuple('Asset', ['symbol', 'tradable', 'marginable',
+                                         'shortable', 'easy_to_borrow'])
 Account = collections.namedtuple('Account', ['equity', 'cash'])
 LastTrade = collections.namedtuple('LastTrade', ['price'])
 Position = collections.namedtuple('Position', ['symbol', 'qty', 'current_price',
@@ -54,7 +55,7 @@ class TradingRealTimeTest(unittest.TestCase):
         self.patch_history.start()
         self.alpaca = mock.create_autospec(tradeapi.REST)
         self.alpaca.get_account.return_value = Account(2000, 2000)
-        self.alpaca.list_assets.return_value = [Asset(symbol, True)
+        self.alpaca.list_assets.return_value = [Asset(symbol, True, True, True, True)
                                                 for symbol in [utils.REFERENCE_SYMBOL,
                                                                'SYMA', 'SYMB', 'SYMC']]
         fake_next_close = mock.Mock()

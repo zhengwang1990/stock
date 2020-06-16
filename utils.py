@@ -1,5 +1,5 @@
-import datetime
 import functools
+import io
 import logging
 import numpy as np
 import os
@@ -24,7 +24,7 @@ CACHE_DIR = 'cache'
 DATA_DIR = 'data'
 OUTPUTS_DIR = 'outputs'
 MODELS_DIR = 'models'
-DEFAULT_HISTORY_LOAD = '5y'
+DEFAULT_HISTORY_LOAD = '2y'
 MAX_STOCK_PICK = 8
 MAX_PROPORTION = 0.25
 VOLUME_FILTER_THRESHOLD = 1000000
@@ -61,36 +61,53 @@ class NotFoundError(Exception):
 class TradingBase(object):
     """Basic trade utils."""
 
-    def __init__(self, alpaca, period=None, model=None, load_history=True):
+    def __init__(self, alpaca, period=None, start_date=None, end_date=None,
+                 model=None, load_history=True):
         model = model or DEFAULT_MODEL
         self.alpaca = alpaca
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.model = keras.models.load_model(os.path.join(self.root_dir, MODELS_DIR, model))
         self.hists, self.closes, self.volumes = {}, {}, {}
         self.symbols = []
-        self.period = period or DEFAULT_HISTORY_LOAD
-        self.cache_path = os.path.join(self.root_dir, CACHE_DIR, get_business_day(1))
-        os.makedirs(os.path.join(self.cache_path, self.period), exist_ok=True)
+        self.period = period
+        self.start_date = start_date
+        self.end_date = end_date
+        if not period:
+            if not start_date and not end_date:
+                self.period = DEFAULT_HISTORY_LOAD
+            if end_date:
+                e = min(pd.to_datetime(end_date) + pd.tseries.offsets.BDay(1), pd.datetime.today())
+                self.end_date = e.strftime('%Y-%m-%d')
+            else:
+                self.end_date = pd.datetime.today().strftime('%Y-%m-%d')
+            if start_date:
+                s = pd.to_datetime(start_date)
+                self.start_date = '%4d-%02d-%02d' % (s.year-1, s.month, s.day)
+        cache_root = os.path.join(self.root_dir, CACHE_DIR, get_business_day(0))
+        if self.period:
+            self.cache_path = os.path.join(cache_root, self.period)
+        else:
+            self.cache_path = os.path.join(cache_root, self.start_date, self.end_date)
+        os.makedirs(self.cache_path, exist_ok=True)
         self.is_market_open = self.alpaca.get_clock().is_open
-        self.history_length = self.get_history_length(self.period)
-        self.history_dates = self.get_history_dates(self.period)
+        self.history_length = self.get_history_length()
+        self.history_dates = self.get_history_dates()
         if not load_history:
             return
         self.load_all_symbols()
-        self.load_histories(self.period)
-        self.read_series_from_histories(self.period)
+        self.load_histories()
+        self.read_series_from_histories()
 
     def load_all_symbols(self):
         """Loads all tradable symbols on Alpaca."""
         assets = self.alpaca.list_assets()
         self.symbols = ['^VIX'] + [
             asset.symbol for asset in assets
-            if re.match('^[A-Z]*$', asset.symbol)
-               and asset.symbol not in EXCLUSIONS
-               and asset.tradable]
+            if re.match('^[A-Z]*$', asset.symbol) and asset.symbol not in EXCLUSIONS
+               and asset.tradable and asset.marginable and asset.shortable and asset.easy_to_borrow]
 
     @retrying.retry(stop_max_attempt_number=10, wait_fixed=1000 * 60 * 10)
-    def load_histories(self, period):
+    def load_histories(self):
         """Loads history of all stock symbols."""
         logging.info('Loading stock histories...')
         threads = []
@@ -99,7 +116,7 @@ class TradingBase(object):
 
         with futures.ThreadPoolExecutor(max_workers=5) as pool:
             for symbol in self.symbols:
-                t = pool.submit(self.load_history, symbol, period)
+                t = pool.submit(self.load_history, symbol)
                 threads.append(t)
             iterator = tqdm(threads, ncols=80) if sys.stdout.isatty() else threads
             for t in iterator:
@@ -108,35 +125,39 @@ class TradingBase(object):
                 except Exception as e:
                     logging.error('Error occurred in load_histories: %s', e)
                     error_tol -= 1
-                    if error_tol <= 0:
+                    if self.period and error_tol <= 0:
                         raise e
 
-    def read_series_from_histories(self, period):
+    def read_series_from_histories(self):
         """Reads out close price and volume."""
         for symbol, hist in self.hists.items():
             close = hist.get('Close')
             volume = hist.get('Volume')
             self.closes[symbol] = np.array(close)
             self.volumes[symbol] = np.array(volume)
-        logging.info('Attempt to load %d symbols', len(self.symbols))
-        logging.info('%d loaded symbols after drop symbols traded less than %s',
-                     len(self.closes), period)
+        logging.info('Attempt to load %d symbols, and %d symbols actually loaded',
+                     len(self.symbols), len(self.closes))
 
     @retrying.retry(stop_max_attempt_number=3, wait_fixed=1000)
-    def load_history(self, symbol, period):
+    def load_history(self, symbol):
         """Loads history for a single symbol."""
-        cache_name = os.path.join(self.cache_path, self.period, 'history_%s.csv' % (symbol,))
+        cache_name = os.path.join(self.cache_path, 'history_%s.csv' % (symbol,))
         if os.path.isfile(cache_name):
             hist = pd.read_csv(cache_name, index_col=0, parse_dates=True)
         else:
             tk = yf.Ticker(symbol)
-            hist = tk.history(period=period, interval='1d')
+            if self.period:
+                hist = tk.history(period=self.period, interval='1d')
+            else:
+                hist = tk.history(start=self.start_date, end=self.end_date, interval='1d')
             if len(hist):
                 hist.to_csv(cache_name)
-            else:
+            elif self.period:
                 raise NotFoundError('History of %s not found' % (symbol,))
+            else:
+                return
         hist.dropna(inplace=True)
-        drop_key = datetime.datetime.today().date()
+        drop_key = pd.datetime.today().date()
         if self.is_market_open and drop_key in hist.index:
             hist.drop(drop_key, inplace=True)
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:
@@ -146,14 +167,14 @@ class TradingBase(object):
             raise Exception('Error loading %s: expect length %d, but got %d.' % (
                 symbol, self.history_length, len(hist)))
 
-    def get_history_length(self, period):
-        """Get the number of trading days in a given period."""
-        self.load_history(REFERENCE_SYMBOL, period=period)
+    def get_history_length(self):
+        """Get the number of trading days in the period of interest."""
+        self.load_history(REFERENCE_SYMBOL)
         return len(self.hists[REFERENCE_SYMBOL])
 
-    def get_history_dates(self, period):
-        """Gets the list trading dates in a given period."""
-        self.load_history(REFERENCE_SYMBOL, period=period)
+    def get_history_dates(self):
+        """Gets the list trading dates in the period of interest."""
+        self.load_history(REFERENCE_SYMBOL)
         return self.hists[REFERENCE_SYMBOL].index
 
     def get_buy_symbols(self, prices=None, cutoff=None, skip_prediction=False):
@@ -219,14 +240,16 @@ class TradingBase(object):
         """Gets a list of symbols with trading information."""
         if buy_symbols is None:
             buy_symbols = self.get_buy_symbols(**kwargs)
-        buy_symbols.sort(key=lambda s: s[1], reverse=True)
-        n_symbols = min(MAX_STOCK_PICK, len(buy_symbols))
+        trading_info = []
+        for symbol, classification, _ in buy_symbols:
+            trading_info.append((symbol, classification, 'long'))
+        trading_info.sort(key=lambda s: s[1], reverse=True)
+        n_symbols = min(MAX_STOCK_PICK, len(trading_info))
         trading_list = []
-        for i in range(len(buy_symbols)):
-            symbol = buy_symbols[i][0]
-            weight = buy_symbols[i][1]
+        for i in range(len(trading_info)):
+            symbol, weight, side = trading_info[i]
             proportion = min(1 / n_symbols, MAX_PROPORTION) if i < n_symbols else 0
-            trading_list.append((symbol, proportion, weight))
+            trading_list.append((symbol, proportion, weight, side))
         return trading_list
 
     def get_ml_feature(self, symbol, prices=None, cutoff=None):
@@ -294,7 +317,7 @@ class TradingBase(object):
 
 
 def get_business_day(offset):
-    day = datetime.datetime.today() - pd.tseries.offsets.BDay(offset) if offset else datetime.datetime.today()
+    day = pd.datetime.today() - pd.tseries.offsets.BDay(offset)
     return '%4d-%02d-%02d' % (day.year, day.month, day.day)
 
 

@@ -14,7 +14,8 @@ import utils
 import yfinance as yf
 
 Clock = collections.namedtuple('Clock', ['is_open'])
-Asset = collections.namedtuple('Asset', ['symbol', 'tradable'])
+Asset = collections.namedtuple('Asset', ['symbol', 'tradable', 'marginable',
+                                         'shortable', 'easy_to_borrow'])
 
 
 class TradingSimulateTest(unittest.TestCase):
@@ -47,7 +48,7 @@ class TradingSimulateTest(unittest.TestCase):
         self.patch_history = mock.patch.object(yf.Ticker, 'history', return_value=fake_history_data)
         self.patch_history.start()
         self.alpaca = mock.create_autospec(tradeapi.REST)
-        self.alpaca.list_assets.return_value = [Asset(symbol, True)
+        self.alpaca.list_assets.return_value = [Asset(symbol, True, True, True, True)
                                                 for symbol in [utils.REFERENCE_SYMBOL,
                                                                'SYMA', 'SYMB', 'QQQ']]
         self.alpaca.get_clock.return_value = Clock(False)

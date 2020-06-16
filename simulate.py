@@ -34,16 +34,10 @@ class TradingSimulate(utils.TradingBase):
         if data_files:
             self.data_df = pd.concat([pd.read_csv(data_file) for data_file in data_files])
             year_diff = (datetime.datetime.today().date().year -
-                         pd.to_datetime(self.data_df.iloc[0].Date).year + 1)
+                         pd.to_datetime(self.data_df.iloc[0]['Date']).year + 1)
             period = '%dy' % (year_diff,)
-        if start_date:
-            year_diff = (datetime.datetime.today().date().year -
-                         pd.to_datetime(start_date).year + 2)
-            year_diff = max(5, year_diff)
-            period = '%dy' % (year_diff,)
-        if not (data_files or start_date):
-            period = utils.DEFAULT_HISTORY_LOAD
-        super(TradingSimulate, self).__init__(alpaca, period=period, model=model,
+        super(TradingSimulate, self).__init__(alpaca, period=period, start_date=start_date,
+                                              end_date=end_date, model=model,
                                               load_history=not bool(data_files))
         self.data_files = data_files
         if self.data_files:
@@ -67,6 +61,7 @@ class TradingSimulate(utils.TradingBase):
                 stats_cols = ['Symbol', 'Date'] + utils.ML_FEATURES + ['Gain']
                 self.stats = pd.DataFrame(columns=stats_cols)
             self.values = {'Total': ([self.history_dates[self.start_point - 1]], [1.0])}
+        self.win_trades, self.lose_trades = 0, 0
         signal.signal(signal.SIGINT, self.safe_exit)
 
     def safe_exit(self, signum, frame):
@@ -87,7 +82,7 @@ class TradingSimulate(utils.TradingBase):
         trading_list = self.get_trading_list(buy_symbols=buy_symbols)
         trading_table = []
         daily_gain = 0
-        for symbol, proportion, weight in trading_list:
+        for symbol, proportion, weight, _ in trading_list:
             if proportion == 0:
                 continue
             close = self.closes[symbol]
@@ -130,32 +125,36 @@ class TradingSimulate(utils.TradingBase):
             t_value = [[row[col]] for col in utils.ML_TIME_FEATURES]
             X.append(x_value)
             T.append(t_value)
-            symbols.append(row.Symbol)
-            gains[row.Symbol] = row.Gain
+            symbols.append(row['Symbol'])
+            gains[row.Symbol] = row['Gain']
         X = np.array(X)
         T = np.array(T)
-        weights, confidences = self.model.predict([X, T])
-        buy_symbols = [(symbol, weight) for symbol, weight, confidence in zip(symbols, weights, confidences)
-                       if confidence > 0.9]
+        classifications = self.model.predict([X, T])
+        buy_symbols = [(symbol, classification, None) for symbol, classification in zip(symbols, classifications)]
         trading_list = self.get_trading_list(buy_symbols=buy_symbols)
         trading_table = []
         daily_gain = 0
-        for symbol, proportion, weight in trading_list:
+        for symbol, proportion, weight, side in trading_list:
             if proportion == 0:
                 continue
-            gain = gains[symbol]
+            gain = gains[symbol] if side == 'long' else -gains[symbol]
             # > 100% gain might caused by stock split. Do not calculate.
             if gain >= 1:
                 continue
+            if gain > 0:
+                self.win_trades += 1
+            elif gain < 0:
+                self.lose_trades += 1
             trading_table.append([symbol, '%.2f%%' % (proportion * 100,),
                                   weight,
+                                  side,
                                   '%.2f%%' % (gain * 100,)])
             daily_gain += gain * proportion
         outputs = [utils.get_header(sell_date_str)]
         if trading_table:
             outputs.append(tabulate(
                 trading_table,
-                headers=['Symbol', 'Proportion', 'Weight', 'Gain'],
+                headers=['Symbol', 'Proportion', 'Weight', 'Side', 'Gain'],
                 tablefmt='grid'))
         self.add_profit(pd.to_datetime(sell_date_str), daily_gain, outputs)
 
@@ -177,7 +176,8 @@ class TradingSimulate(utils.TradingBase):
         summary_table = [['Daily Gain', '%+.2f%%' % (daily_gain * 100),
                           'Quarterly Gain', '%+.2f%%' % ((self.values[quarter][1][-1] - 1) * 100,),
                           'Yearly Gain', '%+.2f%%' % ((self.values[year][1][-1] - 1) * 100,),
-                          'Total Gain', '%+.2f%%' % ((total_value - 1) * 100,)]]
+                          'Total Gain', '%+.2f%%' % ((total_value - 1) * 100,)],
+                         ['Win Trades', self.win_trades, 'Lose Trades', self.lose_trades]]
         outputs.append(tabulate(summary_table, tablefmt='grid'))
         logging.info('\n'.join(outputs))
 

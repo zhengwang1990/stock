@@ -23,19 +23,19 @@ class ML(object):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.df = pd.concat([pd.read_csv(data_file) for data_file in data_files])
         self.X, self.T, self.y = [], [], []
+        self.symbols = []
         for _, row in self.df.iterrows():
             x_value = [row[col] for col in utils.ML_TECH_FEATURES]
             t_value = [[row[col]] for col in utils.ML_TIME_FEATURES]
             gain = row['Gain']
-            if gain >= 0.01:
-                y_value = [1, 0, 0]
-            elif gain <= -0.01:
-                y_value = [0, 1, 0]
+            if gain > 0:
+                y_value = [1, 0]
             else:
-                y_value = [0, 0, 1]
+                y_value = [0, 1]
             self.X.append(x_value)
             self.T.append(t_value)
             self.y.append(y_value)
+            self.symbols.append([row['Symbol'], row['Date'], gain])
         self.X = np.array(self.X)
         self.T = np.array(self.T)
         self.y = np.array(self.y, dtype=np.float32)
@@ -59,9 +59,7 @@ class ML(object):
     def create_model():
         x_input = keras.layers.Input(shape=(len(utils.ML_TECH_FEATURES, )), name='x_input')
         x = keras.layers.Dense(50, activation='relu', name='x_dense_1')(x_input)
-        x = keras.layers.Dense(20, activation='relu', name='x_dense_2')(x)
-        x = keras.layers.Dense(10, activation='relu', name='x_dense_3')(x)
-        x = keras.layers.Dropout(0.2, name='x_dropout')(x)
+        x = keras.layers.Dropout(0.3, name='x_dropout')(x)
 
         t_input = keras.layers.Input(shape=(len(utils.ML_TIME_FEATURES), 1), name='t_input')
         t = keras.layers.Conv1D(4, kernel_size=3, activation='relu', use_bias=False, name='t_conv_1')(t_input)
@@ -74,11 +72,11 @@ class ML(object):
         t = keras.layers.Conv1D(64, kernel_size=3, activation='relu', use_bias=False, name='t_conv_6')(t)
         t = keras.layers.MaxPool1D(pool_size=2, name='t_pool_3')(t)
         t = keras.layers.Flatten(name='t_flatten')(t)
-        t = keras.layers.Dropout(0.3, name='t_dropout')(t)
+        t = keras.layers.Dropout(0.5, name='t_dropout')(t)
 
         info = keras.layers.concatenate([x, t])
 
-        r = keras.layers.Dense(3, activation='softmax', name='classification',
+        r = keras.layers.Dense(2, activation='softmax', name='classification',
                                kernel_regularizer=keras.regularizers.l2(0.1))(info)
 
         model = keras.Model(inputs=[x_input, t_input], outputs=r)
@@ -89,7 +87,7 @@ class ML(object):
 
     def fit_model(self, model):
         early_stopping = keras.callbacks.EarlyStopping(
-            monitor='val_loss', patience=5, restore_best_weights=True)
+            monitor='val_loss', patience=50, restore_best_weights=True)
         model.fit([self.X_train, self.T_train], self.y_train, batch_size=512, epochs=1000,
                   sample_weight=self.w_train,
                   validation_data=([self.X_test, self.T_test], self.y_test, self.w_test),
@@ -100,32 +98,30 @@ class ML(object):
         y_true = self.y
         precision, recall, accuracy = get_accuracy(y_true, y_pred)
 
-        c_matrix = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+        c_matrix = [[0, 0], [0, 0], [0, 0]]
         for yi, pi in zip(y_true, y_pred):
             c_true = np.argmax(yi)
             c_pred = np.argmax(pi)
             c_matrix[c_true][c_pred] += 1
         pos_true = np.sum(c_matrix[0])
-        neg_true = np.sum(c_matrix[2])
-        pos_pred = c_matrix[0][0] + c_matrix[1][0] + c_matrix[2][0]
+        neg_true = np.sum(c_matrix[1])
+        pos_pred = c_matrix[0][0] + c_matrix[1][0]
         baseline = pos_true / (pos_true + neg_true + 1E-7)
         print(utils.get_header('Examples'))
         example_count = 30
         examples = []
-        for i in range(example_count):
+        for i in np.random.choice(len(y_true), min(len(y_true), example_count)):
             if np.argmax(y_true[i]) == np.argmax(y_pred[i]):
                 correct = 'Y'
-            elif np.argmax(y_true[i]) == 1:
-                correct = 'I'
             else:
                 correct = 'N'
-            examples.append([y_true[i], y_pred[i], correct])
-        print(tabulate(examples, tablefmt='grid', headers=['Truth', 'Prediction', 'Correct']))
+            examples.append(self.symbols[i] + [y_true[i], y_pred[i], correct])
+        print(tabulate(examples, tablefmt='grid',
+                       headers=['Symbol', 'Date', 'Gain', 'Truth', 'Prediction', 'Correct']))
         print(utils.get_header('Classification Matrix'))
-        matrix = [['', 'Prediction Gain', 'Prediction Flat', 'Prediction Loss'],
+        matrix = [['', 'Prediction Gain', 'Prediction Loss'],
                   ['Truth Gain'] + c_matrix[0],
-                  ['Truth Flat'] + c_matrix[1],
-                  ['Truth Loss'] + c_matrix[2]]
+                  ['Truth Loss'] + c_matrix[1]]
         print(tabulate(matrix, tablefmt='grid'))
         print(utils.get_header('Model Stats'))
         output = [['Precision', '%.2f%%' % (precision * 100,)],
@@ -197,12 +193,12 @@ def get_accuracy(y_true, y_pred):
         if pc == 0:
             if yc == 0:
                 tp += 1
-            elif yc == 2:
+            elif yc == 1:
                 fp += 1
-        elif pc == 2:
+        elif pc == 1:
             if yc == 0:
                 fn += 1
-            elif yc == 2:
+            elif yc == 1:
                 tn += 1
     precision = tp / (tp + fp + 1E-7)
     recall = tp / (tp + fn + 1E-7)
