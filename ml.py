@@ -1,226 +1,177 @@
 import argparse
 import numpy as np
-import pandas as pd
+import logging
 import os
-import tensorflow as tf
-import tensorflow.keras as keras
-import tensorflow.keras.backend as K
-import matplotlib.pyplot as plt
+import pandas as pd
+import pickle
 import utils
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold
+from sklearn import ensemble
+from sklearn import metrics
 from tabulate import tabulate
 
 NON_ML_FEATURE_COLUMNS = ['Gain', 'Symbol', 'Date']
-DEFAULT_TRAIN_ITER = 1
+
+
+def print_metrics(y_true, y_pred, y_meta, title_prefix=''):
+    outputs = []
+    confusion_matrix_main = metrics.confusion_matrix(y_true, y_pred, labels=[0, 1])
+    confusion_table_main = [['', 'Predict Short', 'Predict Long'],
+                            ['True Short', confusion_matrix_main[0][0], confusion_matrix_main[0][1]],
+                            ['True Long', confusion_matrix_main[1][0], confusion_matrix_main[1][1]]]
+    outputs.extend([utils.get_header(title_prefix + 'Main Confusion Matrix'),
+                    tabulate(confusion_table_main, tablefmt='grid')])
+
+    threshold = np.percentile(y_meta, 90)
+    indices = [i for i in range(len(y_meta)) if y_meta[i] > threshold]
+    dropped = len(y_meta) - len(indices)
+    outputs.append('Threshold: %.2f. %d (%.1f%%) samples dropped. %d (%.1f%%) samples preserved.' % (
+        threshold, dropped, dropped / len(y_meta) * 100, len(indices), len(indices) / len(y_meta) * 100))
+    y_true_meta = y_true[indices]
+    y_pred_meta = y_pred[indices]
+    confusion_matrix_final = metrics.confusion_matrix(y_true_meta, y_pred_meta, labels=[0, 1])
+    confusion_table_final = [['', 'Predict Short', 'Predict Long'],
+                             ['True Short', confusion_matrix_final[0][0], confusion_matrix_final[0][1]],
+                             ['True Long', confusion_matrix_final[1][0], confusion_matrix_final[1][1]]]
+    outputs.extend([utils.get_header(title_prefix + 'Final Confusion Matrix'),
+                    tabulate(confusion_table_final, tablefmt='grid')])
+
+    accuracy_main = metrics.accuracy_score(y_true, y_pred)
+    accuracy_final = metrics.accuracy_score(y_true_meta, y_pred_meta)
+    benchmark = np.sum(y_true == 1) / len(y_true)
+    benchmark = benchmark if benchmark > 0.5 else 1 - benchmark
+    accuracy_table = [['Accuracy Main', accuracy_main],
+                      ['Accuracy Final', accuracy_final],
+                      ['Benchmark', benchmark]]
+    outputs.extend([utils.get_header(title_prefix + 'Accuracy'),
+                    tabulate(accuracy_table, tablefmt='grid')])
+
+    logging.info('\n'.join(outputs))
+    return accuracy_final
 
 
 class ML(object):
 
-    def __init__(self, data_files, model=None, train_iter=DEFAULT_TRAIN_ITER):
+    def __init__(self, data_files, model_suffix=None):
         data_files = data_files
-        self.model = model
-        self.train_iter = train_iter
+        self.model_suffix = model_suffix
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
+        logging.info('Reading csv data...')
         self.df = pd.concat([pd.read_csv(data_file) for data_file in data_files])
-        self.X, self.T, self.y = [], [], []
+        self.X, self.y = [], []
         self.symbols = []
+        logging.info('Processing data...')
         for _, row in self.df.iterrows():
-            x_value = [row[col] for col in utils.ML_TECH_FEATURES]
-            t_value = [[row[col]] for col in utils.ML_TIME_FEATURES]
             gain = row['Gain']
             if gain > 0:
-                y_value = [1, 0]
+                y_value = 1
+            elif gain < 0:
+                y_value = 0
             else:
-                y_value = [0, 1]
+                continue
+            x_value = [row[col] for col in utils.ML_FEATURES]
             self.X.append(x_value)
-            self.T.append(t_value)
             self.y.append(y_value)
             self.symbols.append([row['Symbol'], row['Date'], gain])
         self.X = np.array(self.X)
-        self.T = np.array(self.T)
-        self.y = np.array(self.y, dtype=np.float32)
-        self.w = 0.3 + np.arange(len(self.df)) / len(self.df) * 0.7
-        split_result = train_test_split(self.X, self.T, self.y, self.w, test_size=0.1, random_state=0)
-        self.X_train, self.X_test = split_result[0:2]
-        self.T_train, self.T_test = split_result[2:4]
-        self.y_train, self.y_test = split_result[4:6]
-        self.w_train, self.w_test = split_result[6:8]
+        self.y = np.array(self.y)
+        self.w = 0.3 + np.arange(len(self.X)) / len(self.X) * 0.7
+        logging.info('%d data samples loaded', len(self.X))
+        self.hyper_parameters = {'max_depth': len(utils.ML_FEATURES),
+                                 'min_samples_leaf': 0.005,
+                                 'n_jobs': -1}
+        logging.info('Model hyper-parameters: %s', self.hyper_parameters)
 
-    @staticmethod
-    def loss_function(c_layer):
-        def _loss(y_true, y_pred):
-            if not tf.is_tensor(y_pred):
-                y_pred = tf.constant(y_pred)
-            return K.mean(c_layer * K.square(y_pred - y_true) + 0.8 * (1 - c_layer), axis=-1)
+    def k_fold_cross_validation(self, k):
+        main_model = ensemble.RandomForestClassifier(**self.hyper_parameters)
+        meta_model = ensemble.RandomForestRegressor(**self.hyper_parameters)
+        k_fold = KFold(n_splits=k, shuffle=True, random_state=0)
+        fold = 1
+        accuracy_sum = 0
+        accuracy_table = []
+        for train_index, test_index in k_fold.split(self.X):
+            X_train = self.X[train_index]
+            X_test = self.X[test_index]
+            y_train = self.y[train_index]
+            y_test = self.y[test_index]
+            w_train = self.w[train_index]
+            logging.info('[Fold %d] %d training samples, %d testing samples',
+                         fold, len(X_train), len(X_test))
+            logging.info('[Fold %d] Fitting main model...', fold)
+            main_model.fit(X_train, y_train, sample_weight=w_train)
+            y_train_pred = main_model.predict(X_train)
+            y_diff = y_train == y_train_pred
+            y_diff = y_diff.astype(np.int)
+            logging.info('[Fold %d] Fitting meta model...', fold)
+            meta_model.fit(X_train, y_diff)
+            y_train_meta = meta_model.predict(X_train)
+            print_metrics(y_train, y_train_pred, y_train_meta, 'Fold %d Training ' % (fold,))
+            y_test_pred = main_model.predict(X_test)
+            y_test_meta = meta_model.predict(X_test)
+            accuracy = print_metrics(y_test, y_test_pred, y_test_meta, 'Fold %d Testing ' % (fold,))
+            accuracy_table.append([str(fold), '%.2f%%' % (accuracy * 100,)])
+            accuracy_sum += accuracy
+            fold += 1
+        accuracy_table.append(['Average', '%.2f%%' % (accuracy_sum / k * 100)])
+        logging.info(utils.get_header('Model Accuracy') + '\n' +
+                     tabulate(accuracy_table, headers=['Fold', 'Accuracy'], tablefmt='grid'))
 
-        return _loss
-
-    @staticmethod
-    def create_model():
-        x_input = keras.layers.Input(shape=(len(utils.ML_TECH_FEATURES, )), name='x_input')
-        x = keras.layers.Dense(50, activation='relu', name='x_dense_1')(x_input)
-        x = keras.layers.Dropout(0.3, name='x_dropout')(x)
-
-        t_input = keras.layers.Input(shape=(len(utils.ML_TIME_FEATURES), 1), name='t_input')
-        t = keras.layers.Conv1D(4, kernel_size=3, activation='relu', use_bias=False, name='t_conv_1')(t_input)
-        t = keras.layers.Conv1D(8, kernel_size=3, activation='relu', use_bias=False, name='t_conv_2')(t)
-        t = keras.layers.MaxPool1D(pool_size=2, name='t_pool_1')(t)
-        t = keras.layers.Conv1D(8, kernel_size=3, activation='relu', use_bias=False, name='t_conv_3')(t)
-        t = keras.layers.Conv1D(16, kernel_size=3, activation='relu', use_bias=False, name='t_conv_4')(t)
-        t = keras.layers.MaxPool1D(pool_size=2, name='t_pool_2')(t)
-        t = keras.layers.Conv1D(32, kernel_size=3, activation='relu', use_bias=False, name='t_conv_5')(t)
-        t = keras.layers.Conv1D(64, kernel_size=3, activation='relu', use_bias=False, name='t_conv_6')(t)
-        t = keras.layers.MaxPool1D(pool_size=2, name='t_pool_3')(t)
-        t = keras.layers.Flatten(name='t_flatten')(t)
-        t = keras.layers.Dropout(0.5, name='t_dropout')(t)
-
-        info = keras.layers.concatenate([x, t])
-
-        r = keras.layers.Dense(2, activation='softmax', name='classification',
-                               kernel_regularizer=keras.regularizers.l2(0.1))(info)
-
-        model = keras.Model(inputs=[x_input, t_input], outputs=r)
-
-        model.compile(optimizer='adam', loss='mse')
-        model.summary()
-        return model
-
-    def fit_model(self, model):
-        early_stopping = keras.callbacks.EarlyStopping(
-            monitor='val_loss', patience=50, restore_best_weights=True)
-        model.fit([self.X_train, self.T_train], self.y_train, batch_size=512, epochs=1000,
-                  sample_weight=self.w_train,
-                  validation_data=([self.X_test, self.T_test], self.y_test, self.w_test),
-                  callbacks=[early_stopping])
-
-    def evaluate(self, model):
-        y_pred = model.predict([self.X, self.T])
-        y_true = self.y
-        precision, recall, accuracy = get_accuracy(y_true, y_pred)
-
-        c_matrix = [[0, 0], [0, 0], [0, 0]]
-        for yi, pi in zip(y_true, y_pred):
-            c_true = np.argmax(yi)
-            c_pred = np.argmax(pi)
-            c_matrix[c_true][c_pred] += 1
-        pos_true = np.sum(c_matrix[0])
-        neg_true = np.sum(c_matrix[1])
-        pos_pred = c_matrix[0][0] + c_matrix[1][0]
-        baseline = pos_true / (pos_true + neg_true + 1E-7)
-        print(utils.get_header('Examples'))
-        example_count = 30
-        examples = []
-        for i in np.random.choice(len(y_true), min(len(y_true), example_count)):
-            if np.argmax(y_true[i]) == np.argmax(y_pred[i]):
-                correct = 'Y'
-            else:
-                correct = 'N'
-            examples.append(self.symbols[i] + [y_true[i], y_pred[i], correct])
-        print(tabulate(examples, tablefmt='grid',
-                       headers=['Symbol', 'Date', 'Gain', 'Truth', 'Prediction', 'Correct']))
-        print(utils.get_header('Classification Matrix'))
-        matrix = [['', 'Prediction Gain', 'Prediction Loss'],
-                  ['Truth Gain'] + c_matrix[0],
-                  ['Truth Loss'] + c_matrix[1]]
-        print(tabulate(matrix, tablefmt='grid'))
-        print(utils.get_header('Model Stats'))
-        output = [['Precision', '%.2f%%' % (precision * 100,)],
-                  ['Recall', '%.2f%%' % (recall * 100,)],
-                  ['Accuracy', '%.2f%%' % (accuracy * 100,)],
-                  ['Baseline Precision', '%.2f%%' % (baseline * 100,)],
-                  ['Positive Count', pos_pred]]
-        print(tabulate(output, tablefmt='grid'))
-        #plot(y_true, y_pred)
-        return precision
+    def _get_model_paths(self, suffix):
+        main_model_path = os.path.join(self.root_dir, utils.MODELS_DIR, 'main_%s.p' % (suffix,))
+        meta_model_path = os.path.join(self.root_dir, utils.MODELS_DIR, 'meta_%s.p' % (suffix,))
+        return main_model_path, meta_model_path
 
     def train(self):
-        model = self.create_model()
-        self.fit_model(model)
-        precision = self.evaluate(model)
-        model_name = 'model_p%d.hdf5' % (int(precision * 1E6),)
-        model.save(os.path.join(self.root_dir, utils.MODELS_DIR, model_name))
+        main_model = ensemble.RandomForestClassifier(**self.hyper_parameters)
+        meta_model = ensemble.RandomForestRegressor(**self.hyper_parameters)
+        logging.info('Fitting main model...')
+        main_model.fit(self.X, self.y, sample_weight=self.w)
+        y_pred = main_model.predict(self.X)
+        y_diff = self.y == y_pred
+        y_diff = y_diff.astype(np.int)
+        logging.info('Fitting meta model...')
+        meta_model.fit(self.X, y_diff)
+        y_meta = meta_model.predict(self.X)
+        accuracy = print_metrics(self.y, y_pred, y_meta, 'Training ')
+        logging.info('Accuracy: %.2f%%', accuracy * 100)
+        main_model_path, meta_model_path = self._get_model_paths(str((np.round(accuracy*1E4))))
+        with open(main_model_path, 'wb') as f_main:
+            pickle.dump(main_model, f_main)
+        with open(meta_model_path, 'wb') as f_meta:
+            pickle.dump(meta_model, f_meta)
+        logging.info('Model saved at\n%s\n%s', main_model_path, meta_model_path)
 
-    def load(self):
-        model = keras.models.load_model(
-            os.path.join(self.root_dir, utils.MODELS_DIR, self.model))
-        model.summary()
-        self.evaluate(model)
-
-
-def plot(y_true, y_pred, c_pred, c_boundary):
-    points = {}
-    y_min = np.percentile(y_pred, 10)
-    y_max = np.percentile(y_pred, 90)
-    granularity = (y_max - y_min) / 10
-    for pi, ci, yi in zip(y_pred, c_pred, y_true):
-        if ci < c_boundary:
-            continue
-        p = (int(pi / granularity), int(yi / 0.1))
-        points[p] = points.get(p, 0) + 1
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(17, 17))
-    max_size = max(points.values())
-    for point, size in points.items():
-        ax1.plot([point[0] * granularity], [point[1] * 0.1], 'o', markersize=size / max_size * 12, c='C0')
-    ax1.grid('--')
-    ax1.set_xlim((y_min-0.1, y_max+0.1))
-    ax1.set_ylim((-1.5, 1.5))
-    ax1.set_xlabel('Prediction')
-    ax1.set_ylabel('Truth')
-    ax1.set_title('Scatter Plot')
-
-    ax2.hist(c_pred, bins=20)
-    ax2.set_xlabel('Confidence')
-    ax2.set_ylabel('Count')
-    ax2.set_title('Confidence Distribution')
-
-    ax3.hist(y_pred, bins=20)
-    ax3.set_xlabel('Prediction')
-    ax3.set_ylabel('Count')
-    ax3.set_title('Prediction Distribution')
-
-    ax4.hist(y_true, bins=20)
-    ax4.set_xlabel('Label')
-    ax4.set_ylabel('Count')
-    ax4.set_title('Truth Distribution')
-    plt.show()
-
-
-def get_accuracy(y_true, y_pred):
-    tp, tn, fp, fn = 0, 0, 0, 0
-    for pi, yi in zip(y_pred, y_true):
-        yc = np.argmax(yi)
-        pc = np.argmax(pi)
-        if pc == 0:
-            if yc == 0:
-                tp += 1
-            elif yc == 1:
-                fp += 1
-        elif pc == 1:
-            if yc == 0:
-                fn += 1
-            elif yc == 1:
-                tn += 1
-    precision = tp / (tp + fp + 1E-7)
-    recall = tp / (tp + fn + 1E-7)
-    accuracy = (tp + tn) / (tp + fp + fn + tn + 1E-7)
-    return precision, recall, accuracy
+    def evaluate(self):
+        main_model_path, meta_model_path = self._get_model_paths(self.model_suffix)
+        logging.info('Loading model...')
+        with open(main_model_path, 'rb') as f_main:
+            main_model = pickle.load(f_main)
+        with open(meta_model_path, 'rb') as f_meta:
+            meta_model = pickle.load(f_meta)
+        logging.info('Predicting...')
+        y_pred = main_model.predict(self.X)
+        y_meta = meta_model.predict(self.X)
+        print_metrics(self.y, y_pred, y_meta, 'Evaluation ')
 
 
 def main():
     parser = argparse.ArgumentParser(description='Stock trading ML model.')
-    parser.add_argument('--model', default=None,
-                        help='Model name to load')
+    parser.add_argument('--model_suffix', default=None,
+                        help='Model to load')
     parser.add_argument('--data_files', required=True, nargs='+',
                         help='Data to train on.')
-    parser.add_argument('--train_iter', type=int, default=DEFAULT_TRAIN_ITER,
-                        help='Iterations in training.')
+    parser.add_argument('--action', default='dev', choices=['dev', 'train', 'eval'])
     args = parser.parse_args()
-    ml = ML(args.data_files, args.model, args.train_iter)
-    print(args.data_files)
-    if args.model:
-        ml.load()
-    else:
+    utils.logging_config()
+    ml = ML(args.data_files, args.model_suffix)
+    if args.action == 'train':
         ml.train()
+    elif args.action == 'dev':
+        ml.k_fold_cross_validation(5)
+    elif args.action == 'eval':
+        ml.evaluate()
+    else:
+        raise ValueError('Invalid action')
 
 
 if __name__ == '__main__':
