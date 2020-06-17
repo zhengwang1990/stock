@@ -154,27 +154,7 @@ class TradingRealTime(utils.TradingBase):
 
     def update_ordered_symbols(self):
         """Re-orders self.ordered_symbols based on how likely symbols will be selected."""
-        tmp_ordered_symbols = []
-        order_weights = {}
-        for symbol, close in self.closes.items():
-            if symbol not in self.prices:
-                self.get_realtime_price(symbol)
-                if symbol not in self.prices:
-                    continue
-            price = self.prices[symbol]
-            today_change = price / close[-1] - 1
-            day_range_change = price / np.max(close[-utils.DATE_RANGE:]) - 1
-            threshold = self.thresholds[symbol]
-            tmp_ordered_symbols.append(symbol)
-            if day_range_change < threshold:
-                order_weights[symbol] = min(
-                    np.abs(day_range_change - threshold),
-                    np.abs(np.abs(today_change) - 0.5 * np.abs(day_range_change)))
-            else:
-                order_weights[symbol] = np.abs(day_range_change - threshold)
-        tmp_ordered_symbols.sort(key=lambda s: order_weights[s])
-        with self.lock:
-            self.ordered_symbols = tmp_ordered_symbols
+        self.ordered_symbols = list(self.prices.keys())
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
     def update_account(self):
@@ -354,19 +334,16 @@ class TradingRealTime(utils.TradingBase):
             trading_row = [symbol, '%.2f%%' % (proportion * 100,), weight]
             price = self.prices[symbol]
             change = (price - self.closes[symbol][-1]) / self.closes[symbol][-1]
-            day_range_change = price / np.max(self.closes[symbol][-utils.DATE_RANGE:]) - 1
             value = self.equity * proportion
             qty = int(value / price)
             share_cost = qty * price
             cost += share_cost
             trading_row.extend(['%+.2f%%' % (change * 100,),
-                                '%+.2f%%' % (day_range_change * 100,),
                                 '%+.2f%%' % (self.thresholds[symbol] * 100,), price,
                                 share_cost, qty])
             trading_table.append(trading_row)
         headers = ['Symbol', 'Proportion', 'Weight', 'Today Change',
-                   '%d Day Change' % (utils.DATE_RANGE,), 'Threshold', 'Price',
-                   'Cost', 'Quantity']
+                   'Threshold', 'Price', 'Cost', 'Quantity']
         outputs = []
         if trading_table:
             outputs.append(tabulate(trading_table, headers=headers, tablefmt='grid'))

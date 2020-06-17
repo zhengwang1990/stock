@@ -1,5 +1,4 @@
 import functools
-import io
 import logging
 import numpy as np
 import os
@@ -15,11 +14,13 @@ import yfinance as yf
 from concurrent import futures
 from exclusions import EXCLUSIONS
 from tqdm import tqdm
+from scipy import stats
 
-DATE_RANGE = 5
-DATE_RANGE_CHANGE_CEIL = -0.5
 REFERENCE_SYMBOL = 'AAPL'
 DAYS_IN_A_YEAR = 250
+DAYS_IN_A_WEEK = 5
+DAYS_IN_A_MONTH = 20
+DAYS_IN_A_QUARTER = 60
 CACHE_DIR = 'cache'
 DATA_DIR = 'data'
 OUTPUTS_DIR = 'outputs'
@@ -28,23 +29,27 @@ DEFAULT_HISTORY_LOAD = '2y'
 MAX_STOCK_PICK = 8
 MAX_PROPORTION = 0.25
 VOLUME_FILTER_THRESHOLD = 1000000
-ML_TECH_FEATURES = [
-    'Today_Change',
-    'Yesterday_Change',
-    'Day_Before_Yesterday_Change',
-    'Twenty_Day_Change',
-    'Sixty_Day_Change',
-    'Day_Range_Change',
-    'Year_High_Change',
-    'Year_Low_Change',
-    'Change_Average',
-    'Change_Variance',
+ML_FEATURES = [
+    'Day_1_Return',
+    'Day_2_Return',
+    'Day_3_Return',
+    'Weekly_Return',
+    'Monthly_Return',
+    'Quarterly_Return',
+    'From_Weekly_High',
+    'From_Weekly_Low',
     'RSI',
     'MACD_Rate',
     'TSI',
+    'Acceleration',
+    'Momentum',
+    'Weekly_Skewness',
+    'Monthly_Skewness',
+    'Weekly_Volatility',
+    'Monthly_Volatility',
+    'Z_Score',
+    'Monthly_Avg_Dollar_Volume',
     'VIX']
-ML_TIME_FEATURES = ['c_' + str(i) for i in range(1, 51)]
-ML_FEATURES = ML_TECH_FEATURES + ML_TIME_FEATURES
 ALPACA_API_BASE_URL = 'https://api.alpaca.markets'
 ALPACA_PAPER_API_BASE_URL = 'https://paper-api.alpaca.markets'
 DEFAULT_MODEL = 'model_p727217.hdf5'
@@ -69,6 +74,7 @@ class TradingBase(object):
         self.model = keras.models.load_model(os.path.join(self.root_dir, MODELS_DIR, model))
         self.hists, self.closes, self.volumes = {}, {}, {}
         self.symbols = []
+        self.sectors = {}
         self.period = period
         self.start_date = start_date
         self.end_date = end_date
@@ -82,7 +88,7 @@ class TradingBase(object):
                 self.end_date = pd.datetime.today().strftime('%Y-%m-%d')
             if start_date:
                 s = pd.to_datetime(start_date)
-                self.start_date = '%4d-%02d-%02d' % (s.year-1, s.month, s.day)
+                self.start_date = '%4d-%02d-%02d' % (s.year - 1, s.month, s.day)
         cache_root = os.path.join(self.root_dir, CACHE_DIR, get_business_day(0))
         if self.period:
             self.cache_path = os.path.join(cache_root, self.period)
@@ -102,9 +108,9 @@ class TradingBase(object):
         """Loads all tradable symbols on Alpaca."""
         assets = self.alpaca.list_assets()
         self.symbols = ['^VIX'] + [
-            asset.symbol for asset in assets
-            if re.match('^[A-Z]*$', asset.symbol) and asset.symbol not in EXCLUSIONS
-               and asset.tradable and asset.marginable and asset.shortable and asset.easy_to_borrow]
+                                      asset.symbol for asset in assets
+                                      if re.match('^[A-Z]*$', asset.symbol) and asset.symbol not in EXCLUSIONS
+                                         and asset.tradable and asset.marginable and asset.shortable and asset.easy_to_borrow]
 
     @retrying.retry(stop_max_attempt_number=10, wait_fixed=1000 * 60 * 10)
     def load_histories(self):
@@ -184,6 +190,7 @@ class TradingBase(object):
         """
         if not (prices or cutoff) or (prices and cutoff):
             raise Exception('Exactly one of prices or cutoff must be provided')
+        quarterly_volatility = {}
         buy_info = []
         iterator = (tqdm(self.closes.items(), ncols=80, leave=False)
                     if cutoff and sys.stdout.isatty() else self.closes.items())
@@ -198,28 +205,17 @@ class TradingBase(object):
                 close_year = close[-DAYS_IN_A_YEAR:]
                 volumes_year = self.volumes[symbol][-DAYS_IN_A_YEAR:]
             avg_trading_volume = np.average(np.multiply(
-                close_year[-20:], volumes_year[-20:]))
+                close_year[-DAYS_IN_A_MONTH:], volumes_year[-DAYS_IN_A_MONTH:]))
             # Enough trading volume
             if avg_trading_volume < VOLUME_FILTER_THRESHOLD:
                 continue
-            if prices:
-                price = prices.get(symbol, 1E10)
-            else:
-                price = close[cutoff]
-            threshold = self.get_threshold(symbol, cutoff)
-            day_range_max = np.max(close_year[-DATE_RANGE:])
-            day_range_change = price / day_range_max - 1
-            today_change = price / close_year[-1] - 1
-            price_month_ago = np.average(close_year[-25:-20])
-            # Already surge
-            if day_range_max > price_month_ago * 1.5:
+            # Unable to get realtime price
+            if prices and symbol not in prices:
                 continue
-            # Today change is tamed
-            if np.abs(today_change) > 0.5 * np.abs(day_range_change):
-                continue
-            # Enough drop but not too crazy
-            if threshold > day_range_change > DATE_RANGE_CHANGE_CEIL:
-                buy_info.append(symbol)
+            quarterly_volatility[symbol] = self.get_volatility(symbol, DAYS_IN_A_QUARTER, cutoff)
+
+        buy_info = sorted(quarterly_volatility.keys(),
+                          key=lambda s: quarterly_volatility[s], reverse=True)[:200]
 
         buy_symbols, ml_features, X = [], [], []
         for symbol in buy_info:
@@ -253,6 +249,7 @@ class TradingBase(object):
         return trading_list
 
     def get_ml_feature(self, symbol, prices=None, cutoff=None):
+        feature = {}
         if prices:
             price = prices.get(symbol, 1E10)
             vix = prices['^VIX']
@@ -262,42 +259,49 @@ class TradingBase(object):
 
         if cutoff:
             close = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
+            volume = self.volumes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
         else:
             close = self.closes[symbol][-DAYS_IN_A_YEAR:]
-        # Basic stats
-        day_range_change = price / np.max(close[-DATE_RANGE:]) - 1
-        today_change = price / close[-1] - 1
-        yesterday_change = close[-1] / close[-2] - 1
-        day_before_yesterday_change = close[-2] / close[-3] - 1
-        twenty_day_change = price / close[-20] - 1
-        sixty_day_change = price / close[-60] - 1
-        year_high_change = price / np.max(close) - 1
-        year_low_change = price / np.min(close) - 1
-        all_changes = [close[t + 1] / close[t] - 1
-                       for t in range(len(close) - 1)
-                       if close[t + 1] > 0 and close[t] > 0]
-        # Technical indicators
+            volume = self.volumes[symbol][-DAYS_IN_A_YEAR:]
         close = np.append(close, price)
+
+        # Log returns
+        feature['Day_1_Return'] = np.log(close[-1] / close[-2])
+        feature['Day_2_Return'] = np.log(close[-2] / close[-3])
+        feature['Day_3_Return'] = np.log(close[-3] / close[-4])
+        feature['Weekly_Return'] = np.log(price / close[-DAYS_IN_A_WEEK])
+        feature['Monthly_Return'] = np.log(price / close[-DAYS_IN_A_MONTH])
+        feature['Quarterly_Return'] = np.log(price / close[-DAYS_IN_A_QUARTER])
+        feature['From_Weekly_High'] = np.log(price / np.max(close[-DAYS_IN_A_WEEK:]))
+        feature['From_Weekly_Low'] = np.log(price / np.min(close[-DAYS_IN_A_WEEK:]))
+
+        # Technical indicators
         pd_close = pd.Series(close)
-        rsi = momentum.rsi(pd_close).values[-1]
-        macd_rate = trend.macd_diff(pd_close).values[-1] / price
-        tsi = momentum.tsi(pd_close).values[-1]
-        feature = {'Today_Change': today_change,
-                   'Yesterday_Change': yesterday_change,
-                   'Day_Before_Yesterday_Change': day_before_yesterday_change,
-                   'Twenty_Day_Change': twenty_day_change,
-                   'Sixty_Day_Change': sixty_day_change,
-                   'Day_Range_Change': day_range_change,
-                   'Year_High_Change': year_high_change,
-                   'Year_Low_Change': year_low_change,
-                   'Change_Average': np.mean(all_changes),
-                   'Change_Variance': np.var(all_changes),
-                   'RSI': rsi / 100,
-                   'TSI': tsi / 100,
-                   'MACD_Rate': macd_rate,
-                   'VIX': vix}
-        for i in range(1, 51):
-            feature['c_' + str(i)] = close[-51 + i] / close[-50]
+        feature['RSI'] = momentum.rsi(pd_close).values[-1]
+        feature['MACD_Rate'] = trend.macd_diff(pd_close).values[-1] / price
+        feature['TSI'] = momentum.tsi(pd_close).values[-1]
+
+        # Markets
+        feature['VIX'] = vix
+
+        # Other numerical factors
+        # Fit five data points to a second order polynomial
+        feature['Acceleration'] = (2 * close[-5] - 1 * close[-4] - 2 * close[-3] -
+                                   1 * close[-2] + 2 * close[-1]) / 14
+        feature['Momentum'] = (-74 * close[-5] + 23 * close[-4] + 60 * close[-3] +
+                               37 * close[-2] - 46 * close[-1]) / 70
+        quarterly_returns = [np.log(close[i]/close[i-1])
+                             for i in range(-DAYS_IN_A_QUARTER, -1)]
+        monthly_returns = quarterly_returns[-DAYS_IN_A_MONTH:]
+        weekly_returns = quarterly_returns[-DAYS_IN_A_WEEK:]
+        feature['Monthly_Skewness'] = stats.skew(monthly_returns)
+        feature['Monthly_Volatility'] = np.std(monthly_returns)
+        feature['Weekly_Skewness'] = stats.skew(weekly_returns)
+        feature['Weekly_Volatility'] = np.std(weekly_returns)
+        feature['Z_Score'] = (price - np.mean(quarterly_returns)) / np.std(quarterly_returns)
+        feature['Monthly_Avg_Dollar_Volume'] = np.average(np.multiply(
+            close[-DAYS_IN_A_MONTH-1:-1], volume[-DAYS_IN_A_MONTH:])) / 1E6
+
         return feature
 
     @functools.lru_cache(maxsize=10000)
@@ -307,13 +311,23 @@ class TradingBase(object):
             close_year = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
         else:
             close_year = self.closes[symbol][-DAYS_IN_A_YEAR:]
-        down_percent = [close_year[i] / np.max(close_year[i - DATE_RANGE:i]) - 1
-                        for i in range(DATE_RANGE, len(close_year))
-                        if close_year[i] < np.max(close_year[i - DATE_RANGE:i])]
+        down_percent = [close_year[i] / np.max(close_year[i - 5:i]) - 1
+                        for i in range(5, len(close_year))
+                        if close_year[i] < np.max(close_year[i - 5:i])]
         if not down_percent:
             return 0
         threshold = np.mean(down_percent) - 2.5 * np.std(down_percent)
         return threshold
+
+    def get_volatility(self, symbol, look_back, cutoff=None):
+        """Gets threshold for a symbol."""
+        if cutoff:
+            close = self.closes[symbol][cutoff - look_back:cutoff]
+        else:
+            close = self.closes[symbol][-look_back:]
+        returns = [np.log(close[i] / close[i - 1])
+                   for i in range(1, len(close))]
+        return np.std(returns) if returns else 0
 
 
 def get_business_day(offset):

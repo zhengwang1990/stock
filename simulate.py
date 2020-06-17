@@ -87,12 +87,10 @@ class TradingSimulate(utils.TradingBase):
                 continue
             close = self.closes[symbol]
             today_change = close[cutoff] / close[cutoff - 1] - 1
-            day_range_change = close[cutoff] / np.max(close[cutoff - utils.DATE_RANGE:cutoff]) - 1
             if cutoff == self.history_length - 1:
                 trading_table.append([symbol, '%.2f%%' % (proportion * 100,),
                                       weight,
                                       '%.2f%%' % (today_change * 100,),
-                                      '%.2f%%' % (day_range_change * 100,),
                                       close[cutoff]])
                 continue
             gain = (close[cutoff + 1] - close[cutoff]) / close[cutoff]
@@ -102,7 +100,6 @@ class TradingSimulate(utils.TradingBase):
             trading_table.append([symbol, '%.2f%%' % (proportion * 100,),
                                   weight,
                                   '%.2f%%' % (today_change * 100,),
-                                  '%.2f%%' % (day_range_change * 100,),
                                   close[cutoff],
                                   close[cutoff + 1],
                                   '%+.2f%%' % (gain * 100,)])
@@ -110,26 +107,22 @@ class TradingSimulate(utils.TradingBase):
 
         if trading_table:
             outputs.append(tabulate(trading_table, headers=[
-                    'Symbol', 'Proportion', 'Weight', 'Today Change',
-                    '%d Day Change' % (utils.DATE_RANGE,), 'Buy Price',
-                    'Sell Price', 'Gain'], tablefmt='grid'))
+                'Symbol', 'Proportion', 'Weight', 'Today Change',
+                'Buy Price', 'Sell Price', 'Gain'], tablefmt='grid'))
         if cutoff < self.history_length - 1:
             self.add_profit(sell_date, daily_gain, outputs)
         else:
             logging.info('\n'.join(outputs))
 
     def analyze_rows(self, sell_date_str, rows):
-        X, T, symbols, gains = [], [], [], {}
+        X, symbols, gains = [], [], {}
         for row in rows:
-            x_value = [row[col] for col in utils.ML_TECH_FEATURES]
-            t_value = [[row[col]] for col in utils.ML_TIME_FEATURES]
+            x_value = [row[col] for col in utils.ML_FEATURES]
             X.append(x_value)
-            T.append(t_value)
             symbols.append(row['Symbol'])
             gains[row.Symbol] = row['Gain']
         X = np.array(X)
-        T = np.array(T)
-        classifications = self.model.predict([X, T])
+        classifications = self.model.predict(X)
         buy_symbols = [(symbol, classification, None) for symbol, classification in zip(symbols, classifications)]
         trading_list = self.get_trading_list(buy_symbols=buy_symbols)
         trading_table = []
@@ -182,12 +175,12 @@ class TradingSimulate(utils.TradingBase):
         logging.info('\n'.join(outputs))
 
     def save_data(self):
-        self.stats.to_csv(
-            os.path.join(self.root_dir,
-                         utils.DATA_DIR,
-                         'simulate_stats_%s_%s.csv' % (self.start_date[:4],
-                                                       self.end_date[:4])),
-            index=False)
+        start_year = self.start_date[:4]
+        end_year = self.start_date[:4]
+        filename = ('data_%s.csv' % (start_year,) if start_year == end_year else
+                    'data_%s_%s.csv' % (start_year, end_year))
+        self.stats.to_csv(os.path.join(self.root_dir, utils.DATA_DIR, filename),
+                          index=False)
 
     def print_summary(self):
         time_range = '%s ~ %s' % (self.start_date, self.end_date)

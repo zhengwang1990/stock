@@ -103,7 +103,7 @@ class TradingRealTimeTest(unittest.TestCase):
     def test_update_stats(self):
         self.polygon.last_trade.return_value = LastTrade(666)
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
-            self.trading.update_stats(4, 1)
+            self.trading.update_stats(5, 1)
         self.assertEqual(self.trading.prices['SYMA'], 666)
         self.assertEqual(self.trading.prices['SYMB'], 666)
         self.assertEqual(self.trading.prices['SYMC'], 666)
