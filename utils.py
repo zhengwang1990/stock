@@ -193,6 +193,7 @@ class TradingBase(object):
         quarterly_volatility = {}
         iterator = (tqdm(self.closes.items(), ncols=80, leave=False)
                     if cutoff and sys.stdout.isatty() else self.closes.items())
+        buy_info = []
         for symbol, close in iterator:
             # Non-tradable symbols
             if symbol == '^VIX':
@@ -211,10 +212,14 @@ class TradingBase(object):
             # Unable to get realtime price
             if prices and symbol not in prices:
                 continue
-            quarterly_volatility[symbol] = self.get_volatility(symbol, DAYS_IN_A_QUARTER, cutoff)
-
-        buy_info = sorted(quarterly_volatility.keys(),
-                          key=lambda s: quarterly_volatility[s], reverse=True)[:200]
+            if prices:
+                price = prices[symbol]
+            else:
+                price = close[cutoff]
+            # 3-day up or down
+            if (price < close_year[-1] < close_year[-2] < close_year[-3] or
+                    price > close_year[-1] > close_year[-2] > close_year[-3]):
+                buy_info.append(symbol)
 
         buy_symbols, ml_features, X = [], [], []
         for symbol in buy_info:
