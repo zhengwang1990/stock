@@ -88,7 +88,7 @@ class TradingBase(object):
                 self.end_date = pd.datetime.today().strftime('%Y-%m-%d')
             if start_date:
                 s = pd.to_datetime(start_date) - pd.tseries.offsets.BDay(300)
-                self.start_date = '%4d-%02d-%02d' % (s.year, s.month, s.day)
+                self.start_date = s.strftime('%Y-%m-%d')
         cache_root = os.path.join(self.root_dir, CACHE_DIR, get_business_day(0))
         if self.period:
             self.cache_path = os.path.join(cache_root, self.period)
