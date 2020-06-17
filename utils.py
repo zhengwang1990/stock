@@ -87,8 +87,8 @@ class TradingBase(object):
             else:
                 self.end_date = pd.datetime.today().strftime('%Y-%m-%d')
             if start_date:
-                s = pd.to_datetime(start_date)
-                self.start_date = '%4d-%02d-%02d' % (s.year - 1, s.month, s.day)
+                s = pd.to_datetime(start_date) - pd.tseries.offsets.BDay(300)
+                self.start_date = '%4d-%02d-%02d' % (s.year, s.month, s.day)
         cache_root = os.path.join(self.root_dir, CACHE_DIR, get_business_day(0))
         if self.period:
             self.cache_path = os.path.join(cache_root, self.period)
@@ -107,10 +107,10 @@ class TradingBase(object):
     def load_all_symbols(self):
         """Loads all tradable symbols on Alpaca."""
         assets = self.alpaca.list_assets()
-        self.symbols = ['^VIX'] + [
-                                      asset.symbol for asset in assets
-                                      if re.match('^[A-Z]*$', asset.symbol) and asset.symbol not in EXCLUSIONS
-                                         and asset.tradable and asset.marginable and asset.shortable and asset.easy_to_borrow]
+        self.symbols = (['^VIX'] +
+                        [asset.symbol for asset in assets
+                         if re.match('^[A-Z]*$', asset.symbol) and asset.symbol not in EXCLUSIONS
+                         and asset.tradable and asset.marginable and asset.shortable and asset.easy_to_borrow])
 
     @retrying.retry(stop_max_attempt_number=10, wait_fixed=1000 * 60 * 10)
     def load_histories(self):
@@ -191,7 +191,6 @@ class TradingBase(object):
         if not (prices or cutoff) or (prices and cutoff):
             raise Exception('Exactly one of prices or cutoff must be provided')
         quarterly_volatility = {}
-        buy_info = []
         iterator = (tqdm(self.closes.items(), ncols=80, leave=False)
                     if cutoff and sys.stdout.isatty() else self.closes.items())
         for symbol, close in iterator:
@@ -290,7 +289,7 @@ class TradingBase(object):
                                    1 * close[-2] + 2 * close[-1]) / 14
         feature['Momentum'] = (-74 * close[-5] + 23 * close[-4] + 60 * close[-3] +
                                37 * close[-2] - 46 * close[-1]) / 70
-        quarterly_returns = [np.log(close[i]/close[i-1])
+        quarterly_returns = [np.log(close[i] / close[i - 1])
                              for i in range(-DAYS_IN_A_QUARTER, -1)]
         monthly_returns = quarterly_returns[-DAYS_IN_A_MONTH:]
         weekly_returns = quarterly_returns[-DAYS_IN_A_WEEK:]
@@ -300,7 +299,7 @@ class TradingBase(object):
         feature['Weekly_Volatility'] = np.std(weekly_returns)
         feature['Z_Score'] = (price - np.mean(quarterly_returns)) / np.std(quarterly_returns)
         feature['Monthly_Avg_Dollar_Volume'] = np.average(np.multiply(
-            close[-DAYS_IN_A_MONTH-1:-1], volume[-DAYS_IN_A_MONTH:])) / 1E6
+            close[-DAYS_IN_A_MONTH - 1:-1], volume[-DAYS_IN_A_MONTH:])) / 1E6
 
         return feature
 
