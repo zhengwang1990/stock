@@ -40,14 +40,33 @@ def print_metrics(y_true, y_pred, y_meta, title_prefix=''):
     accuracy_final = metrics.accuracy_score(y_true_meta, y_pred_meta)
     benchmark = np.sum(y_true == 1) / len(y_true)
     benchmark = benchmark if benchmark > 0.5 else 1 - benchmark
-    accuracy_table = [['Accuracy Main', accuracy_main],
-                      ['Accuracy Final', accuracy_final],
-                      ['Benchmark', benchmark]]
+    accuracy_table = [['Accuracy Main', '%.2f%%' % (accuracy_main * 100,)],
+                      ['Accuracy Final', '%.2f%%' % (accuracy_final * 100,)],
+                      ['Benchmark', '%.2f%%' % (benchmark * 100,)]]
     outputs.extend([utils.get_header(title_prefix + 'Accuracy'),
                     tabulate(accuracy_table, tablefmt='grid')])
 
     logging.info('\n'.join(outputs))
     return accuracy_final
+
+
+def process_data(df):
+    X, y = [], []
+    logging.info('Processing data...')
+    for _, row in df.iterrows():
+        gain = row['Gain']
+        if gain >= 0:
+            y_value = 1
+        else:
+            y_value = 0
+        x_value = [row[col] for col in utils.ML_FEATURES]
+        X.append(x_value)
+        y.append(y_value)
+    X = np.array(X)
+    y = np.array(y)
+    w = 0.3 + np.arange(len(X)) / len(X) * 0.7
+    logging.info('%d data samples loaded', len(X))
+    return X, y, w
 
 
 class ML(object):
@@ -58,43 +77,25 @@ class ML(object):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         logging.info('Reading csv data...')
         self.df = pd.concat([pd.read_csv(data_file) for data_file in data_files])
-        self.X, self.y = [], []
-        self.symbols = []
-        logging.info('Processing data...')
-        for _, row in self.df.iterrows():
-            gain = row['Gain']
-            if gain > 0:
-                y_value = 1
-            elif gain < 0:
-                y_value = 0
-            else:
-                continue
-            x_value = [row[col] for col in utils.ML_FEATURES]
-            self.X.append(x_value)
-            self.y.append(y_value)
-            self.symbols.append([row['Symbol'], row['Date'], gain])
-        self.X = np.array(self.X)
-        self.y = np.array(self.y)
-        self.w = 0.3 + np.arange(len(self.X)) / len(self.X) * 0.7
-        logging.info('%d data samples loaded', len(self.X))
-        self.hyper_parameters = {'max_depth': len(utils.ML_FEATURES),
+        self.hyper_parameters = {'max_depth': 5,
                                  'min_samples_leaf': 0.005,
                                  'n_jobs': -1}
         logging.info('Model hyper-parameters: %s', self.hyper_parameters)
 
     def k_fold_cross_validation(self, k):
+        X, y, w = process_data(self.df)
         main_model = ensemble.RandomForestClassifier(**self.hyper_parameters)
         meta_model = ensemble.RandomForestRegressor(**self.hyper_parameters)
         k_fold = KFold(n_splits=k, shuffle=True, random_state=0)
         fold = 1
         accuracy_sum = 0
         accuracy_table = []
-        for train_index, test_index in k_fold.split(self.X):
-            X_train = self.X[train_index]
-            X_test = self.X[test_index]
-            y_train = self.y[train_index]
-            y_test = self.y[test_index]
-            w_train = self.w[train_index]
+        for train_index, test_index in k_fold.split(X):
+            X_train = X[train_index]
+            X_test = X[test_index]
+            y_train = y[train_index]
+            y_test = y[test_index]
+            w_train = w[train_index]
             logging.info('[Fold %d] %d training samples, %d testing samples',
                          fold, len(X_train), len(X_test))
             logging.info('[Fold %d] Fitting main model...', fold)
@@ -121,27 +122,32 @@ class ML(object):
         meta_model_path = os.path.join(self.root_dir, utils.MODELS_DIR, 'meta_%s.p' % (suffix,))
         return main_model_path, meta_model_path
 
-    def train(self):
+    def train(self, X=None, y=None, w=None, save_model=False):
+        if X is None:
+            X, y, w = process_data(self.df)
         main_model = ensemble.RandomForestClassifier(**self.hyper_parameters)
         meta_model = ensemble.RandomForestRegressor(**self.hyper_parameters)
         logging.info('Fitting main model...')
-        main_model.fit(self.X, self.y, sample_weight=self.w)
-        y_pred = main_model.predict(self.X)
-        y_diff = self.y == y_pred
+        main_model.fit(X, y, sample_weight=w)
+        y_pred = main_model.predict(X)
+        y_diff = y == y_pred
         y_diff = y_diff.astype(np.int)
         logging.info('Fitting meta model...')
-        meta_model.fit(self.X, y_diff)
-        y_meta = meta_model.predict(self.X)
-        accuracy = print_metrics(self.y, y_pred, y_meta, 'Training ')
+        meta_model.fit(X, y_diff)
+        y_meta = meta_model.predict(X)
+        accuracy = print_metrics(y, y_pred, y_meta, 'Training ')
         logging.info('Accuracy: %.2f%%', accuracy * 100)
-        main_model_path, meta_model_path = self._get_model_paths(str((np.round(accuracy*1E4))))
-        with open(main_model_path, 'wb') as f_main:
-            pickle.dump(main_model, f_main)
-        with open(meta_model_path, 'wb') as f_meta:
-            pickle.dump(meta_model, f_meta)
-        logging.info('Model saved at\n%s\n%s', main_model_path, meta_model_path)
+        if save_model:
+            main_model_path, meta_model_path = self._get_model_paths(str(int(round(accuracy*1E4))))
+            with open(main_model_path, 'wb') as f_main:
+                pickle.dump(main_model, f_main)
+            with open(meta_model_path, 'wb') as f_meta:
+                pickle.dump(meta_model, f_meta)
+            logging.info('Model saved at\n%s\n%s', main_model_path, meta_model_path)
+        return main_model, meta_model
 
     def evaluate(self):
+        X, y, _ = process_data(self.df)
         main_model_path, meta_model_path = self._get_model_paths(self.model_suffix)
         logging.info('Loading model...')
         with open(main_model_path, 'rb') as f_main:
@@ -149,10 +155,52 @@ class ML(object):
         with open(meta_model_path, 'rb') as f_meta:
             meta_model = pickle.load(f_meta)
         logging.info('Predicting...')
-        y_pred = main_model.predict(self.X)
-        y_meta = meta_model.predict(self.X)
-        print_metrics(self.y, y_pred, y_meta, 'Evaluation ')
+        y_pred = main_model.predict(X)
+        y_meta = meta_model.predict(X)
+        print_metrics(y, y_pred, y_meta, 'Evaluation ')
 
+    def continuous_training(self, training_days, testing_days, step_days):
+        dates = self.df['Date'].unique()
+        accuracy_table = []
+        accuracy_sum = 0
+        accuracy_count = 0
+        for i_date in range(0, len(dates), step_days):
+            start_date = pd.to_datetime(dates[i_date])
+            train_indices = []
+            test_indices = []
+            current_date = None
+            day_count = 0
+            for i, row in self.df.iterrows():
+                date = pd.to_datetime(row['Date'])
+                if date < start_date:
+                    continue
+                if current_date != date:
+                    current_date = date
+                    day_count += 1
+                if day_count <= training_days:
+                    train_indices.append(i)
+                elif day_count <= training_days + testing_days:
+                    test_indices.append(i)
+                else:
+                    print(self.df.iloc[train_indices[0]]['Date'], self.df.iloc[train_indices[-1]]['Date'])
+                    print(self.df.iloc[test_indices[0]]['Date'], self.df.iloc[test_indices[-1]]['Date'])
+                    X_train, y_train, w_train = process_data(self.df.iloc[train_indices])
+                    X_test, y_test, _ = process_data(self.df.iloc[test_indices])
+                    main_model, meta_model = self.train(X_train, y_train, w_train)
+                    y_pred = main_model.predict(X_test)
+                    y_meta = meta_model.predict(X_test)
+                    test_range = '%s ~ %s' % (self.df.iloc[test_indices[0]]['Date'],
+                                              self.df.iloc[test_indices[-1]]['Date'])
+                    accuracy = print_metrics(y_test, y_pred, y_meta, 'Evaluation %s ' % (test_range,))
+                    accuracy_table.append([test_range, '%.2f%%' % (accuracy * 100,)])
+                    accuracy_sum += accuracy
+                    accuracy_count += 1
+                    break
+            else:
+                break
+        accuracy_table.append(['Average', '%.2f%%' % (accuracy_sum / accuracy_count * 100)])
+        logging.info(utils.get_header('Model Accuracy') + '\n' +
+                     tabulate(accuracy_table, headers=['Date', 'Accuracy'], tablefmt='grid'))
 
 def main():
     parser = argparse.ArgumentParser(description='Stock trading ML model.')
@@ -160,16 +208,18 @@ def main():
                         help='Model to load')
     parser.add_argument('--data_files', required=True, nargs='+',
                         help='Data to train on.')
-    parser.add_argument('--action', default='dev', choices=['dev', 'train', 'eval'])
+    parser.add_argument('--action', default='dev', choices=['dev', 'train', 'eval', 'cont'])
     args = parser.parse_args()
     utils.logging_config()
     ml = ML(args.data_files, args.model_suffix)
     if args.action == 'train':
-        ml.train()
+        ml.train(save_model=True)
     elif args.action == 'dev':
         ml.k_fold_cross_validation(5)
     elif args.action == 'eval':
         ml.evaluate()
+    elif args.action == 'cont':
+        ml.continuous_training(20, 5, 5)
     else:
         raise ValueError('Invalid action')
 
