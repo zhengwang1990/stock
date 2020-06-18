@@ -30,14 +30,14 @@ MAX_STOCK_PICK = 8
 MAX_PROPORTION = 0.25
 VOLUME_FILTER_THRESHOLD = 1000000
 ML_FEATURES = [
-    'Day_1_Return',
-    'Day_2_Return',
-    'Day_3_Return',
+    #'Day_1_Return',
+    #'Day_2_Return',
+    #'Day_3_Return',
     'Weekly_Return',
     'Monthly_Return',
     'Quarterly_Return',
-    'From_Weekly_High',
-    'From_Weekly_Low',
+    #'From_Weekly_High',
+    #'From_Weekly_Low',
     'RSI',
     'MACD_Rate',
     'TSI',
@@ -218,7 +218,7 @@ class TradingBase(object):
                 price = close[cutoff]
             # 3-day up or down
             if not (price < close_year[-1] < close_year[-2] < close_year[-3] or
-                    price > close_year[-1] > close_year[-2] > close_year[-3]):
+                    price > close_year[-1] > close_year[-2] > close_year[-3] > close_year[-4]):
                 continue
             # Enough volatility
             returns = [np.log(close_year[i] / close_year[i - 5])
@@ -226,7 +226,7 @@ class TradingBase(object):
             mean = np.mean(returns)
             std = np.std(returns)
             five_day_return = np.log(price / close_year[-5])
-            if np.abs(five_day_return - mean) < 2.5 * std:
+            if np.abs(five_day_return - mean) < std:
                 continue
             buy_info.append(symbol)
 
