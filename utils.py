@@ -302,7 +302,7 @@ class TradingBase(object):
         feature['Monthly_Volatility'] = np.std(monthly_returns)
         feature['Weekly_Skewness'] = stats.skew(weekly_returns)
         feature['Weekly_Volatility'] = np.std(weekly_returns)
-        feature['Z_Score'] = (price - np.mean(quarterly_returns)) / np.std(quarterly_returns)
+        feature['Z_Score'] = (feature['Day_1_Return'] - np.mean(quarterly_returns)) / np.std(quarterly_returns)
         feature['Monthly_Avg_Dollar_Volume'] = np.average(np.multiply(
             close[-DAYS_IN_A_MONTH - 1:-1], volume[-DAYS_IN_A_MONTH:])) / 1E6
 

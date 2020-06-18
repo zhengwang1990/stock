@@ -15,7 +15,7 @@ NON_ML_FEATURE_COLUMNS = ['Gain', 'Symbol', 'Date']
 
 def print_metrics(y_true, y_pred, y_meta, title_prefix=''):
     outputs = []
-    confusion_matrix_main = metrics.confusion_matrix(y_true, y_pred, labels=[0, 1])
+    confusion_matrix_main = metrics.confusion_matrix(y_true, y_pred)
     confusion_table_main = [['', 'Predict Short', 'Predict Long'],
                             ['True Short', confusion_matrix_main[0][0], confusion_matrix_main[0][1]],
                             ['True Long', confusion_matrix_main[1][0], confusion_matrix_main[1][1]]]
@@ -77,8 +77,9 @@ class ML(object):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         logging.info('Reading csv data...')
         self.df = pd.concat([pd.read_csv(data_file) for data_file in data_files])
+        self.df.dropna(inplace=True)
         self.hyper_parameters = {'max_depth': 5,
-                                 'min_samples_leaf': 0.005,
+                                 'min_samples_leaf': 0.01,
                                  'n_jobs': -1}
         logging.info('Model hyper-parameters: %s', self.hyper_parameters)
 
@@ -136,7 +137,6 @@ class ML(object):
         meta_model.fit(X, y_diff)
         y_meta = meta_model.predict(X)
         accuracy = print_metrics(y, y_pred, y_meta, 'Training ')
-        logging.info('Accuracy: %.2f%%', accuracy * 100)
         if save_model:
             main_model_path, meta_model_path = self._get_model_paths(str(int(round(accuracy*1E4))))
             with open(main_model_path, 'wb') as f_main:
@@ -182,8 +182,6 @@ class ML(object):
                 elif day_count <= training_days + testing_days:
                     test_indices.append(i)
                 else:
-                    print(self.df.iloc[train_indices[0]]['Date'], self.df.iloc[train_indices[-1]]['Date'])
-                    print(self.df.iloc[test_indices[0]]['Date'], self.df.iloc[test_indices[-1]]['Date'])
                     X_train, y_train, w_train = process_data(self.df.iloc[train_indices])
                     X_test, y_test, _ = process_data(self.df.iloc[test_indices])
                     main_model, meta_model = self.train(X_train, y_train, w_train)
@@ -219,7 +217,7 @@ def main():
     elif args.action == 'eval':
         ml.evaluate()
     elif args.action == 'cont':
-        ml.continuous_training(20, 5, 5)
+        ml.continuous_training(60, 5, 5)
     else:
         raise ValueError('Invalid action')
 
