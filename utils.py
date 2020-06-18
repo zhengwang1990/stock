@@ -30,14 +30,14 @@ MAX_STOCK_PICK = 8
 MAX_PROPORTION = 0.25
 VOLUME_FILTER_THRESHOLD = 1000000
 ML_FEATURES = [
-    #'Day_1_Return',
-    #'Day_2_Return',
-    #'Day_3_Return',
+    'Day_1_Return',
+    'Day_2_Return',
+    'Day_3_Return',
     'Weekly_Return',
     'Monthly_Return',
     'Quarterly_Return',
-    #'From_Weekly_High',
-    #'From_Weekly_Low',
+    'From_Weekly_High',
+    'From_Weekly_Low',
     'RSI',
     'MACD_Rate',
     'TSI',
@@ -216,17 +216,9 @@ class TradingBase(object):
                 price = prices[symbol]
             else:
                 price = close[cutoff]
-            # 3-day up or down
-            if not (price < close_year[-1] < close_year[-2] < close_year[-3] or
-                    price > close_year[-1] > close_year[-2] > close_year[-3] > close_year[-4]):
-                continue
-            # Enough volatility
-            returns = [np.log(close_year[i] / close_year[i - 5])
-                       for i in range(5, len(close_year))]
-            mean = np.mean(returns)
-            std = np.std(returns)
+            threshold = self.get_threshold(symbol, cutoff)
             five_day_return = np.log(price / close_year[-5])
-            if np.abs(five_day_return - mean) < std:
+            if five_day_return > threshold:
                 continue
             buy_info.append(symbol)
 
@@ -301,8 +293,8 @@ class TradingBase(object):
         # Fit five data points to a second order polynomial
         feature['Acceleration'] = (2 * close[-5] - 1 * close[-4] - 2 * close[-3] -
                                    1 * close[-2] + 2 * close[-1]) / 14
-        feature['Momentum'] = (-74 * close[-5] + 23 * close[-4] + 60 * close[-3] +
-                               37 * close[-2] - 46 * close[-1]) / 70
+        feature['Momentum'] = (-2 * close[-5] - 1 * close[-4] +
+                               1 * close[-2] + 2 * close[-1]) / 10
         quarterly_returns = [np.log(close[i] / close[i - 1])
                              for i in range(-DAYS_IN_A_QUARTER, -1)]
         monthly_returns = quarterly_returns[-DAYS_IN_A_MONTH:]
@@ -324,12 +316,11 @@ class TradingBase(object):
             close_year = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
         else:
             close_year = self.closes[symbol][-DAYS_IN_A_YEAR:]
-        down_percent = [close_year[i] / np.max(close_year[i - 5:i]) - 1
-                        for i in range(5, len(close_year))
-                        if close_year[i] < np.max(close_year[i - 5:i])]
-        if not down_percent:
+        returns = [np.log(close_year[i] / close_year[i - 5])
+                   for i in range(5, len(close_year))]
+        if not returns:
             return 0
-        threshold = np.mean(down_percent) - 2.5 * np.std(down_percent)
+        threshold = np.mean(returns) - 3 * np.std(returns)
         return threshold
 
     def get_volatility(self, symbol, look_back, cutoff=None):
