@@ -217,9 +217,18 @@ class TradingBase(object):
             else:
                 price = close[cutoff]
             # 3-day up or down
-            if (price < close_year[-1] < close_year[-2] < close_year[-3] or
+            if not (price < close_year[-1] < close_year[-2] < close_year[-3] or
                     price > close_year[-1] > close_year[-2] > close_year[-3]):
-                buy_info.append(symbol)
+                continue
+            # Enough volatility
+            returns = [np.log(close_year[i] / close_year[i - 5])
+                       for i in range(5, len(close_year))]
+            mean = np.mean(returns)
+            std = np.std(returns)
+            five_day_return = np.log(price / close_year[-5])
+            if np.abs(five_day_return - mean) < 2.5 * std:
+                continue
+            buy_info.append(symbol)
 
         buy_symbols, ml_features, X = [], [], []
         for symbol in buy_info:
