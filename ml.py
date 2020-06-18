@@ -13,7 +13,7 @@ from tabulate import tabulate
 NON_ML_FEATURE_COLUMNS = ['Gain', 'Symbol', 'Date']
 
 
-def print_metrics(y_true, y_pred, y_meta, title_prefix=''):
+def print_metrics(y_true, y_pred, y_meta, title_prefix='', r=None):
     outputs = []
     confusion_matrix_main = metrics.confusion_matrix(y_true, y_pred)
     if len(confusion_matrix_main) == 2:
@@ -24,12 +24,12 @@ def print_metrics(y_true, y_pred, y_meta, title_prefix=''):
                         tabulate(confusion_table_main, tablefmt='grid')])
 
     indices = sorted(range(len(y_meta)), key=lambda i: y_meta[i], reverse=True)
-    indices = indices[:8]
-    dropped = len(y_meta) - len(indices)
+    picks = indices[:8]
+    dropped = len(y_meta) - len(picks)
     outputs.append('Threshold: %.2f. %d (%.1f%%) samples dropped. %d (%.1f%%) samples preserved.' % (
-        y_meta[indices[-1]], dropped, dropped / len(y_meta) * 100, len(indices), len(indices) / len(y_meta) * 100))
-    y_true_meta = y_true[indices]
-    y_pred_meta = y_pred[indices]
+        y_meta[picks[-1]], dropped, dropped / len(y_meta) * 100, len(picks), len(picks) / len(y_meta) * 100))
+    y_true_meta = y_true[picks]
+    y_pred_meta = y_pred[picks]
     confusion_matrix_final = metrics.confusion_matrix(y_true_meta, y_pred_meta)
     if len(confusion_matrix_final) == 2:
         confusion_table_final = [['', 'Predict Short', 'Predict Long'],
@@ -42,18 +42,21 @@ def print_metrics(y_true, y_pred, y_meta, title_prefix=''):
     accuracy_final = metrics.accuracy_score(y_true_meta, y_pred_meta)
     benchmark = np.sum(y_true == 1) / len(y_true)
     benchmark = benchmark if benchmark > 0.5 else 1 - benchmark
+    gains = [r[i] if y_pred[i] == 1 else -r[i] for i in picks]
+    gain = np.mean(gains)
     accuracy_table = [['Accuracy Main', '%.2f%%' % (accuracy_main * 100,)],
                       ['Accuracy Final', '%.2f%%' % (accuracy_final * 100,)],
+                      ['Gain', '%.2f%%' % (gain * 100,)],
                       ['Benchmark', '%.2f%%' % (benchmark * 100,)]]
     outputs.extend([utils.get_header(title_prefix + 'Accuracy'),
                     tabulate(accuracy_table, tablefmt='grid')])
 
     logging.info('\n'.join(outputs))
-    return accuracy_final
+    return accuracy_final, gain
 
 
 def process_data(df):
-    X, y, w = [], [], []
+    X, y, w, r = [], [], [], []
     logging.info('Processing data...')
     for _, row in df.iterrows():
         gain = row['Gain']
@@ -65,11 +68,13 @@ def process_data(df):
         X.append(x_value)
         y.append(y_value)
         w.append(np.abs(gain))
+        r.append(gain)
     X = np.array(X)
     y = np.array(y)
     w = np.array(w)
+    r = np.array(r)
     logging.info('%d data samples loaded', len(X))
-    return X, y, w
+    return X, y, w, r
 
 
 class ML(object):
@@ -92,7 +97,7 @@ class ML(object):
         logging.info('Model hyper-parameters: %s', self.hyper_parameters)
 
     def k_fold_cross_validation(self, k):
-        X, y, w = process_data(self.df)
+        X, y, w, _ = process_data(self.df)
         main_model = ensemble.RandomForestClassifier(**self.hyper_parameters)
         meta_model = ensemble.RandomForestRegressor(**self.hyper_parameters)
         k_fold = KFold(n_splits=k, shuffle=True, random_state=0)
@@ -133,7 +138,7 @@ class ML(object):
 
     def train(self, X=None, y=None, w=None, save_model=False):
         if X is None:
-            X, y, w = process_data(self.df)
+            X, y, w, _ = process_data(self.df)
         main_model = ensemble.RandomForestClassifier(**self.hyper_parameters)
         meta_model = ensemble.RandomForestRegressor(**self.hyper_parameters)
         logging.info('Fitting main model...')
@@ -155,7 +160,7 @@ class ML(object):
         return main_model, meta_model
 
     def evaluate(self):
-        X, y, _ = process_data(self.df)
+        X, y, _, _ = process_data(self.df)
         main_model_path, meta_model_path = self._get_model_paths(self.model_suffix)
         logging.info('Loading model...')
         with open(main_model_path, 'rb') as f_main:
@@ -172,7 +177,8 @@ class ML(object):
         accuracy_table = []
         accuracy_sum = 0
         accuracy_count = 0
-        for i_date in range(0, len(dates), step_days):
+        total_value = 1
+        for i_date in range(215, len(dates), step_days):
             start_date = pd.to_datetime(dates[i_date])
             train_indices = []
             test_indices = []
@@ -190,18 +196,21 @@ class ML(object):
                 elif day_count <= training_days + testing_days:
                     test_indices.append(i)
                 else:
-                    X_train, y_train, w_train = process_data(self.df.iloc[train_indices])
-                    X_test, y_test, _ = process_data(self.df.iloc[test_indices])
+                    X_train, y_train, w_train, _ = process_data(self.df.iloc[train_indices])
+                    X_test, y_test, _, r_test = process_data(self.df.iloc[test_indices])
                     main_model, meta_model = self.train(X_train, y_train, w_train)
                     y_pred = main_model.predict(X_test)
                     y_meta = meta_model.predict(X_test)
                     test_range = '%s ~ %s' % (self.df.iloc[test_indices[0]]['Date'],
                                               self.df.iloc[test_indices[-1]]['Date'])
-                    accuracy = print_metrics(y_test, y_pred, y_meta, 'Evaluation %s ' % (test_range,))
+                    accuracy, gain = print_metrics(y_test, y_pred, y_meta, 'Evaluation %s ' % (test_range,), r_test)
                     accuracy_table.append([test_range, '%.2f%%' % (accuracy * 100,)])
                     accuracy_sum += accuracy
                     accuracy_count += 1
-                    logging.info('Average accuracy: %.2f%%', accuracy_sum / accuracy_count * 100)
+                    total_value *= 1 + gain
+                    logging.info('Average accuracy: %.2f%%\nTotal gain: %.2f%%',
+                                 accuracy_sum / accuracy_count * 100,
+                                 (total_value - 1) * 100)
                     break
             else:
                 break
