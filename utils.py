@@ -106,7 +106,7 @@ class TradingBase(object):
         for symbol, hist in self.hists.items():
             closes = np.array(hist.get('Close'))
             if np.any(closes <= 0):
-                logging.warning('[%s] Found non-positive close prices. Skip.', symbol)
+                logging.warning('Found non-positive close prices in %s. Skip.', symbol)
                 continue
             self.closes[symbol] = closes
             self.opens[symbol] = np.array(hist.get('Open'))

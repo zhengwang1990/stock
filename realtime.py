@@ -65,7 +65,7 @@ class TradingRealTime(utils.TradingBase):
                 self.closes[symbol][-1] = price
         for symbol, closes in self.closes.items():
             if symbol not in self.prices:
-                logging.error('[%s] Stock price not found', symbol)
+                logging.error('Stock price for %s not found', symbol)
 
     def drop_low_volume_symbols(self):
         """Drops to-be-tracked symbols with low volumes."""
@@ -126,7 +126,7 @@ class TradingRealTime(utils.TradingBase):
         try:
             price = _get_realtime_price_impl(symbol)
         except requests.exceptions.RequestException as e:
-            logging.error('[%s] Exception raised in get_realtime_price: %s', symbol, e)
+            logging.error('Exception raised in get_realtime_price for %s: %s', symbol, e)
             self.errors.append(sys.exc_info())
         else:
             self.prices[symbol] = price
@@ -244,12 +244,12 @@ class TradingRealTime(utils.TradingBase):
                 continue
             try:
                 if order_type == 'limit':
-                    logging.info('[%s] Selling %d shares at limit price %s.',
-                                 position.symbol, qty, position.current_price)
+                    logging.info('Selling %d shares of %s at limit price %s.',
+                                 qty, position.symbol, position.current_price)
                     self.alpaca.submit_order(position.symbol, qty, 'sell', 'limit', 'day',
                                              limit_price=float(position.current_price))
                 elif order_type == 'market':
-                    logging.info('[%s] Selling %d shares at market price.', position.symbol, qty)
+                    logging.info('Selling %d shares of %s at market price.', qty, position.symbol)
                     self.alpaca.submit_order(position.symbol, qty, 'sell', 'market', 'day')
                 else:
                     raise NotImplementedError('Order type %s not recognized' % (order_type,))
@@ -282,12 +282,12 @@ class TradingRealTime(utils.TradingBase):
                 orders_table.append([symbol, self.prices[symbol], qty, self.prices[symbol] * qty])
                 try:
                     if order_type == 'limit':
-                        logging.info('[%s] Buying %d shares at limit price %.2f.',
-                                     symbol, qty, self.prices[symbol])
+                        logging.info('Buying %d shares of %s at limit price %.2f.',
+                                     qty, symbol, self.prices[symbol])
                         self.alpaca.submit_order(symbol, qty, 'buy', 'limit', 'day',
                                                  limit_price=self.prices[symbol])
                     elif order_type == 'market':
-                        logging.info('[%s] Buying %d shares at market price.', symbol, qty)
+                        logging.info('Buying %d shares of %s at market price.', qty, symbol)
                         self.alpaca.submit_order(symbol, qty, 'buy', 'market', 'day')
                     else:
                         raise NotImplementedError('Order type %s not recognized' % (order_type,))
