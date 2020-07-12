@@ -8,6 +8,5 @@ install:
 script:
   - coverage run -a realtime_test.py
   - coverage run -a simulate_test.py
-  - coverage run -a utils_test.py
 after_success:
   - codecov

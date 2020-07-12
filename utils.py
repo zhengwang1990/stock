@@ -1,58 +1,33 @@
-import functools
 import logging
-import numpy as np
 import os
-import pandas as pd
 import re
-import requests
-import retrying
 import sys
-import ta.momentum as momentum
-import ta.trend as trend
-import tensorflow.keras as keras
-import yfinance as yf
 from concurrent import futures
-from exclusions import EXCLUSIONS
+
+import numpy as np
+import pandas as pd
+import retrying
+import warnings
+import yfinance as yf
 from tqdm import tqdm
-from scipy import stats
+
+from exclusions import EXCLUSIONS
 
 REFERENCE_SYMBOL = 'AAPL'
-DAYS_IN_A_YEAR = 250
 DAYS_IN_A_WEEK = 5
 DAYS_IN_A_MONTH = 20
 DAYS_IN_A_QUARTER = 60
+DAYS_IN_A_YEAR = 250
 CACHE_DIR = 'cache'
 DATA_DIR = 'data'
 OUTPUTS_DIR = 'outputs'
-MODELS_DIR = 'models'
 DEFAULT_HISTORY_LOAD = '2y'
 MAX_STOCK_PICK = 8
 MAX_PROPORTION = 0.25
-VOLUME_FILTER_THRESHOLD = 1000000
-ML_FEATURES = [
-    'Day_1_Return',
-    'Day_2_Return',
-    'Day_3_Return',
-    'Weekly_Return',
-    'Monthly_Return',
-    'Quarterly_Return',
-    'From_Weekly_High',
-    'From_Weekly_Low',
-    'RSI',
-    'MACD_Rate',
-    'TSI',
-    'Acceleration',
-    'Momentum',
-    'Weekly_Skewness',
-    'Monthly_Skewness',
-    'Weekly_Volatility',
-    'Monthly_Volatility',
-    'Z_Score',
-    'Monthly_Avg_Dollar_Volume',
-    'VIX']
+VOLUME_FILTER_THRESHOLD = 1E6
+
 ALPACA_API_BASE_URL = 'https://api.alpaca.markets'
 ALPACA_PAPER_API_BASE_URL = 'https://paper-api.alpaca.markets'
-DEFAULT_MODEL = 'model_p727217.hdf5'
 
 
 class NetworkError(Exception):
@@ -66,59 +41,55 @@ class NotFoundError(Exception):
 class TradingBase(object):
     """Basic trade utils."""
 
-    def __init__(self, alpaca, period=None, start_date=None, end_date=None,
-                 model=None, load_history=True):
-        model = model or DEFAULT_MODEL
+    def __init__(self, alpaca, period=None, start_date=None, end_date=None):
         self.alpaca = alpaca
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
-        self.model = keras.models.load_model(os.path.join(self.root_dir, MODELS_DIR, model))
-        self.hists, self.closes, self.volumes = {}, {}, {}
+        self.hists, self.closes, self.opens, self.volumes = {}, {}, {}, {}
         self.symbols = []
-        self.sectors = {}
         self.period = period
-        self.start_date = start_date
-        self.end_date = end_date
+        self.history_start_date = None
+        self.history_end_date = None
+        self.prices = None
+
         if not period:
             if not start_date and not end_date:
                 self.period = DEFAULT_HISTORY_LOAD
             if end_date:
                 e = min(pd.to_datetime(end_date) + pd.tseries.offsets.BDay(1), pd.datetime.today())
-                self.end_date = e.strftime('%Y-%m-%d')
+                self.history_end_date = e.strftime('%Y-%m-%d')
             else:
-                self.end_date = pd.datetime.today().strftime('%Y-%m-%d')
+                self.history_end_date = pd.datetime.today().strftime('%Y-%m-%d')
             if start_date:
                 s = pd.to_datetime(start_date) - pd.tseries.offsets.BDay(300)
-                self.start_date = s.strftime('%Y-%m-%d')
+                self.history_start_date = s.strftime('%Y-%m-%d')
         cache_root = os.path.join(self.root_dir, CACHE_DIR, get_business_day(0))
         if self.period:
             self.cache_path = os.path.join(cache_root, self.period)
         else:
-            self.cache_path = os.path.join(cache_root, self.start_date, self.end_date)
+            self.cache_path = os.path.join(cache_root, self.history_start_date,
+                                           self.history_end_date)
         os.makedirs(self.cache_path, exist_ok=True)
         self.is_market_open = self.alpaca.get_clock().is_open
         self.history_length = self.get_history_length()
         self.history_dates = self.get_history_dates()
-        if not load_history:
-            return
         self.load_all_symbols()
         self.load_histories()
         self.read_series_from_histories()
+        warnings.filterwarnings('error')
 
     def load_all_symbols(self):
         """Loads all tradable symbols on Alpaca."""
         assets = self.alpaca.list_assets()
-        self.symbols = (['^VIX'] +
-                        [asset.symbol for asset in assets
-                         if re.match('^[A-Z]*$', asset.symbol) and asset.symbol not in EXCLUSIONS
-                         and asset.tradable and asset.marginable and asset.shortable and asset.easy_to_borrow])
+        self.symbols = [asset.symbol for asset in assets
+                        if re.match('^[A-Z]*$', asset.symbol)
+                        and asset.tradable and asset.marginable
+                        and asset.shortable and asset.easy_to_borrow]
+        self.symbols = list(set(self.symbols).difference(EXCLUSIONS))
 
-    @retrying.retry(stop_max_attempt_number=10, wait_fixed=1000 * 60 * 10)
     def load_histories(self):
         """Loads history of all stock symbols."""
         logging.info('Loading stock histories...')
         threads = []
-        # Allow at most 10 errors
-        error_tol = 10
 
         with futures.ThreadPoolExecutor(max_workers=5) as pool:
             for symbol in self.symbols:
@@ -130,17 +101,17 @@ class TradingBase(object):
                     t.result()
                 except Exception as e:
                     logging.error('Error occurred in load_histories: %s', e)
-                    error_tol -= 1
-                    if self.period and error_tol <= 0:
-                        raise e
 
     def read_series_from_histories(self):
         """Reads out close price and volume."""
         for symbol, hist in self.hists.items():
-            close = hist.get('Close')
-            volume = hist.get('Volume')
-            self.closes[symbol] = np.array(close)
-            self.volumes[symbol] = np.array(volume)
+            closes = np.array(hist.get('Close'))
+            if np.any(closes <= 0):
+                logging.warning('[%s] Found non-positive close prices. Skip.', symbol)
+                continue
+            self.closes[symbol] = closes
+            self.opens[symbol] = np.array(hist.get('Open'))
+            self.volumes[symbol] = np.array(hist.get('Volume'))
         logging.info('Attempt to load %d symbols, and %d symbols actually loaded',
                      len(self.symbols), len(self.closes))
 
@@ -155,7 +126,8 @@ class TradingBase(object):
             if self.period:
                 hist = tk.history(period=self.period, interval='1d')
             else:
-                hist = tk.history(start=self.start_date, end=self.end_date, interval='1d')
+                hist = tk.history(start=self.history_start_date,
+                                  end=self.history_end_date, interval='1d')
             if len(hist):
                 hist.to_csv(cache_name)
             elif self.period:
@@ -168,7 +140,7 @@ class TradingBase(object):
             hist.drop(drop_key, inplace=True)
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:
             self.hists[symbol] = hist
-        elif symbol in ('QQQ', 'SPY', '^VIX'):
+        elif symbol in ('QQQ', 'SPY'):
             os.remove(cache_name)
             raise Exception('Error loading %s: expect length %d, but got %d.' % (
                 symbol, self.history_length, len(hist)))
@@ -183,155 +155,67 @@ class TradingBase(object):
         self.load_history(REFERENCE_SYMBOL)
         return self.hists[REFERENCE_SYMBOL].index
 
-    def get_buy_symbols(self, prices=None, cutoff=None, skip_prediction=False):
+    def get_stock_universe(self, cutoff=-1):
+        stock_universe = []
+        for symbol in self.closes.keys():
+            avg_trading_volume = np.average(np.multiply(
+                self.closes[symbol][cutoff - DAYS_IN_A_MONTH:cutoff],
+                self.volumes[symbol][cutoff - DAYS_IN_A_MONTH:cutoff]))
+            # Enough trading volume
+            if avg_trading_volume < VOLUME_FILTER_THRESHOLD:
+                continue
+            stock_universe.append(symbol)
+        return stock_universe
+
+    def get_buy_symbols(self, cutoff=-1):
         """Gets symbols which trigger buy signals.
 
         A list of tuples will be returned with symbol, weight and all ML features.
         """
-        if not (prices or cutoff) or (prices and cutoff):
-            raise Exception('Exactly one of prices or cutoff must be provided')
-        quarterly_volatility = {}
-        iterator = (tqdm(self.closes.items(), ncols=80, leave=False)
-                    if cutoff and sys.stdout.isatty() else self.closes.items())
-        buy_info = []
-        for symbol, close in iterator:
-            # Non-tradable symbols
-            if symbol == '^VIX':
-                continue
-            if cutoff:
-                close_year = close[cutoff - DAYS_IN_A_YEAR:cutoff]
-                volumes_year = self.volumes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
-            else:
-                close_year = close[-DAYS_IN_A_YEAR:]
-                volumes_year = self.volumes[symbol][-DAYS_IN_A_YEAR:]
-            avg_trading_volume = np.average(np.multiply(
-                close_year[-DAYS_IN_A_MONTH:], volumes_year[-DAYS_IN_A_MONTH:]))
-            # Enough trading volume
-            if avg_trading_volume < VOLUME_FILTER_THRESHOLD:
-                continue
-            # Unable to get realtime price
-            if prices and symbol not in prices:
-                continue
-            if prices:
-                price = prices[symbol]
-            else:
-                price = close[cutoff]
-            threshold = self.get_threshold(symbol, cutoff)
-            five_day_return = np.log(price / close_year[-5])
-            if five_day_return > threshold:
-                continue
-            buy_info.append(symbol)
-
-        buy_symbols, ml_features, X = [], [], []
-        for symbol in buy_info:
-            ml_feature = self.get_ml_feature(symbol, prices=prices, cutoff=cutoff)
-            x = [ml_feature[key] for key in ML_FEATURES]
-            ml_features.append(ml_feature)
-            X.append(x)
-        if buy_info:
-            X = np.array(X)
-            if skip_prediction:
-                weights = [1] * len(X)
-            else:
-                weights = self.model.predict(X)
-            buy_symbols = list(zip(buy_info, weights, ml_features))
+        symbols_dip = self.dip_reversion(cutoff)
+        buy_symbols = [(symbol, weight, 'long') for symbol, weight in symbols_dip]
         return buy_symbols
 
-    def get_trading_list(self, buy_symbols=None, **kwargs):
+    def dip_reversion(self, cutoff=-1):
+        stock_universe = self.get_stock_universe(cutoff)
+        symbols_dip = []
+        n = 7
+        for symbol in stock_universe:
+            closes_year = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
+            n_day_returns = [np.log(closes_year[i] / closes_year[i - n])
+                             for i in range(n, len(closes_year))]
+            price = self.closes[symbol][cutoff]
+            if not price:
+                continue
+            mean = np.mean(n_day_returns)
+            std = np.std(n_day_returns)
+            threshold = mean - 3 * std
+            n_day_return = np.log(price / closes_year[-n])
+            if n_day_return < threshold:
+                next_day_return = [
+                    np.log(closes_year[i+1] / closes_year[i])
+                    for i in range(n, len(closes_year)-1)
+                    if n_day_returns[i-n] < threshold]
+                avg_next_day_return = np.mean(next_day_return) if next_day_return else 0
+                if avg_next_day_return > 0 and np.log(price / closes_year[-1]) > 0.5 * n_day_return:
+                    symbols_dip.append((symbol, avg_next_day_return))
+        return symbols_dip
+
+    def get_trading_list(self, buy_symbols=None, cutoff=-1):
         """Gets a list of symbols with trading information."""
         if buy_symbols is None:
-            buy_symbols = self.get_buy_symbols(**kwargs)
-        trading_info = []
-        for symbol, classification, _ in buy_symbols:
-            trading_info.append((symbol, classification, 'long'))
-        trading_info.sort(key=lambda s: s[1], reverse=True)
-        n_symbols = min(MAX_STOCK_PICK, len(trading_info))
+            buy_symbols = self.get_buy_symbols(cutoff)
+        buy_symbols.sort(key=lambda s: s[1], reverse=True)
         trading_list = []
-        for i in range(len(trading_info)):
-            symbol, weight, side = trading_info[i]
-            proportion = min(1 / n_symbols, MAX_PROPORTION) if i < n_symbols else 0
-            trading_list.append((symbol, proportion, weight, side))
+        for i in range(len(buy_symbols)):
+            symbol, weight, side = buy_symbols[i]
+            proportion = min(1 / min(len(buy_symbols), MAX_STOCK_PICK),
+                             MAX_PROPORTION) if i < MAX_STOCK_PICK else 0
+            if side == 'long':
+                trading_list.append((symbol, proportion, side))
+            elif side == 'short':
+                trading_list.append((symbol, proportion, side))
         return trading_list
-
-    def get_ml_feature(self, symbol, prices=None, cutoff=None):
-        feature = {}
-        if prices:
-            price = prices.get(symbol, 1E10)
-            vix = prices['^VIX']
-        else:
-            price = self.closes[symbol][cutoff]
-            vix = self.closes['^VIX'][cutoff]
-
-        if cutoff:
-            close = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
-            volume = self.volumes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
-        else:
-            close = self.closes[symbol][-DAYS_IN_A_YEAR:]
-            volume = self.volumes[symbol][-DAYS_IN_A_YEAR:]
-        close = np.append(close, price)
-
-        # Log returns
-        feature['Day_1_Return'] = np.log(close[-1] / close[-2])
-        feature['Day_2_Return'] = np.log(close[-2] / close[-3])
-        feature['Day_3_Return'] = np.log(close[-3] / close[-4])
-        feature['Weekly_Return'] = np.log(price / close[-DAYS_IN_A_WEEK])
-        feature['Monthly_Return'] = np.log(price / close[-DAYS_IN_A_MONTH])
-        feature['Quarterly_Return'] = np.log(price / close[-DAYS_IN_A_QUARTER])
-        feature['From_Weekly_High'] = np.log(price / np.max(close[-DAYS_IN_A_WEEK:]))
-        feature['From_Weekly_Low'] = np.log(price / np.min(close[-DAYS_IN_A_WEEK:]))
-
-        # Technical indicators
-        pd_close = pd.Series(close)
-        feature['RSI'] = momentum.rsi(pd_close).values[-1]
-        feature['MACD_Rate'] = trend.macd_diff(pd_close).values[-1] / price
-        feature['TSI'] = momentum.tsi(pd_close).values[-1]
-
-        # Markets
-        feature['VIX'] = vix
-
-        # Other numerical factors
-        # Fit five data points to a second order polynomial
-        feature['Acceleration'] = (2 * close[-5] - 1 * close[-4] - 2 * close[-3] -
-                                   1 * close[-2] + 2 * close[-1]) / 14
-        feature['Momentum'] = (-2 * close[-5] - 1 * close[-4] +
-                               1 * close[-2] + 2 * close[-1]) / 10
-        quarterly_returns = [np.log(close[i] / close[i - 1])
-                             for i in range(-DAYS_IN_A_QUARTER, -1)]
-        monthly_returns = quarterly_returns[-DAYS_IN_A_MONTH:]
-        weekly_returns = quarterly_returns[-DAYS_IN_A_WEEK:]
-        feature['Monthly_Skewness'] = stats.skew(monthly_returns)
-        feature['Monthly_Volatility'] = np.std(monthly_returns)
-        feature['Weekly_Skewness'] = stats.skew(weekly_returns)
-        feature['Weekly_Volatility'] = np.std(weekly_returns)
-        feature['Z_Score'] = (feature['Day_1_Return'] - np.mean(quarterly_returns)) / np.std(quarterly_returns)
-        feature['Monthly_Avg_Dollar_Volume'] = np.average(np.multiply(
-            close[-DAYS_IN_A_MONTH - 1:-1], volume[-DAYS_IN_A_MONTH:])) / 1E6
-
-        return feature
-
-    @functools.lru_cache(maxsize=10000)
-    def get_threshold(self, symbol, cutoff=None):
-        """Gets threshold for a symbol."""
-        if cutoff:
-            close_year = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
-        else:
-            close_year = self.closes[symbol][-DAYS_IN_A_YEAR:]
-        returns = [np.log(close_year[i] / close_year[i - 5])
-                   for i in range(5, len(close_year))]
-        if not returns:
-            return 0
-        threshold = np.mean(returns) - 3 * np.std(returns)
-        return threshold
-
-    def get_volatility(self, symbol, look_back, cutoff=None):
-        """Gets threshold for a symbol."""
-        if cutoff:
-            close = self.closes[symbol][cutoff - look_back:cutoff]
-        else:
-            close = self.closes[symbol][-look_back:]
-        returns = [np.log(close[i] / close[i - 1])
-                   for i in range(1, len(close))]
-        return np.std(returns) if returns else 0
 
 
 def get_business_day(offset):
@@ -344,32 +228,9 @@ def get_header(title):
     return header_left + '=' * (80 - len(header_left))
 
 
-@retrying.retry(stop_max_attempt_number=3, wait_fixed=1000,
-                retry_on_exception=lambda e: isinstance(e, NetworkError))
-def web_scraping(url, prefixes):
-    """Scrapes a webpage for stock price."""
-    try:
-        r = requests.get(url, timeout=5)
-    except requests.exceptions.RequestException as e:
-        raise NetworkError('[%s] %s' % (url, e))
-    if r.status_code != 200:
-        raise NetworkError('[%s] status %d' % (url, r.status_code))
-    c = str(r.content)
-    for prefix in prefixes:
-        prefix_pos = c.find(prefix)
-        if prefix_pos >= 0:
-            pos = prefix_pos + len(prefix)
-            s = ''
-            while c[pos] > '9' or c[pos] < '0':
-                pos += 1
-            while '9' >= c[pos] >= '0' or c[pos] in ['.', ',']:
-                if c[pos] != ',':
-                    s += c[pos]
-                pos += 1
-            if pos - prefix_pos < 100:
-                return s
-    else:
-        raise NotFoundError('[%s] %s not found' % (url, prefixes))
+def to_percent(f, sign=False):
+    formatter = '%+.2f%%' if sign else '%.2f%%'
+    return formatter % (f * 100,)
 
 
 def logging_config(logging_file=None):

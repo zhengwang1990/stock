@@ -6,9 +6,7 @@ parameterized
 requests
 retrying
 scipy
-sklearn
 ta
 tabulate
-tensorflow
 tqdm
 yfinance
