@@ -7,7 +7,6 @@ from concurrent import futures
 import numpy as np
 import pandas as pd
 import retrying
-import warnings
 import yfinance as yf
 from tqdm import tqdm
 
@@ -46,6 +45,7 @@ class TradingBase(object):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.hists, self.closes, self.opens, self.volumes = {}, {}, {}, {}
         self.symbols = []
+        self.errors = []
         self.period = period
         self.history_start_date = None
         self.history_end_date = None
@@ -75,7 +75,6 @@ class TradingBase(object):
         self.load_all_symbols()
         self.load_histories()
         self.read_series_from_histories()
-        warnings.filterwarnings('error')
 
     def load_all_symbols(self):
         """Loads all tradable symbols on Alpaca."""
@@ -100,6 +99,7 @@ class TradingBase(object):
                     t.result()
                 except Exception as e:
                     logging.error('Error occurred in load_histories: %s', e)
+                    self.errors.append(sys.exc_info())
 
     def read_series_from_histories(self):
         """Reads out close price and volume."""

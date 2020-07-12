@@ -35,7 +35,6 @@ class TradingRealTime(utils.TradingBase):
         self.update_account()
         self.lock = threading.RLock()
         self.prices = {}
-        self.errors = []
 
         self.price_cache_file = os.path.join(output_dir, 'prices.json')
         self.drop_low_volume_symbols()
@@ -175,7 +174,6 @@ class TradingRealTime(utils.TradingBase):
                     _, exc_obj, exc_trace = self.errors[i]
                     logging.error('Error # %d: %s', i + 1, exc_obj)
                     if i == len(self.errors) - 1:
-                        self.active = False
                         raise exc_obj.with_traceback(exc_trace)
             time.sleep(1)
 
