@@ -322,6 +322,8 @@ def main():
                         help='Exit code of the trading run.')
     parser.add_argument('--api_key', default=None, help='Alpaca API key.')
     parser.add_argument('--api_secret', default=None, help='Alpaca API secret.')
+    parser.add_argument('--real_trade', help='Trade with real money.',
+                        action="store_true")
     parser.add_argument('--sender', required=True, help='Email sender name.')
     parser.add_argument('--receiver', required=True, help='Email receiver address.')
     parser.add_argument('--user', required=True, help='Email user name.')
@@ -331,9 +333,17 @@ def main():
                         action="store_true")
     args = parser.parse_args()
     if args.exit_code == 0:
-        alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_API_KEY'],
-                               args.api_secret or os.environ['ALPACA_API_SECRET'],
-                               utils.ALPACA_API_BASE_URL, 'v2')
+        if args.api_key and args.api_secret or args.real_trade:
+            api_key = args.api_key or os.environ['ALPACA_API_KEY']
+            api_secret = args.api_secret or os.environ['ALPACA_API_SECRET']
+            base_url = utils.ALPACA_API_BASE_URL
+        else:
+            api_key = os.environ['ALPACA_PAPER_API_KEY']
+            api_secret = os.environ['ALPACA_PAPER_API_SECRET']
+            base_url = utils.ALPACA_PAPER_API_BASE_URL
+        alpaca = tradeapi.REST(api_key,
+                               api_secret,
+                               base_url, 'v2')
         polygon = polygonapi.REST(os.environ['ALPACA_API_KEY'])
         send_summary(args.sender, args.receiver, args.bcc, args.user, args.password,
                      args.force, alpaca, polygon)
