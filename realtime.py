@@ -35,9 +35,7 @@ class TradingRealTime(utils.TradingBase):
         self.polygon = polygon
         self.update_account()
         self.lock = threading.RLock()
-        self.thresholds = {}
         self.prices = {}
-        self.ordered_symbols = []
         self.errors = []
 
         self.price_cache_file = os.path.join(output_dir, 'prices.json')
