@@ -11,7 +11,6 @@ import threading
 import time
 import requests
 import retrying
-import signal
 import utils
 from concurrent import futures
 from tabulate import tabulate

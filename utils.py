@@ -90,7 +90,6 @@ class TradingBase(object):
         """Loads history of all stock symbols."""
         logging.info('Loading stock histories...')
         threads = []
-
         with futures.ThreadPoolExecutor(max_workers=5) as pool:
             for symbol in self.symbols:
                 t = pool.submit(self.load_history, symbol)
@@ -211,10 +210,7 @@ class TradingBase(object):
             symbol, weight, side = buy_symbols[i]
             proportion = min(1 / min(len(buy_symbols), MAX_STOCK_PICK),
                              MAX_PROPORTION) if i < MAX_STOCK_PICK else 0
-            if side == 'long':
-                trading_list.append((symbol, proportion, side))
-            elif side == 'short':
-                trading_list.append((symbol, proportion, side))
+            trading_list.append((symbol, proportion, side))
         return trading_list
 
 
