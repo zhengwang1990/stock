@@ -123,25 +123,30 @@ class TradingRealTimeTest(unittest.TestCase):
     def test_trade(self):
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
             self.trading.update_trading_list()
-        print(self.trading.trading_list)
         self.alpaca.list_positions.side_effect = [
-            # Original positions
-            [Position('SYMX', '10', '10.0', '100.0', '99.0'),
+            # Original positions. Next: sell 3 SYMA, and all of SYMX, SYMY.
+            [Position('SYMA', '10', '10.0', '100.0', '99.0'),  # Sell 3 shares
+             Position('SYMC', '1', '10.0', '100.0', '99.0'),  # No sell transactions
+             Position('SYMX', '10', '10.0', '100.0', '99.0'),
              Position('SYMY', '20', '20.0', '400.0', '555.5')],
-            # SYMY sold with limit order
-            [Position('SYMX', '10', '10.0', '100.0', '99.0')],
-            # SYMX sold with market order
-            [],
-            # SYMA filled with limit order, SYMB partially filled
+            # SYMY sold with limit order. Next: Sell all of SYMX.
+            [Position('SYMA', '7', '10.0', '100.0', '99.0'),  # No sell transactions
+             Position('SYMC', '1', '10.0', '100.0', '99.0'),  # No sell transactions
+             Position('SYMX', '10', '10.0', '100.0', '99.0')],
+            # SYMX sold with market order. SYMA already there. Next: Buy AAPL, SYMB, SYMC.
+            [Position('SYMA', '7', '10.0', '100.0', '99.0'),
+             Position('SYMC', '1', '10.0', '100.0', '99.0')],
+            # SYMB filled with limit order, SYMC partially filled. Next: Buy AAPL, SYMC.
             [Position('SYMA', '7', '88.0', '440.0', '440.0'),
-             Position('SYMB', '1', '88.0', '88.0', '88.0')]]
+             Position('SYMB', '7', '88.0', '88.0', '88.0'),
+             Position('SYMC', '3', '10.0', '100.0', '99.0')]]
         self.trading.trade()
-        # Sell 2 + 1, Buy 4 + 3
-        self.assertEqual(self.alpaca.submit_order.call_count, 10)
+        # Sell 3 + 1, Buy 3 + 2
+        self.assertEqual(self.alpaca.submit_order.call_count, 9)
 
     def test_run_success(self):
         with mock.patch.object(time, 'time', side_effect=itertools.count(990)), \
-                mock.patch.object(realtime.TradingRealTime, 'update_all_prices') as mock_update_all_prices, \
+             mock.patch.object(realtime.TradingRealTime, 'update_all_prices') as mock_update_all_prices, \
                 mock.patch.object(realtime.TradingRealTime, 'update_trading_list_prices') as mock_update_prices, \
                 mock.patch.object(realtime.TradingRealTime, 'update_trading_list') as mock_update_trading_list, \
                 mock.patch.object(realtime.TradingRealTime, 'trade') as mock_trade:
@@ -154,7 +159,7 @@ class TradingRealTimeTest(unittest.TestCase):
     def test_run_fail(self):
         self.polygon.last_trade.side_effect = requests.exceptions.HTTPError('Test error')
         with mock.patch.object(time, 'time', side_effect=itertools.repeat(800)), \
-                mock.patch.object(realtime.TradingRealTime, 'update_all_prices') as mock_update_all_prices, \
+             mock.patch.object(realtime.TradingRealTime, 'update_all_prices') as mock_update_all_prices, \
                 mock.patch.object(realtime.TradingRealTime, 'trade_clock_watcher') as trade_clock_watcher, \
                 self.assertRaises(requests.exceptions.HTTPError):
             self.trading.run()

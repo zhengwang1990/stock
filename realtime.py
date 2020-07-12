@@ -126,7 +126,7 @@ class TradingRealTime(utils.TradingBase):
         try:
             price = _get_realtime_price_impl(symbol)
         except requests.exceptions.RequestException as e:
-            logging.error('[%s] Exception raised in get_realtime_price for: %s', symbol, e)
+            logging.error('[%s] Exception raised in get_realtime_price: %s', symbol, e)
             self.errors.append(sys.exc_info())
         else:
             self.prices[symbol] = price
@@ -233,14 +233,24 @@ class TradingRealTime(utils.TradingBase):
     def sell(self, order_type, deadline=None):
         """Sells all current positions."""
         positions = self.alpaca.list_positions()
+        planned_buys = {symbol: int(self.cash * proportion * 0.99 / self.prices[symbol])
+                        for symbol, proportion, _ in self.trading_list}
         positions_table = []
         for position in positions:
+            qty = int(position.qty)
+            if position.symbol in planned_buys:
+                qty -= planned_buys[position.symbol]
+            if qty <= 0:
+                continue
             try:
                 if order_type == 'limit':
-                    self.alpaca.submit_order(position.symbol, int(position.qty), 'sell', 'limit', 'day',
+                    logging.info('[%s] Selling %d shares at limit price %s.',
+                                 position.symbol, qty, position.current_price)
+                    self.alpaca.submit_order(position.symbol, qty, 'sell', 'limit', 'day',
                                              limit_price=float(position.current_price))
                 elif order_type == 'market':
-                    self.alpaca.submit_order(position.symbol, int(position.qty), 'sell', 'market', 'day')
+                    logging.info('[%s] Selling %d shares at market price.', position.symbol, qty)
+                    self.alpaca.submit_order(position.symbol, qty, 'sell', 'market', 'day')
                 else:
                     raise NotImplementedError('Order type %s not recognized' % (order_type,))
                 positions_table.append([position.symbol, position.current_price, position.qty,
@@ -272,9 +282,12 @@ class TradingRealTime(utils.TradingBase):
                 orders_table.append([symbol, self.prices[symbol], qty, self.prices[symbol] * qty])
                 try:
                     if order_type == 'limit':
+                        logging.info('[%s] Buying %d shares at limit price %.2f.',
+                                     symbol, qty, self.prices[symbol])
                         self.alpaca.submit_order(symbol, qty, 'buy', 'limit', 'day',
                                                  limit_price=self.prices[symbol])
                     elif order_type == 'market':
+                        logging.info('[%s] Buying %d shares at market price.', symbol, qty)
                         self.alpaca.submit_order(symbol, qty, 'buy', 'market', 'day')
                     else:
                         raise NotImplementedError('Order type %s not recognized' % (order_type,))
