@@ -79,13 +79,11 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
     historical_date.append(open_dates[0].date())
 
     sell_text, sell_html = '', ''
-    total_gain = 0
     for symbol, sell_info in sells.items():
         if symbol not in prev_buys:
             continue
         buy_info = prev_buys[symbol]
         gain = sell_info.value - buy_info.value
-        total_gain += gain
         percent = sell_info.price / buy_info.price - 1
         sell_text += '%s: buy at %g, sell at %g, quantity %d, gain/loss %+.2f (%+.2f%%)\n' % (
             symbol, buy_info.price, sell_info.price, sell_info.qty, gain, percent * 100)
@@ -100,6 +98,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
         buy_html += '<tr> <th scope="row">%s</th> <td>%g</td> <td>%d</td> <td>%.2f</td> </tr>' % (
             symbol, buy_info.price, buy_info.qty, buy_info.value)
 
+    total_gain = account_equity - history.equity[-1]
     account_text = 'Equity: %.2f\nCash: %s\nGain / Loss: %+.2f (%+.2f%%)\n' % (
         account_equity, account.cash, total_gain, total_gain / (account_equity - total_gain) * 100)
     account_html = ('<tr><th scope="row" class="narrow-col">Equity</th><td>%.2f</td></tr>'
