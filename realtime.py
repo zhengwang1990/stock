@@ -183,10 +183,14 @@ class TradingRealTime(utils.TradingBase):
 
     def update_trading_list(self):
         """Keeps updating trading list with ML models."""
+        print('-' * 80)
+        print('Update trading list')
+        print('-' * 80)
         print_all = False
         while time.time() < self.next_market_close:
             # Update trading list
             trading_list = self.get_trading_list()
+            print(trading_list)
             if not self.active:
                 return
 
