@@ -36,25 +36,25 @@ class TradingRealTime(utils.TradingBase):
         self.lock = threading.RLock()
         self.prices = {}
 
-        self.price_cache_file = os.path.join(output_dir, 'prices.json')
         self.drop_low_volume_symbols()
-
-        read_cache = os.path.isfile(self.price_cache_file)
-        if read_cache:
-            logging.info('Reading cached stock prices...')
-            with open(self.price_cache_file) as f:
-                self.prices = json.loads(f.read())
-            self.last_update = None
-        else:
-            logging.info('Loading current stock prices...')
-            self.update_prices(self.closes.keys(), use_tqdm=True)
-            self.last_update = datetime.datetime.now()
 
         for symbol in self.closes.keys():
             self.closes[symbol] = np.append(self.closes[symbol], 0)
             self.opens[symbol] = np.append(self.opens[symbol], 0)
             self.volumes[symbol] = np.append(self.volumes[symbol], 0)
-        self.embed_prices_to_closes()
+
+        self.price_cache_file = os.path.join(output_dir, 'prices.json')
+        read_cache = os.path.isfile(self.price_cache_file)
+        if read_cache:
+            logging.info('Reading cached stock prices...')
+            with open(self.price_cache_file) as f:
+                self.prices = json.loads(f.read())
+            self.embed_prices_to_closes()
+            self.last_update = None
+        else:
+            logging.info('Loading current stock prices...')
+            self.update_prices(self.closes.keys(), use_tqdm=True)
+            self.last_update = datetime.datetime.now()
 
         self.trading_list = []
         self.next_market_close = self.alpaca.get_clock().next_close.timestamp()
@@ -146,6 +146,7 @@ class TradingRealTime(utils.TradingBase):
                 if not self.active:
                     return
                 t.result()
+        self.embed_prices_to_closes()
         with self.lock:
             with open(self.price_cache_file, 'w') as f:
                 f.write(json.dumps(self.prices))
