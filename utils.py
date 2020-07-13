@@ -135,6 +135,11 @@ class TradingBase(object):
                 return
         hist.dropna(inplace=True)
         drop_key = datetime.datetime.today().date()
+        print('-' * 80)
+        print('is market open', self.is_market_open)
+        print(drop_key)
+        print(hist.index[-5:])
+        print('-' * 80)
         if self.is_market_open and drop_key in hist.index:
             hist.drop(drop_key, inplace=True)
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:
