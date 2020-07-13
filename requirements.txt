@@ -5,8 +5,6 @@ pandas
 parameterized
 requests
 retrying
-scipy
-ta
 tabulate
 tqdm
 yfinance
