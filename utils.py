@@ -55,10 +55,11 @@ class TradingBase(object):
             if not start_date and not end_date:
                 self.period = DEFAULT_HISTORY_LOAD
             if end_date:
-                e = min(pd.to_datetime(end_date) + pd.tseries.offsets.BDay(1), datetime.datetime.today())
+                e = min(pd.to_datetime(end_date) + pd.tseries.offsets.BDay(1),
+                        datetime.datetime.today() + pd.tseries.offsets.BDay(1))
                 self.history_end_date = e.strftime('%Y-%m-%d')
             else:
-                self.history_end_date = datetime.datetime.today().strftime('%Y-%m-%d')
+                self.history_end_date = get_business_day(1)
             if start_date:
                 s = pd.to_datetime(start_date) - pd.tseries.offsets.BDay(300)
                 self.history_start_date = s.strftime('%Y-%m-%d')
