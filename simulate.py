@@ -30,7 +30,7 @@ class TradingSimulate(utils.TradingBase):
 
         self.start_date = (start_date or
                            self.history_dates[utils.DAYS_IN_A_YEAR + 1].strftime('%F'))
-        self.end_date = end_date or datetime.datetime.today().strftime('%F')
+        self.end_date = end_date or utils.get_business_day(1)
         self.start_point, self.end_point = 0, self.history_length - 1
         while (self.start_point < self.history_length and
                pd.to_datetime(self.start_date) > self.history_dates[self.start_point]):

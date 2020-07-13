@@ -337,16 +337,13 @@ class TradingRealTime(utils.TradingBase):
             trading_table.append(trading_row)
         headers = ['Symbol', 'Proportion', 'Side', 'Today Change',
                    'Price', 'Cost', 'Quantity']
-        outputs = []
-        if trading_table:
-            outputs.append(tabulate(trading_table, headers=headers, tablefmt='grid'))
-        else:
-            logging.warning('NO stock satisfying trading criteria!')
-        outputs.append(tabulate(
-            [['Equity', '%.2f' % (self.equity,),
-              'Estimated Cost', '%.2f' % (cost,),
-              'Price Updates',
-              self.last_update.strftime('%T') if self.last_update else 'Not Updated']], tablefmt='grid'))
+        outputs = [
+            tabulate(trading_table, headers=headers, tablefmt='grid'),
+            tabulate(
+                [['Equity', '%.2f' % (self.equity,),
+                  'Estimated Cost', '%.2f' % (cost,),
+                  'Price Updates',
+                  self.last_update.strftime('%T') if self.last_update else 'Not Updated']], tablefmt='grid')]
         logging.info('\n'.join(outputs))
 
 

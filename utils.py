@@ -215,7 +215,7 @@ class TradingBase(object):
 
 
 def get_business_day(offset):
-    day = datetime.datetime.today() - pd.tseries.offsets.BDay(offset)
+    day = datetime.datetime.today() + pd.tseries.offsets.BDay(offset)
     return '%4d-%02d-%02d' % (day.year, day.month, day.day)
 
 
