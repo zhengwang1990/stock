@@ -273,6 +273,9 @@ class TradingRealTime(utils.TradingBase):
             qty = int(self.equity * proportion * adjust / self.prices[symbol])
             if symbol in existing_positions:
                 qty -= existing_positions[symbol]
+            self.update_account()
+            while qty * self.prices[symbol] > self.cash:
+                qty -= 1
             if qty > 0:
                 orders_table.append([symbol, self.prices[symbol], qty, self.prices[symbol] * qty])
                 try:
