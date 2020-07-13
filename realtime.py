@@ -239,12 +239,9 @@ class TradingRealTime(utils.TradingBase):
                 continue
             try:
                 if order_type == 'limit':
-                    logging.info('Selling %d shares of %s at limit price %s.',
-                                 qty, position.symbol, position.current_price)
                     self.alpaca.submit_order(position.symbol, qty, 'sell', 'limit', 'day',
                                              limit_price=float(position.current_price))
                 elif order_type == 'market':
-                    logging.info('Selling %d shares of %s at market price.', qty, position.symbol)
                     self.alpaca.submit_order(position.symbol, qty, 'sell', 'market', 'day')
                 else:
                     raise NotImplementedError('Order type %s not recognized' % (order_type,))
@@ -277,12 +274,9 @@ class TradingRealTime(utils.TradingBase):
                 orders_table.append([symbol, self.prices[symbol], qty, self.prices[symbol] * qty])
                 try:
                     if order_type == 'limit':
-                        logging.info('Buying %d shares of %s at limit price %.2f.',
-                                     qty, symbol, self.prices[symbol])
                         self.alpaca.submit_order(symbol, qty, 'buy', 'limit', 'day',
                                                  limit_price=self.prices[symbol])
                     elif order_type == 'market':
-                        logging.info('Buying %d shares of %s at market price.', qty, symbol)
                         self.alpaca.submit_order(symbol, qty, 'buy', 'market', 'day')
                     else:
                         raise NotImplementedError('Order type %s not recognized' % (order_type,))
