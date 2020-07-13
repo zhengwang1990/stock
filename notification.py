@@ -62,7 +62,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
     message['Subject'] = '[Summary] [%s] Trade summary of the day' % (
         datetime.date.today(),)
     orders = alpaca.list_orders(status='closed', after=open_dates[0])
-    prev_orders = alpaca.list_orders(status='closed', after=open_dates[1], until=open_dates[0])
+    prev_orders = alpaca.list_orders(status='closed', after=open_dates[2], until=open_dates[0])
     buys = _get_trade_info(orders, 'buy')
     sells = _get_trade_info(orders, 'sell')
     prev_buys = _get_trade_info(prev_orders, 'buy')
