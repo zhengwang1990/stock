@@ -215,14 +215,9 @@ class TradingRealTime(utils.TradingBase):
         # Sell remaining positions with market orders
         self.sell('market')
 
-        for _ in range(10):
-            self.update_account()
-            if self.equity == self.cash:
-                break
-            time.sleep(1)
-        else:
-            logging.warning(
-                'Timeout while waiting for cash to settle. Equity: %s; Cash: %s.', self.equity, self.cash)
+        # Wait 1 second for cash to settle
+        time.sleep(1)
+        self.update_account()
 
         # Buy with limit orders
         self.buy('limit', deadline=self.next_market_close - 30)
@@ -233,7 +228,7 @@ class TradingRealTime(utils.TradingBase):
     def sell(self, order_type, deadline=None):
         """Sells all current positions."""
         positions = self.alpaca.list_positions()
-        planned_buys = {symbol: int(self.cash * proportion * 0.99 / self.prices[symbol])
+        planned_buys = {symbol: int(self.equity * proportion * 0.9 / self.prices[symbol])
                         for symbol, proportion, _ in self.trading_list}
         positions_table = []
         for position in positions:
@@ -275,7 +270,7 @@ class TradingRealTime(utils.TradingBase):
             if proportion == 0:
                 continue
             adjust = 1 if order_type == 'limit' else 0.98
-            qty = int(self.cash * proportion * adjust / self.prices[symbol])
+            qty = int(self.equity * proportion * adjust / self.prices[symbol])
             if symbol in existing_positions:
                 qty -= existing_positions[symbol]
             if qty > 0:

@@ -124,25 +124,25 @@ class TradingRealTimeTest(unittest.TestCase):
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
             self.trading.update_trading_list()
         self.alpaca.list_positions.side_effect = [
-            # Original positions. Next: sell 3 SYMA, and all of SYMX, SYMY.
-            [Position('SYMA', '10', '10.0', '100.0', '99.0'),  # Sell 3 shares
+            # Original positions. Next: sell 4 SYMA, and all of SYMX, SYMY.
+            [Position('SYMA', '10', '10.0', '100.0', '99.0'),  # Sell 4 shares
              Position('SYMC', '1', '10.0', '100.0', '99.0'),  # No sell transactions
              Position('SYMX', '10', '10.0', '100.0', '99.0'),
              Position('SYMY', '20', '20.0', '400.0', '555.5')],
             # SYMY sold with limit order. Next: Sell all of SYMX.
-            [Position('SYMA', '7', '10.0', '100.0', '99.0'),  # No sell transactions
+            [Position('SYMA', '6', '10.0', '100.0', '99.0'),  # No sell transactions
              Position('SYMC', '1', '10.0', '100.0', '99.0'),  # No sell transactions
              Position('SYMX', '10', '10.0', '100.0', '99.0')],
-            # SYMX sold with market order. SYMA already there. Next: Buy AAPL, SYMB, SYMC.
-            [Position('SYMA', '7', '10.0', '100.0', '99.0'),
+            # SYMX sold with market order. SYMA has most of it. Next: Buy AAPL, SYMA, SYMB, SYMC.
+            [Position('SYMA', '6', '10.0', '100.0', '99.0'),
              Position('SYMC', '1', '10.0', '100.0', '99.0')],
-            # SYMB filled with limit order, SYMC partially filled. Next: Buy AAPL, SYMC.
+            # SYMA, SYMB filled with limit order, SYMC partially filled. Next: Buy AAPL, SYMC.
             [Position('SYMA', '7', '88.0', '440.0', '440.0'),
              Position('SYMB', '7', '88.0', '88.0', '88.0'),
              Position('SYMC', '3', '10.0', '100.0', '99.0')]]
         self.trading.trade()
-        # Sell 3 + 1, Buy 3 + 2
-        self.assertEqual(self.alpaca.submit_order.call_count, 9)
+        # Sell 3 + 1, Buy 4 + 2
+        self.assertEqual(self.alpaca.submit_order.call_count, 10)
 
     def test_run_success(self):
         with mock.patch.object(time, 'time', side_effect=itertools.count(990)), \
