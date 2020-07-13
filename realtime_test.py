@@ -159,7 +159,7 @@ class TradingRealTimeTest(unittest.TestCase):
     def test_run_fail(self):
         self.polygon.last_trade.side_effect = requests.exceptions.HTTPError('Test error')
         with mock.patch.object(time, 'time', side_effect=itertools.repeat(800)), \
-             mock.patch.object(realtime.TradingRealTime, 'update_all_prices') as mock_update_all_prices, \
+                mock.patch.object(realtime.TradingRealTime, 'update_all_prices') as mock_update_all_prices, \
                 mock.patch.object(realtime.TradingRealTime, 'trade_clock_watcher') as trade_clock_watcher, \
                 self.assertRaises(requests.exceptions.HTTPError):
             self.trading.run()

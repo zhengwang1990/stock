@@ -1,3 +1,4 @@
+import datetime
 import logging
 import os
 import re
@@ -54,10 +55,10 @@ class TradingBase(object):
             if not start_date and not end_date:
                 self.period = DEFAULT_HISTORY_LOAD
             if end_date:
-                e = min(pd.to_datetime(end_date) + pd.tseries.offsets.BDay(1), pd.datetime.today())
+                e = min(pd.to_datetime(end_date) + pd.tseries.offsets.BDay(1), datetime.datetime.today())
                 self.history_end_date = e.strftime('%Y-%m-%d')
             else:
-                self.history_end_date = pd.datetime.today().strftime('%Y-%m-%d')
+                self.history_end_date = datetime.datetime.today().strftime('%Y-%m-%d')
             if start_date:
                 s = pd.to_datetime(start_date) - pd.tseries.offsets.BDay(300)
                 self.history_start_date = s.strftime('%Y-%m-%d')
@@ -133,7 +134,7 @@ class TradingBase(object):
             else:
                 return
         hist.dropna(inplace=True)
-        drop_key = pd.datetime.today().date()
+        drop_key = datetime.datetime.today().date()
         if self.is_market_open and drop_key in hist.index:
             hist.drop(drop_key, inplace=True)
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:
@@ -214,7 +215,7 @@ class TradingBase(object):
 
 
 def get_business_day(offset):
-    day = pd.datetime.today() - pd.tseries.offsets.BDay(offset)
+    day = datetime.datetime.today() - pd.tseries.offsets.BDay(offset)
     return '%4d-%02d-%02d' % (day.year, day.month, day.day)
 
 
