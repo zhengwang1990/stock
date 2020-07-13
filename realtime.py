@@ -125,7 +125,6 @@ class TradingRealTime(utils.TradingBase):
 
         try:
             price = _get_realtime_price_impl(symbol)
-            logging.info('Get stock price %s: %s', symbol, price)
         except requests.exceptions.RequestException as e:
             logging.error('Exception raised in get_realtime_price for %s: %s', symbol, e)
             self.errors.append(sys.exc_info())
@@ -183,14 +182,10 @@ class TradingRealTime(utils.TradingBase):
 
     def update_trading_list(self):
         """Keeps updating trading list with ML models."""
-        print('-' * 80)
-        print('Update trading list')
-        print('-' * 80)
         print_all = False
         while time.time() < self.next_market_close:
             # Update trading list
             trading_list = self.get_trading_list()
-            print(trading_list)
             if not self.active:
                 return
 

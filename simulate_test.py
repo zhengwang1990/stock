@@ -36,7 +36,7 @@ class TradingSimulateTest(unittest.TestCase):
                                           'High': np.random.random(1000) * 10 + 110,
                                           'Low': np.random.random(1000) * 10 + 90,
                                           'Volume': [10000] * 1000},
-                                         index=[datetime.datetime.today().date() - pd.tseries.offsets.BDay(offset)
+                                         index=[datetime.datetime.today().date() - pd.tseries.offsets.DateOffset(offset)
                                                 for offset in range(999, -1, -1)])
         self.patch_history = mock.patch.object(yf.Ticker, 'history', return_value=fake_history_data)
         self.patch_history.start()
