@@ -179,6 +179,7 @@ class TradingBase(object):
         stock_universe = self.get_stock_universe(cutoff)
         symbols_dip = []
         n = 7
+        print('Stock universe', stock_universe)
         for symbol in stock_universe:
             closes_year = self.closes[symbol][cutoff - DAYS_IN_A_YEAR:cutoff]
             n_day_returns = [np.log(closes_year[i] / closes_year[i - n])
@@ -190,12 +191,15 @@ class TradingBase(object):
             std = np.std(n_day_returns)
             threshold = mean - 3 * std
             n_day_return = np.log(price / closes_year[-n])
+            print(symbol, 'N day return', n_day_return)
+            print(symbol, 'threshold', threshold)
             if n_day_return < threshold:
                 next_day_return = [
                     np.log(closes_year[i+1] / closes_year[i])
                     for i in range(n, len(closes_year)-1)
                     if n_day_returns[i-n] < threshold]
                 avg_next_day_return = np.mean(next_day_return) if next_day_return else 0
+                print(symbol, 'avg_next_day_return', avg_next_day_return)
                 if avg_next_day_return > 0 and np.log(price / closes_year[-1]) > 0.5 * n_day_return:
                     symbols_dip.append((symbol, avg_next_day_return))
         return symbols_dip
