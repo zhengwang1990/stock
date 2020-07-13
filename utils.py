@@ -200,8 +200,10 @@ class TradingBase(object):
                     if n_day_returns[i-n] < threshold]
                 avg_next_day_return = np.mean(next_day_return) if next_day_return else 0
                 print(symbol, 'avg_next_day_return', avg_next_day_return)
+                print(symbol, 'price / close_year[-1]', np.log(price / closes_year[-1]))
                 if avg_next_day_return > 0 and np.log(price / closes_year[-1]) > 0.5 * n_day_return:
                     symbols_dip.append((symbol, avg_next_day_return))
+        print(symbols_dip)
         return symbols_dip
 
     def get_trading_list(self, buy_symbols=None, cutoff=-1):
