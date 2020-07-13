@@ -210,6 +210,7 @@ class TradingRealTime(utils.TradingBase):
 
     def trade(self):
         """Performs sell and buy transactions."""
+        self.update_account()
         # Sell all current positions with limit orders
         self.sell('limit', deadline=self.next_market_close - 60)
         # Sell remaining positions with market orders
