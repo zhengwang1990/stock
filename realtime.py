@@ -125,6 +125,7 @@ class TradingRealTime(utils.TradingBase):
 
         try:
             price = _get_realtime_price_impl(symbol)
+            logging.info('Get stock price %s: %s', symbol, price)
         except requests.exceptions.RequestException as e:
             logging.error('Exception raised in get_realtime_price for %s: %s', symbol, e)
             self.errors.append(sys.exc_info())
