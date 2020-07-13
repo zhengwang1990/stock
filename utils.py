@@ -191,6 +191,7 @@ class TradingBase(object):
             std = np.std(n_day_returns)
             threshold = mean - 3 * std
             n_day_return = np.log(price / closes_year[-n])
+            print(symbol, self.closes[symbol][-10:], closes_year[-10:])
             print(symbol, 'N day return', n_day_return)
             print(symbol, 'threshold', threshold)
             if n_day_return < threshold:
