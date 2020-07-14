@@ -22,7 +22,8 @@ Asset = collections.namedtuple('Asset', ['symbol', 'tradable', 'marginable',
 Account = collections.namedtuple('Account', ['equity', 'cash'])
 LastTrade = collections.namedtuple('LastTrade', ['price'])
 Position = collections.namedtuple('Position', ['symbol', 'qty', 'current_price',
-                                               'market_value', 'cost_basis'])
+                                               'market_value', 'cost_basis',
+                                               'avg_entry_price'])
 
 
 class TradingRealTimeTest(unittest.TestCase):
@@ -115,8 +116,9 @@ class TradingRealTimeTest(unittest.TestCase):
 
     @parameterized.expand([('limit',), ('market',)])
     def test_sell(self, order_type):
-        self.alpaca.list_positions.return_value = [Position('SYMX', '10', '10.0', '100.0', '99.0'),
-                                                   Position('SYMY', '20', '20.0', '400.0', '555.5')]
+        self.alpaca.list_positions.return_value = [
+            Position('SYMX', '10', '10.0', '100.0', '99.0', '9.9'),
+            Position('SYMY', '20', '20.0', '400.0', '555.5', '27.7')]
         self.trading.sell(order_type)
         self.assertEqual(self.alpaca.submit_order.call_count, 2)
 
@@ -125,21 +127,21 @@ class TradingRealTimeTest(unittest.TestCase):
             self.trading.update_trading_list()
         self.alpaca.list_positions.side_effect = [
             # Original positions. Next: sell 4 SYMA, and all of SYMX, SYMY.
-            [Position('SYMA', '10', '10.0', '100.0', '99.0'),  # Sell 4 shares
-             Position('SYMC', '1', '10.0', '100.0', '99.0'),  # No sell transactions
-             Position('SYMX', '10', '10.0', '100.0', '99.0'),
-             Position('SYMY', '20', '20.0', '400.0', '555.5')],
+            [Position('SYMA', '10', '10.0', '100.0', '99.0', '9.9'),  # Sell 4 shares
+             Position('SYMC', '1', '10.0', '100.0', '99.0', '27.7'),  # No sell transactions
+             Position('SYMX', '10', '10.0', '100.0', '99.0', '9.9'),
+             Position('SYMY', '20', '20.0', '400.0', '555.5', '27.7')],
             # SYMY sold with limit order. Next: Sell all of SYMX.
-            [Position('SYMA', '6', '10.0', '100.0', '99.0'),  # No sell transactions
-             Position('SYMC', '1', '10.0', '100.0', '99.0'),  # No sell transactions
-             Position('SYMX', '10', '10.0', '100.0', '99.0')],
+            [Position('SYMA', '6', '10.0', '100.0', '99.0', '9.9'),  # No sell transactions
+             Position('SYMC', '1', '10.0', '100.0', '99.0', '9.9'),  # No sell transactions
+             Position('SYMX', '10', '10.0', '100.0', '99.0', '9.9')],
             # SYMX sold with market order. SYMA has most of it. Next: Buy AAPL, SYMA, SYMB, SYMC.
-            [Position('SYMA', '6', '10.0', '100.0', '99.0'),
-             Position('SYMC', '1', '10.0', '100.0', '99.0')],
+            [Position('SYMA', '6', '10.0', '100.0', '99.0', '9.9'),
+             Position('SYMC', '1', '10.0', '100.0', '99.0', '9.9')],
             # SYMA, SYMB filled with limit order, SYMC partially filled. Next: Buy AAPL, SYMC.
-            [Position('SYMA', '7', '88.0', '440.0', '440.0'),
-             Position('SYMB', '7', '88.0', '88.0', '88.0'),
-             Position('SYMC', '3', '10.0', '100.0', '99.0')]]
+            [Position('SYMA', '7', '88.0', '440.0', '440.0', '60'),
+             Position('SYMB', '7', '88.0', '88.0', '88.0', '14.5'),
+             Position('SYMC', '3', '10.0', '100.0', '99.0', '33')]]
         self.trading.trade()
         # Sell 3 + 1, Buy 4 + 2
         self.assertEqual(self.alpaca.submit_order.call_count, 10)

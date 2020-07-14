@@ -83,7 +83,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
         if symbol not in prev_buys:
             continue
         buy_info = prev_buys[symbol]
-        gain = sell_info.value - buy_info.value
+        gain = (sell_info.price - buy_info.price) * sell_info.qty
         percent = sell_info.price / buy_info.price - 1
         sell_text += '%s: buy at %g, sell at %g, quantity %d, gain/loss %+.2f (%+.2f%%)\n' % (
             symbol, buy_info.price, sell_info.price, sell_info.qty, gain, percent * 100)

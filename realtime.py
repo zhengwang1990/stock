@@ -247,8 +247,8 @@ class TradingRealTime(utils.TradingBase):
                     self.alpaca.submit_order(position.symbol, qty, 'sell', 'market', 'day')
                 else:
                     raise NotImplementedError('Order type %s not recognized' % (order_type,))
-                positions_table.append([position.symbol, position.current_price, position.qty,
-                                        float(position.market_value) - float(position.cost_basis)])
+                positions_table.append([position.symbol, position.current_price, qty,
+                                        (float(position.current_price) - float(position.avg_entry_price)) * qty])
             except tradeapi.rest.APIError as e:
                 logging.error('Failed to sell %s: %s', position.symbol, e)
         outputs = [utils.get_header('Place ' + order_type.capitalize() + ' Sell Order')]
