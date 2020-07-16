@@ -43,7 +43,7 @@ class TradingSimulateTest(unittest.TestCase):
         self.alpaca = mock.create_autospec(tradeapi.REST)
         self.alpaca.list_assets.return_value = [Asset(symbol, True, True, True, True)
                                                 for symbol in [utils.REFERENCE_SYMBOL,
-                                                               'SYMA', 'SYMB', 'QQQ']]
+                                                               'SYMA', 'SPY', 'TQQQ']]
         self.alpaca.get_clock.return_value = Clock(False)
         self.trading = simulate.TradingSimulate(
             self.alpaca,

@@ -168,13 +168,28 @@ class TradingBase(object):
         return stock_universe
 
     def get_buy_symbols(self, cutoff=-1):
-        """Gets symbols which trigger buy signals.
-
-        A list of tuples will be returned with symbol, weight and all ML features.
-        """
+        """Gets symbols which trigger buy signals."""
+        buy_symbols = []
         symbols_dip = self.dip_reversion(cutoff)
-        buy_symbols = [(symbol, weight, 'long') for symbol, weight in symbols_dip]
+        buy_symbols.extend([(symbol, weight, 'long') for symbol, weight in symbols_dip])
+        symbols_surge = self.surge_trend(cutoff)
+        buy_symbols.extend([(symbol, weight, 'long') for symbol, weight in symbols_surge])
         return buy_symbols
+
+    def surge_trend(self, cutoff=-1):
+        stock_universe = ['TQQQ']
+        symbols = []
+        n = 10
+        for symbol in stock_universe:
+            n_day_return = np.log(self.closes[symbol][cutoff] / self.closes[symbol][cutoff - n])
+            if n_day_return < 0:
+                continue
+            n_day_returns = [np.log(self.closes[symbol][i] / self.closes[symbol][i - 1])
+                             for i in range(cutoff - n, cutoff)]
+            if has_peak(n_day_returns, 2):
+                continue
+            symbols.append((symbol, n_day_return / n))
+        return symbols
 
     def dip_reversion(self, cutoff=-1):
         stock_universe = self.get_stock_universe(cutoff)
@@ -187,17 +202,21 @@ class TradingBase(object):
             price = self.closes[symbol][cutoff]
             if not price:
                 continue
+            if (price > 1.2 * closes_year[-DAYS_IN_A_MONTH] and
+                    price / closes_year[-DAYS_IN_A_MONTH] >
+                    closes_year[-DAYS_IN_A_MONTH] / closes_year[-DAYS_IN_A_YEAR]):
+                continue
             mean = np.mean(n_day_returns)
             std = np.std(n_day_returns)
             threshold = mean - 3 * std
             n_day_return = np.log(price / closes_year[-n])
             if n_day_return < threshold:
                 next_day_return = [
-                    np.log(closes_year[i+1] / closes_year[i])
-                    for i in range(n, len(closes_year)-1)
-                    if n_day_returns[i-n] < threshold]
+                    np.log(closes_year[i + 1] / closes_year[i])
+                    for i in range(n, len(closes_year) - 1)
+                    if n_day_returns[i - n] < threshold]
                 avg_next_day_return = np.mean(next_day_return) if next_day_return else 0
-                if avg_next_day_return > 0 and np.log(price / closes_year[-1]) > 0.5 * n_day_return:
+                if avg_next_day_return > 0.01 and 0.05 > np.log(price / closes_year[-1]) > 0.5 * n_day_return:
                     symbols_dip.append((symbol, avg_next_day_return))
         return symbols_dip
 
@@ -212,6 +231,8 @@ class TradingBase(object):
             proportion = min(1 / min(len(buy_symbols), MAX_STOCK_PICK),
                              MAX_PROPORTION) if i < MAX_STOCK_PICK else 0
             trading_list.append((symbol, proportion, side))
+        if len(buy_symbols) < 1 / MAX_PROPORTION:
+            trading_list.append(('SPY', 1 - len(buy_symbols) * MAX_PROPORTION, 'long'))
         return trading_list
 
 
@@ -230,6 +251,15 @@ def to_percent(f, sign=False):
     return formatter % (f * 100,)
 
 
+def has_peak(a, multiplier=1):
+    std = np.std(a)
+    mean = np.mean(a)
+    for elem in a:
+        if elem > mean + multiplier * std:
+            return True
+    return False
+
+
 def logging_config(logging_file=None):
     """Configuration for logging."""
     logger = logging.getLogger()
@@ -240,7 +270,7 @@ def logging_config(logging_file=None):
     if sys.stdout.isatty():
         stream_handler.setLevel(logging.INFO)
     else:
-        stream_handler.setLevel(logging.WARNING)
+        stream_handler.setLevel(logging.DEBUG)
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
     if logging_file:
