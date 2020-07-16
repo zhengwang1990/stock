@@ -230,7 +230,7 @@ class TradingRealTime(utils.TradingBase):
     def sell(self, order_type, deadline=None):
         """Sells all current positions."""
         positions = self.alpaca.list_positions()
-        planned_buys = {symbol: int(self.equity * proportion * 0.95 / self.prices[symbol])
+        planned_buys = {symbol: int(self.equity * proportion * 0.97 / self.prices[symbol])
                         for symbol, proportion, _ in self.trading_list}
         positions_table = []
         for position in positions:
