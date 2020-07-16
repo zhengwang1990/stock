@@ -77,6 +77,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
     historical_date = [datetime.datetime.fromtimestamp(timestamp).date()
                        for timestamp in history.timestamp]
     historical_date.append(open_dates[0].date())
+    positions = alpaca.list_positions()
 
     sell_text, sell_html = '', ''
     for symbol, sell_info in sells.items():
@@ -108,6 +109,20 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
                        account_equity, account.cash, 'green' if total_gain >= 0 else 'red', total_gain,
                        total_gain / (account_equity - total_gain) * 100)
 
+    positions_text, positions_html = '', ''
+    for position in positions:
+        symbol = position.symbol
+        market_value = float(position.market_value)
+        cost_basis = float(position.cost_basis)
+        positions_text += '%s: quantity %s, cost %.2f, value %.2f, gain / loss: %+.2f (%+.2f%%)\n' % (
+            symbol, position.qty, cost_basis, market_value,
+            market_value - cost_basis, (market_value / cost_basis - 1) * 100)
+        positions_html += ('<tr> <th scope="row">%s</th> <td>%s</td> <td>%g</td> <td>%g</td> '
+                           '<td style="color:%s;">%+.2f (%+.2f%%)</td> </tr>') % (
+                              symbol, position.qty, cost_basis, market_value,
+                              'green' if market_value >= cost_basis else 'red',
+                              market_value - cost_basis, (market_value / cost_basis - 1) * 100)
+
     pd.plotting.register_matplotlib_converters()
     plt.figure(figsize=(10, 4))
     plt.plot(historical_value, marker='o',
@@ -137,7 +152,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
     plt.ylabel('Normalized Value', **text_kwargs)
     plt.yticks(fontname='monospace')
     plt.grid(linestyle='--', alpha=0.5)
-    plt.legend(ncol=len(market_symbols)+1, bbox_to_anchor=(0, 1),
+    plt.legend(ncol=len(market_symbols) + 1, bbox_to_anchor=(0, 1),
                loc='lower left', prop=text_kwargs)
     ax = plt.gca()
     ax.spines['right'].set_color('none')
@@ -169,6 +184,8 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
     {sell_text}
     [ Open Positions ]
     {buy_text}
+    [ Current Positions ]
+    {positions_text}
     """)
     html = textwrap.dedent("""\
     <html>
@@ -288,15 +305,32 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
           {buy_html}
         </tbody>
       </table>
+      <h1 class="display">Current Positions</h1>
+      <table class="table table-bordered">
+        <thead class="thead-light">
+          <tr>
+            <th scope="col">Symbol</th>
+            <th scope="col">Quantity</th>
+            <th scope="col">Cost Basis</th>
+            <th scope="col">Market Value</th>
+            <th scope="col">Gain / Loss</th>
+          </tr>
+        </thead>
+        <tbody>
+          {positions_html}
+        </tbody>
+      </table>
       <h1 class="display">10-day History</h1>
       <img src="cid:history">
     </body>
     </html>
     """)
     message.attach(MIMEText(text.format(
-        account_text=account_text, sell_text=sell_text, buy_text=buy_text), 'plain'))
+        account_text=account_text, sell_text=sell_text, buy_text=buy_text,
+        positions_text=positions_text), 'plain'))
     message.attach(MIMEText(html.format(
-        account_html=account_html, sell_html=sell_html, buy_html=buy_html), 'html'))
+        account_html=account_html, sell_html=sell_html, buy_html=buy_html,
+        positions_html=positions_html), 'html'))
     message.attach(image)
     server.sendmail(sender, [receiver] + bcc, message.as_string())
     server.close()
