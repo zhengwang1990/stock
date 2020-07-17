@@ -4,6 +4,7 @@ import argparse
 import collections
 import datetime
 import io
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -62,10 +63,24 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
     message['Subject'] = '[Summary] [%s] Trade summary of the day' % (
         datetime.date.today(),)
     orders = alpaca.list_orders(status='closed', after=open_dates[0])
-    prev_orders = alpaca.list_orders(status='closed', after=open_dates[2], until=open_dates[0])
+
     buys = _get_trade_info(orders, 'buy')
     sells = _get_trade_info(orders, 'sell')
-    prev_buys = _get_trade_info(prev_orders, 'buy')
+
+    position_file = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                 utils.OUTPUTS_DIR, 'realtime',
+                                 utils.get_business_day(0), 'positions.json')
+    if os.path.isfile(position_file):
+        with open(position_file) as f:
+            prev_positions = json.loads(f.read())
+        prev_buys = {position['symbol']: Order(float(position['avg_entry_price']),
+                                               int(position['qty']),
+                                               float(position['cost_basis']))
+                     for position in prev_positions}
+    else:
+        prev_orders = alpaca.list_orders(status='closed', after=open_dates[2], until=open_dates[0])
+        prev_buys = _get_trade_info(prev_orders, 'buy')
+
     account = alpaca.get_account()
     account_equity = float(account.equity)
     history_length = 10
@@ -311,7 +326,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
           <tr>
             <th scope="col">Symbol</th>
             <th scope="col">Quantity</th>
-            <th scope="col">Cost Basis</th>
+            <th scope="col">Cost</th>
             <th scope="col">Market Value</th>
             <th scope="col">Gain / Loss</th>
           </tr>

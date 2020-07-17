@@ -35,6 +35,7 @@ class TradingRealTime(utils.TradingBase):
         self.update_account()
         self.lock = threading.RLock()
         self.prices = {}
+        self.position_file = os.path.join(output_dir, 'positions.json')
 
         self.drop_low_volume_symbols()
 
@@ -88,7 +89,19 @@ class TradingRealTime(utils.TradingBase):
         self.active = False
         # Wait for all printing done
         time.sleep(1)
+        self.save_positions()
         self.trade()
+
+    def save_positions(self):
+        positions = self.alpaca.list_positions()
+        current_positions = [{
+            'symbol': position.symbol,
+            'qty': position.qty,
+            'avg_entry_price': position.avg_entry_price,
+            'cost_basis': position.cost_basis
+        } for position in positions]
+        with open(self.position_file, 'w') as f:
+            f.write(json.dumps(current_positions))
 
     def update_all_prices(self):
         """Keeps updating stock prices."""
