@@ -101,8 +101,10 @@ class TradingRealTime(utils.TradingBase):
                 time.sleep(10)
             elif time.time() > self.next_market_close - 60 * 30:
                 time.sleep(300)
-            else:
+            elif time.time() > self.next_market_close - 60 * 60:
                 time.sleep(600)
+            else:
+                time.sleep(1000)
 
     def update_trading_list_prices(self):
         """Keeps updating stock prices of symbols in the trading list."""
