@@ -270,7 +270,7 @@ def logging_config(logging_file=None):
     if sys.stdout.isatty():
         stream_handler.setLevel(logging.INFO)
     else:
-        stream_handler.setLevel(logging.DEBUG)
+        stream_handler.setLevel(logging.WARNING)
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
     if logging_file:
