@@ -130,7 +130,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
         market_value = float(position.market_value)
         cost_basis = float(position.cost_basis)
         change_today = float(position.change_today)
-        positions_text += ('%s: quantity %s, cost %.2f, value %.2f, change today: (%+.2f%%), '
+        positions_text += ('%s: quantity %s, cost %.2f, value %.2f, change today: %+.2f%%, '
                            'gain / loss: %+.2f (%+.2f%%)\n') % (
             symbol, position.qty, cost_basis, market_value, change_today * 100,
             market_value - cost_basis, (market_value / cost_basis - 1) * 100)
