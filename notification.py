@@ -129,12 +129,16 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
         symbol = position.symbol
         market_value = float(position.market_value)
         cost_basis = float(position.cost_basis)
-        positions_text += '%s: quantity %s, cost %.2f, value %.2f, gain / loss: %+.2f (%+.2f%%)\n' % (
-            symbol, position.qty, cost_basis, market_value,
+        change_today = float(position.change_today)
+        positions_text += ('%s: quantity %s, cost %.2f, value %.2f, change today: (%+.2f%%), '
+                           'gain / loss: %+.2f (%+.2f%%)\n') % (
+            symbol, position.qty, cost_basis, market_value, change_today * 100,
             market_value - cost_basis, (market_value / cost_basis - 1) * 100)
         positions_html += ('<tr> <th scope="row">%s</th> <td>%s</td> <td>%g</td> <td>%g</td> '
+                           '<td style="color:%s;">%+.2f%%</td> '
                            '<td style="color:%s;">%+.2f (%+.2f%%)</td> </tr>') % (
                               symbol, position.qty, cost_basis, market_value,
+                              'green' if change_today >= 0 else 'red', change_today * 100,
                               'green' if market_value >= cost_basis else 'red',
                               market_value - cost_basis, (market_value / cost_basis - 1) * 100)
 
@@ -328,6 +332,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
             <th scope="col">Quantity</th>
             <th scope="col">Cost</th>
             <th scope="col">Market Value</th>
+            <th scope="col">Change Today</th>
             <th scope="col">Gain / Loss</th>
           </tr>
         </thead>
