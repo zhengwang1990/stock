@@ -98,7 +98,7 @@ class TradingBase(object):
                 try:
                     t.result()
                 except Exception as e:
-                    logging.error('Error occurred in load_histories: %s', e)
+                    logging.exception('Error occurred in load_histories: %s', e)
                     self.errors.append(sys.exc_info())
 
     def read_series_from_histories(self):
@@ -127,7 +127,7 @@ class TradingBase(object):
                 [[pd.to_datetime(agg.timestamp.date()), agg.open, agg.close, agg.volume] for agg in aggs],
                 columns=['Date', 'Open', 'Close', 'Volume'])
             hist.set_index('Date', inplace=True)
-            drop_key = datetime.datetime.today().date()
+            drop_key = pd.to_datetime(datetime.datetime.today().date())
             if self.is_market_open or not self.is_trading_day and drop_key in hist.index:
                 hist.drop(drop_key, inplace=True)
             if len(hist):
