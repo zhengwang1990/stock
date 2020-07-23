@@ -1,4 +1,5 @@
 import alpaca_trade_api as tradeapi
+import alpaca_trade_api.polygon as polygonapi
 import argparse
 import datetime
 import logging
@@ -17,6 +18,7 @@ class TradingSimulate(utils.TradingBase):
 
     def __init__(self,
                  alpaca,
+                 polygon,
                  start_date=None,
                  end_date=None):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
@@ -26,7 +28,7 @@ class TradingSimulate(utils.TradingBase):
         os.makedirs(self.output_dir, exist_ok=True)
         utils.logging_config(os.path.join(self.output_dir, 'result.txt'))
 
-        super(TradingSimulate, self).__init__(alpaca, start_date=start_date, end_date=end_date)
+        super(TradingSimulate, self).__init__(alpaca, polygon, start_date=start_date, end_date=end_date)
 
         self.start_date = (start_date or
                            self.history_dates[utils.DAYS_IN_A_YEAR + 1].strftime('%F'))
@@ -201,7 +203,8 @@ def main():
     alpaca = tradeapi.REST(args.api_key or os.environ['ALPACA_PAPER_API_KEY'],
                            args.api_secret or os.environ['ALPACA_PAPER_API_SECRET'],
                            utils.ALPACA_PAPER_API_BASE_URL, 'v2')
-    trading = TradingSimulate(alpaca, args.start_date, args.end_date)
+    polygon = polygonapi.REST(args.api_key or os.environ['ALPACA_PAPER_API_KEY'])
+    trading = TradingSimulate(alpaca, polygon, args.start_date, args.end_date)
     trading.run()
 
 

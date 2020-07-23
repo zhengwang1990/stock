@@ -28,7 +28,7 @@ class TradingRealTime(utils.TradingBase):
                                   utils.get_business_day(0))
         os.makedirs(output_dir, exist_ok=True)
         utils.logging_config(os.path.join(output_dir, 'log.txt'))
-        super(TradingRealTime, self).__init__(alpaca)
+        super(TradingRealTime, self).__init__(alpaca, polygon)
         self.active = True
         self.equity, self.cash = 0, 0
         self.polygon = polygon

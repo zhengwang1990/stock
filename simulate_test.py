@@ -1,4 +1,5 @@
 import alpaca_trade_api as tradeapi
+import alpaca_trade_api.polygon as polygonapi
 import argparse
 import collections
 import datetime
@@ -10,11 +11,11 @@ import os
 import unittest
 import unittest.mock as mock
 import utils
-import yfinance as yf
 
 Clock = collections.namedtuple('Clock', ['is_open'])
 Asset = collections.namedtuple('Asset', ['symbol', 'tradable', 'marginable',
                                          'shortable', 'easy_to_borrow'])
+Agg = collections.namedtuple('Agg', ['timestamp', 'open', 'close', 'volume'])
 
 
 class TradingSimulateTest(unittest.TestCase):
@@ -31,29 +32,26 @@ class TradingSimulateTest(unittest.TestCase):
         self.patch_tight_layout = mock.patch.object(plt, 'tight_layout')
         self.patch_tight_layout.start()
         np.random.seed(0)
-        fake_history_data = pd.DataFrame({'Close': np.append(np.random.random(990) * 10 + 100,
-                                                             np.random.random(10) * 10 + 90),
-                                          'High': np.random.random(1000) * 10 + 110,
-                                          'Low': np.random.random(1000) * 10 + 90,
-                                          'Volume': [10000] * 1000},
-                                         index=[datetime.datetime.today().date() - pd.tseries.offsets.DateOffset(offset)
-                                                for offset in range(999, -1, -1)])
-        self.patch_history = mock.patch.object(yf.Ticker, 'history', return_value=fake_history_data)
-        self.patch_history.start()
         self.alpaca = mock.create_autospec(tradeapi.REST)
         self.alpaca.list_assets.return_value = [Asset(symbol, True, True, True, True)
                                                 for symbol in [utils.REFERENCE_SYMBOL,
                                                                'SYMA', 'SPY', 'TQQQ']]
         self.alpaca.get_clock.return_value = Clock(False)
+        self.polygon = mock.create_autospec(polygonapi.REST)
+        fake_closes = np.append(np.random.random(990) * 10 + 100, np.random.random(10) * 10 + 90)
+        fake_timestamps = [datetime.datetime.today().date() - pd.tseries.offsets.DateOffset(offset)
+                           for offset in range(999, -1, -1)]
+        self.polygon.historic_agg_v2.return_value = [Agg(fake_timestamps[i], 100, fake_closes[i], 1E6)
+                                                     for i in range(1000)]
         self.trading = simulate.TradingSimulate(
             self.alpaca,
+            self.polygon,
             start_date=(datetime.datetime.today().date() - pd.tseries.offsets.BDay(30)).strftime('%F'))
 
     def tearDown(self):
         self.patch_open.stop()
         self.patch_isfile.stop()
         self.patch_mkdirs.stop()
-        self.patch_history.stop()
         self.patch_savefig.stop()
         self.patch_tight_layout.stop()
 
