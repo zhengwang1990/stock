@@ -42,7 +42,7 @@ class TradingRealTimeTest(unittest.TestCase):
         self.alpaca.get_account.return_value = Account(2000, 2000)
         self.alpaca.list_assets.return_value = [Asset(symbol, True, True, True, True)
                                                 for symbol in [utils.REFERENCE_SYMBOL,
-                                                               'SYMA', 'SPY', 'TQQQ']]
+                                                               'SYMA', 'QQQ', 'SPY', 'TQQQ']]
         fake_next_close = mock.Mock()
         fake_next_close.timestamp.return_value = 1000
         self.alpaca.get_clock.return_value = Clock(True, fake_next_close)
@@ -79,7 +79,7 @@ class TradingRealTimeTest(unittest.TestCase):
     def test_update_trading_list(self):
         with mock.patch.object(time, 'time', side_effect=itertools.count(500, 50)):
             self.trading.update_trading_list()
-        self.assertEqual(len(self.trading.trading_list), 4)
+        self.assertEqual(len(self.trading.trading_list), 5)
 
     def test_update_trading_list_prices(self):
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
@@ -107,7 +107,7 @@ class TradingRealTimeTest(unittest.TestCase):
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
             self.trading.update_trading_list()
         self.trading.buy(order_type)
-        self.assertEqual(self.alpaca.submit_order.call_count, 4)
+        self.assertEqual(self.alpaca.submit_order.call_count, 5)
 
     @parameterized.expand([('limit',), ('market',)])
     def test_sell(self, order_type):
@@ -130,16 +130,16 @@ class TradingRealTimeTest(unittest.TestCase):
             [Position('SYMA', '6', '10.0', '100.0', '99.0', '9.9'),  # No sell transactions
              Position('TQQQ', '1', '10.0', '100.0', '99.0', '9.9'),  # No sell transactions
              Position('SYMX', '10', '10.0', '100.0', '99.0', '9.9')],
-            # SYMX sold with market order. SYMA has most of it. Next: Buy AAPL, SYMA, SPY, TQQQ.
+            # SYMX sold with market order. SYMA has most of it. Next: Buy AAPL, SYMA, SPY, QQQ, TQQQ.
             [Position('SYMA', '6', '10.0', '100.0', '99.0', '9.9'),
              Position('TQQQ', '1', '10.0', '100.0', '99.0', '9.9')],
-            # SYMA, SYMB filled with limit order, SYMC partially filled. Next: Buy AAPL, TQQQ.
+            # SYMA filled with limit order, TQQQ partially filled. Next: Buy AAPL, QQQ, TQQQ.
             [Position('SYMA', '7', '88.0', '440.0', '440.0', '60'),
              Position('SPY', '7', '88.0', '88.0', '88.0', '14.5'),
              Position('TQQQ', '3', '10.0', '100.0', '99.0', '33')]]
         self.trading.trade()
-        # Sell 3 + 1, Buy 4 + 2
-        self.assertEqual(self.alpaca.submit_order.call_count, 10)
+        # Sell 3 + 1, Buy 5 + 3
+        self.assertEqual(self.alpaca.submit_order.call_count, 12)
 
     def test_run_success(self):
         with mock.patch.object(time, 'time', side_effect=itertools.count(990)), \

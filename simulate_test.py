@@ -35,7 +35,7 @@ class TradingSimulateTest(unittest.TestCase):
         self.alpaca = mock.create_autospec(tradeapi.REST)
         self.alpaca.list_assets.return_value = [Asset(symbol, True, True, True, True)
                                                 for symbol in [utils.REFERENCE_SYMBOL,
-                                                               'SYMA', 'SPY', 'TQQQ']]
+                                                               'SYMA', 'QQQ', 'SPY', 'TQQQ']]
         self.alpaca.get_clock.return_value = Clock(False)
         self.polygon = mock.create_autospec(polygonapi.REST)
         fake_closes = np.append(np.random.random(990) * 10 + 100, np.random.random(10) * 10 + 90)
