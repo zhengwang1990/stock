@@ -21,6 +21,7 @@ OUTPUTS_DIR = 'outputs'
 MAX_STOCK_PICK = 8
 MAX_PROPORTION = 0.25
 VOLUME_FILTER_THRESHOLD = 1E6
+ESSENTIAL_SYMBOLS = ['TQQQ', 'QQQ', 'SPY']
 
 ALPACA_API_BASE_URL = 'https://api.alpaca.markets'
 ALPACA_PAPER_API_BASE_URL = 'https://paper-api.alpaca.markets'
@@ -84,6 +85,9 @@ class TradingBase(object):
                         and asset.tradable and asset.marginable
                         and asset.shortable and asset.easy_to_borrow]
         self.symbols = list(set(self.symbols).difference(EXCLUSIONS))
+        for symbol in ESSENTIAL_SYMBOLS:
+          if symbol not in self.symbols:
+            self.symbols.append(symbol)
 
     def load_histories(self):
         """Loads history of all stock symbols."""
@@ -136,7 +140,7 @@ class TradingBase(object):
                 raise NotFoundError('History of %s not found' % (symbol,))
         if symbol == REFERENCE_SYMBOL or len(hist) == self.history_length:
             self.hists[symbol] = hist
-        elif symbol in ('QQQ', 'SPY'):
+        elif symbol in ESSENTIAL_SYMBOLS:
             os.remove(cache_name)
             raise Exception('Error loading %s: expect length %d, but got %d.' % (
                 symbol, self.history_length, len(hist)))
