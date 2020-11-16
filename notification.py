@@ -20,16 +20,16 @@ from email.mime.text import MIMEText
 Order = collections.namedtuple('Order', ['price', 'qty', 'value'])
 
 
-def _create_server(user, password):
-    server = smtplib.SMTP('smtp.live.com', 587)
-    server.starttls()
-    server.ehlo()
-    server.login(user, password)
-    return server
+def _create_client(user, password):
+    client = smtplib.SMTP('smtp.live.com', 587)
+    client.starttls()
+    client.ehlo()
+    client.login(user, password)
+    return client
 
 
 def _create_message(sender, receiver):
-    message = MIMEMultipart("alternative")
+    message = MIMEMultipart('alternative')
     message['From'] = sender
     message['To'] = receiver
     return message
@@ -58,7 +58,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
         if not force:
             return
 
-    server = _create_server(user, password)
+    client = _create_client(user, password)
     message = _create_message(sender, receiver)
     message['Subject'] = '[Summary] [%s] Trade summary of the day' % (
         datetime.date.today(),)
@@ -352,20 +352,20 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
         account_html=account_html, sell_html=sell_html, buy_html=buy_html,
         positions_html=positions_html), 'html'))
     message.attach(image)
-    server.sendmail(sender, [receiver] + bcc, message.as_string())
-    server.close()
+    client.sendmail(sender, [receiver] + bcc, message.as_string())
+    client.close()
     print('Email summary sent')
 
 
 def send_alert(sender, receiver, user, password, exit_code):
-    server = _create_server(user, password)
+    client = _create_client(user, password)
     message = _create_message(sender, receiver)
     message['Subject'] = '[Error] [%s] Trade running exited with code %d' % (
         datetime.date.today(), exit_code)
     text = 'Trade running exited with code %d' % (exit_code,)
     message.attach(MIMEText(text, 'plain'))
-    server.sendmail(sender, receiver, message.as_string())
-    server.close()
+    client.sendmail(sender, receiver, message.as_string())
+    client.close()
     print('Email alert sent')
 
 
