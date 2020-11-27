@@ -136,7 +136,7 @@ class TradingSimulate(utils.TradingBase):
         for k, v in self.values.items():
             dates, values = v
             if k == 'Total':
-                formatter = mdates.DateFormatter('%Y-%m-%d')
+                formatter = mdates.DateFormatter('%Y-%m')
             else:
                 formatter = mdates.DateFormatter('%m-%d')
             plt.figure(figsize=(10, 4))
