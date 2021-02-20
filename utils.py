@@ -38,9 +38,8 @@ class NotFoundError(Exception):
 class TradingBase(object):
     """Basic trade utils."""
 
-    def __init__(self, alpaca, polygon, start_date=None, end_date=None):
+    def __init__(self, alpaca, start_date=None, end_date=None):
         self.alpaca = alpaca
-        self.polygon = polygon
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.hists, self.closes, self.opens, self.volumes = {}, {}, {}, {}
         self.symbols = []
@@ -93,7 +92,7 @@ class TradingBase(object):
         """Loads history of all stock symbols."""
         logging.info('Loading stock histories...')
         threads = []
-        with futures.ThreadPoolExecutor(max_workers=5) as pool:
+        with futures.ThreadPoolExecutor(max_workers=4) as pool:
             for symbol in self.symbols:
                 t = pool.submit(self.load_history, symbol)
                 threads.append(t)
@@ -125,8 +124,8 @@ class TradingBase(object):
         if os.path.isfile(cache_name):
             hist = pd.read_csv(cache_name, index_col=0, parse_dates=True)
         else:
-            aggs = self.polygon.historic_agg_v2(symbol, 1, 'day',
-                                                self.history_start_date, self.history_end_date)
+            aggs = self.alpaca.get_aggs(symbol, 1, 'day',
+                                        self.history_start_date, self.history_end_date)
             hist = pd.DataFrame(
                 [[pd.to_datetime(agg.timestamp.date()), agg.open, agg.close, agg.volume] for agg in aggs],
                 columns=['Date', 'Open', 'Close', 'Volume'])
@@ -193,14 +192,15 @@ class TradingBase(object):
             std = np.std(n_day_returns)
             threshold = mean - 3 * std
             n_day_return = np.log(price / closes_year[-n])
-            if n_day_return < threshold:
-                next_day_return = [
-                    np.log(closes_year[i + 1] / closes_year[i])
-                    for i in range(n, len(closes_year) - 1)
-                    if n_day_returns[i - n] < threshold]
-                avg_next_day_return = np.mean(next_day_return) if next_day_return else 0
-                if avg_next_day_return > 0 and 0.05 > np.log(price / closes_year[-1]) > 0.5 * n_day_return:
-                    symbols_dip.append((symbol, avg_next_day_return))
+            if n_day_return >= threshold:
+                continue
+            next_day_return = [
+                np.log(closes_year[i + 1] / closes_year[i])
+                for i in range(n, len(closes_year) - 1)
+                if n_day_returns[i - n] < threshold]
+            avg_next_day_return = np.mean(next_day_return) if next_day_return else 0
+            if avg_next_day_return > 0 and 0.05 > np.log(price / closes_year[-1]) > 0.5 * n_day_return:
+                symbols_dip.append((symbol, avg_next_day_return))
         return symbols_dip
 
     def get_trading_list(self, buy_symbols=None, cutoff=-1):

@@ -1,5 +1,4 @@
 import alpaca_trade_api as tradeapi
-import alpaca_trade_api.polygon as polygonapi
 import argparse
 import collections
 import datetime
@@ -37,15 +36,13 @@ class TradingSimulateTest(unittest.TestCase):
                                                 for symbol in [utils.REFERENCE_SYMBOL,
                                                                'SYMA', 'QQQ', 'SPY', 'TQQQ']]
         self.alpaca.get_clock.return_value = Clock(False)
-        self.polygon = mock.create_autospec(polygonapi.REST)
         fake_closes = np.append(np.random.random(990) * 10 + 100, np.random.random(10) * 10 + 90)
         fake_timestamps = [datetime.datetime.today().date() - pd.tseries.offsets.DateOffset(offset)
                            for offset in range(999, -1, -1)]
-        self.polygon.historic_agg_v2.return_value = [Agg(fake_timestamps[i], 100, fake_closes[i], 1E6)
-                                                     for i in range(1000)]
+        self.alpca.get_aggs.return_value = [Agg(fake_timestamps[i], 100, fake_closes[i], 1E6)
+                                            for i in range(1000)]
         self.trading = simulate.TradingSimulate(
             self.alpaca,
-            self.polygon,
             start_date=(datetime.datetime.today().date() - pd.tseries.offsets.BDay(30)).strftime('%F'))
 
     def tearDown(self):

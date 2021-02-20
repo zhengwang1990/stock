@@ -1,5 +1,4 @@
 import alpaca_trade_api as tradeapi
-import alpaca_trade_api.polygon as polygonapi
 import argparse
 import collections
 import datetime
@@ -47,14 +46,13 @@ class TradingRealTimeTest(unittest.TestCase):
         fake_next_close.timestamp.return_value = 1000
         self.alpaca.get_clock.return_value = Clock(True, fake_next_close)
         self.alpaca.list_orders.return_value = []
-        self.polygon = mock.create_autospec(polygonapi.REST)
-        self.polygon.last_trade.return_value = LastTrade(69)
+        self.alpaca.get_last_trade.return_value = LastTrade(69)
         fake_closes = ([100] * 9 + [90]) * 98 + ([100] * 8 + [70] * 2) * 2
         fake_timestamps = [datetime.datetime.today().date() - pd.tseries.offsets.DateOffset(offset)
                            for offset in range(999, -1, -1)]
-        self.polygon.historic_agg_v2.return_value = [Agg(fake_timestamps[i], 100, fake_closes[i], 1E6)
-                                                     for i in range(1000)]
-        self.trading = realtime.TradingRealTime(self.alpaca, self.polygon)
+        self.alpaca.get_aggs.return_value = [Agg(fake_timestamps[i], 100, fake_closes[i], 1E6)
+                                             for i in range(1000)]
+        self.trading = realtime.TradingRealTime(self.alpaca)
 
     def tearDown(self):
         self.patch_open.stop()
@@ -71,7 +69,7 @@ class TradingRealTimeTest(unittest.TestCase):
             self.assertEqual(self.mock_sleep.call_count, 11)
 
     def test_get_realtime_price_accumulate_error(self):
-        self.polygon.last_trade.side_effect = requests.exceptions.RequestException('Test error')
+        self.alpaca.get_last_trade.side_effect = requests.exceptions.RequestException('Test error')
         self.assertEqual(len(self.trading.errors), 0)
         self.trading.get_realtime_price('SYMA')
         self.assertEqual(len(self.trading.errors), 1)
@@ -87,7 +85,7 @@ class TradingRealTimeTest(unittest.TestCase):
         self.assertEqual(self.trading.prices['SYMA'], 69)
 
     def test_update_all_prices(self):
-        self.polygon.last_trade.return_value = LastTrade(666)
+        self.alpaca.get_last_trade.return_value = LastTrade(666)
         with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
             self.trading.update_all_prices()
         self.assertEqual(self.trading.prices['SYMA'], 666)
@@ -154,7 +152,7 @@ class TradingRealTimeTest(unittest.TestCase):
         mock_trade.assert_called_once()
 
     def test_run_fail(self):
-        self.polygon.last_trade.side_effect = requests.exceptions.HTTPError('Test error')
+        self.alpaca.get_last_trade.side_effect = requests.exceptions.HTTPError('Test error')
         with mock.patch.object(time, 'time', side_effect=itertools.repeat(800)), \
                 mock.patch.object(realtime.TradingRealTime, 'update_all_prices') as mock_update_all_prices, \
                 mock.patch.object(realtime.TradingRealTime, 'trade_clock_watcher') as trade_clock_watcher, \
@@ -172,7 +170,6 @@ class TradingRealTimeTest(unittest.TestCase):
         os.environ['ALPACA_PAPER_API_SECRET'] = 'fake_paper_api_secret'
         mock_trading = mock.create_autospec(realtime.TradingRealTime)
         with mock.patch.object(tradeapi, 'REST', return_value=self.alpaca) as alpaca_init, \
-                mock.patch.object(polygonapi, 'REST', return_value=self.polygon) as polygon_init, \
                 mock.patch.object(realtime, 'TradingRealTime', return_value=mock_trading) as trading_init, \
                 mock.patch.object(argparse.ArgumentParser, 'parse_args',
                                   return_value=argparse.Namespace(real_trade=real_trade,
@@ -183,11 +180,9 @@ class TradingRealTimeTest(unittest.TestCase):
         if real_trade:
             alpaca_init.assert_called_once_with('fake_api_key', 'fake_api_secret',
                                                 utils.ALPACA_API_BASE_URL, 'v2')
-            polygon_init.assert_called_once_with('fake_api_key')
         else:
             alpaca_init.assert_called_once_with('fake_paper_api_key', 'fake_paper_api_secret',
                                                 utils.ALPACA_PAPER_API_BASE_URL, 'v2')
-            polygon_init.assert_called_once_with('fake_paper_api_key')
         trading_init.assert_called_once()
         mock_trading.run.assert_called_once()
         os.environ.clear()

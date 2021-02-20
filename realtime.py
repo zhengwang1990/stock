@@ -1,5 +1,4 @@
 import alpaca_trade_api as tradeapi
-import alpaca_trade_api.polygon as polygonapi
 import argparse
 import datetime
 import json
@@ -22,16 +21,15 @@ ERROR_TOLERANCE = 10
 class TradingRealTime(utils.TradingBase):
     """Tracks daily stock price changes and make transactions on Alpaca."""
 
-    def __init__(self, alpaca, polygon):
+    def __init__(self, alpaca):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         output_dir = os.path.join(self.root_dir, utils.OUTPUTS_DIR, 'realtime',
                                   utils.get_business_day(0))
         os.makedirs(output_dir, exist_ok=True)
         utils.logging_config(os.path.join(output_dir, 'log.txt'))
-        super(TradingRealTime, self).__init__(alpaca, polygon)
+        super(TradingRealTime, self).__init__(alpaca)
         self.active = True
         self.equity, self.cash = 0, 0
-        self.polygon = polygon
         self.update_account()
         self.lock = threading.RLock()
         self.prices = {}
@@ -135,7 +133,7 @@ class TradingRealTime(utils.TradingBase):
 
         @retrying.retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
         def _get_realtime_price_impl(sym):
-            p = self.polygon.last_trade(sym).price
+            p = self.alpaca.get_last_trade(sym).price
             return p
 
         try:
@@ -149,7 +147,7 @@ class TradingRealTime(utils.TradingBase):
     def update_prices(self, symbols, use_tqdm=False):
         """Updates realtime prices for a list of symbols."""
         threads = []
-        with futures.ThreadPoolExecutor(max_workers=3) as pool:
+        with futures.ThreadPoolExecutor(max_workers=2) as pool:
             for symbol in symbols:
                 if not self.active:
                     return
@@ -388,10 +386,9 @@ def main():
         base_url = utils.ALPACA_PAPER_API_BASE_URL
     sys.stdout.flush()
     alpaca = tradeapi.REST(api_key, api_secret, base_url, 'v2')
-    polygon = polygonapi.REST(api_key)
 
     if alpaca.get_clock().is_open or args.force:
-        trading = TradingRealTime(alpaca, polygon)
+        trading = TradingRealTime(alpaca)
         trading.run()
     else:
         print('Market is closed. Use "-f" flag to force run.')
