@@ -268,3 +268,5 @@ def logging_config(logging_file=None):
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
+    alpaca_logger = logging.getLogger('alpaca_trade_api')
+    alpaca_logger.setLevel(logging.ERROR)
