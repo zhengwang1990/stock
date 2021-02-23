@@ -39,8 +39,8 @@ class TradingSimulateTest(unittest.TestCase):
         fake_closes = np.append(np.random.random(990) * 10 + 100, np.random.random(10) * 10 + 90)
         fake_timestamps = [datetime.datetime.today().date() - pd.tseries.offsets.DateOffset(offset)
                            for offset in range(999, -1, -1)]
-        self.alpca.get_aggs.return_value = [Agg(fake_timestamps[i], 100, fake_closes[i], 1E6)
-                                            for i in range(1000)]
+        self.alpaca.get_aggs.return_value = [Agg(fake_timestamps[i], 100, fake_closes[i], 1E6)
+                                             for i in range(1000)]
         self.trading = simulate.TradingSimulate(
             self.alpaca,
             start_date=(datetime.datetime.today().date() - pd.tseries.offsets.BDay(30)).strftime('%F'))
