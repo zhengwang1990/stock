@@ -62,7 +62,7 @@ class TradingRealTime(utils.TradingBase):
         for symbol, price in self.prices.items():
             if symbol in self.closes:
                 self.closes[symbol][-1] = price
-        for symbol, closes in self.closes.items():
+        for symbol in self.closes.keys():
             if symbol not in self.prices:
                 logging.error('Stock price for %s not found', symbol)
 
