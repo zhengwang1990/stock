@@ -64,6 +64,7 @@ SHORTS = ['BIS', 'CROC', 'DDG', 'DOG', 'DPK', 'DRIP', 'DUG', 'DUST', 'DXD',
           'XXVFF', 'YGRN', 'ZIV', 'BZQ', 'TVIX', 'UVXY', 'EPV', 'FTSD', 'VIXY',
           'UVXY', 'SKF', 'HDGE']
 
-HISTORY_NOT_FOUND = ['STSB', 'NBAC']
+HISTORY_NOT_FOUND = ['STSB', 'NBAC', 'OTTR', 'ANDAR', 'GRNVR', 'VTAQR', 'BRLIR',
+                     'BREZR', 'NBACR', 'ESSCR', 'AGBAR', 'ALACR', 'COMS']
 
 EXCLUSIONS = DELISTED + SHORTS + HISTORY_NOT_FOUND

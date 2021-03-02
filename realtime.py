@@ -139,7 +139,7 @@ class TradingRealTime(utils.TradingBase):
 
         try:
             price = _get_realtime_price_impl(symbol)
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, TypeError) as e:
             logging.error('Exception raised in get_realtime_price for %s: %s', symbol, e)
             self.errors.append(sys.exc_info())
         else:
