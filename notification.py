@@ -1,5 +1,4 @@
 import alpaca_trade_api as tradeapi
-import alpaca_trade_api.polygon as polygonapi
 import argparse
 import collections
 import datetime
@@ -18,6 +17,7 @@ import yfinance as yf
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from iexfinance.stocks import Stock
 
 Order = collections.namedtuple('Order', ['price', 'qty', 'value'])
 
@@ -51,7 +51,7 @@ def _get_trade_info(orders, side):
     return trade_info
 
 
-def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
+def send_summary(sender, receiver, bcc, user, password, force, alpaca):
     calendar = alpaca.get_calendar(start=datetime.date.today() - datetime.timedelta(days=40),
                                    end=datetime.date.today())
     open_dates = sorted([c.date for c in calendar], reverse=True)
@@ -156,7 +156,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca, polygon):
         ref_historical_value = yf.Ticker(symbol).history(start=open_dates[history_length].strftime('%F'),
                                                          end=open_dates[0].strftime('%F'),
                                                          interval='1d').get('Close')
-        last_prices[symbol] = polygon.last_trade(symbol).price
+        last_prices[symbol] = float(Stock(symbol, output_format='json').get_price())
         ref_historical_value = np.append(np.array(ref_historical_value),
                                          last_prices[symbol])
         for i in range(len(ref_historical_value) - 1, -1, -1):
@@ -399,9 +399,8 @@ def main():
         alpaca = tradeapi.REST(api_key,
                                api_secret,
                                base_url, 'v2')
-        polygon = polygonapi.REST(os.environ['ALPACA_API_KEY'])
         send_summary(args.sender, args.receiver, args.bcc, args.user, args.password,
-                     args.force, alpaca, polygon)
+                     args.force, alpaca)
     else:
         send_alert(args.sender, args.receiver, args.user, args.password, args.exit_code)
 
