@@ -6,6 +6,7 @@ install:
   - pip install -r requirements.txt
   - pip install codecov
 script:
+  - export IEX_TOKEN="fake_iex_token"
   - coverage run -a realtime_test.py
   - coverage run -a simulate_test.py
 after_success:
