@@ -1,4 +1,5 @@
 alpaca_trade_api
+iexfinance
 matplotlib
 numpy
 pandas

@@ -10,11 +10,11 @@ import os
 import unittest
 import unittest.mock as mock
 import utils
+import yfinance as yf
 
 Clock = collections.namedtuple('Clock', ['is_open'])
 Asset = collections.namedtuple('Asset', ['symbol', 'tradable', 'marginable',
                                          'shortable', 'easy_to_borrow'])
-Agg = collections.namedtuple('Agg', ['timestamp', 'open', 'close', 'volume'])
 
 
 class TradingSimulateTest(unittest.TestCase):
@@ -39,8 +39,12 @@ class TradingSimulateTest(unittest.TestCase):
         fake_closes = np.append(np.random.random(990) * 10 + 100, np.random.random(10) * 10 + 90)
         fake_timestamps = [datetime.datetime.today().date() - pd.tseries.offsets.DateOffset(offset)
                            for offset in range(999, -1, -1)]
-        self.alpaca.get_aggs.return_value = [Agg(fake_timestamps[i], 100, fake_closes[i], 1E6)
-                                             for i in range(1000)]
+        fake_history = pd.DataFrame(
+            [[fake_timestamps[i], 100, fake_closes[i], 1E6] for i in range(1000)],
+            columns=['Date', 'Open', 'Close', 'Volume'])
+        fake_history.set_index('Date', inplace=True)
+        self.patch_yf = mock.patch.object(yf.Ticker, 'history', return_value=fake_history)
+        self.patch_yf.start()
         self.trading = simulate.TradingSimulate(
             self.alpaca,
             start_date=(datetime.datetime.today().date() - pd.tseries.offsets.BDay(30)).strftime('%F'))
@@ -51,6 +55,7 @@ class TradingSimulateTest(unittest.TestCase):
         self.patch_mkdirs.stop()
         self.patch_savefig.stop()
         self.patch_tight_layout.stop()
+        self.patch_yf.stop()
 
     def test_run(self):
         self.trading.run()

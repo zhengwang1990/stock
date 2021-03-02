@@ -11,17 +11,17 @@ import time
 import unittest
 import unittest.mock as mock
 import utils
+import yfinance as yf
+from iexfinance.stocks import Stock
 from parameterized import parameterized
 
 Clock = collections.namedtuple('Clock', ['is_open', 'next_close'])
 Asset = collections.namedtuple('Asset', ['symbol', 'tradable', 'marginable',
                                          'shortable', 'easy_to_borrow'])
 Account = collections.namedtuple('Account', ['equity', 'cash'])
-LastTrade = collections.namedtuple('LastTrade', ['price'])
 Position = collections.namedtuple('Position', ['symbol', 'qty', 'current_price',
                                                'market_value', 'cost_basis',
                                                'avg_entry_price'])
-Agg = collections.namedtuple('Agg', ['timestamp', 'open', 'close', 'volume'])
 
 
 class TradingRealTimeTest(unittest.TestCase):
@@ -46,12 +46,17 @@ class TradingRealTimeTest(unittest.TestCase):
         fake_next_close.timestamp.return_value = 1000
         self.alpaca.get_clock.return_value = Clock(True, fake_next_close)
         self.alpaca.list_orders.return_value = []
-        self.alpaca.get_last_trade.return_value = LastTrade(69)
+        self.patch_get_price = mock.patch.object(Stock, 'get_price', return_value='69')
+        self.patch_get_price.start()
         fake_closes = ([100] * 9 + [90]) * 98 + ([100] * 8 + [70] * 2) * 2
         fake_timestamps = [datetime.datetime.today().date() - pd.tseries.offsets.DateOffset(offset)
                            for offset in range(999, -1, -1)]
-        self.alpaca.get_aggs.return_value = [Agg(fake_timestamps[i], 100, fake_closes[i], 1E6)
-                                             for i in range(1000)]
+        fake_history = pd.DataFrame(
+            [[fake_timestamps[i], 100, fake_closes[i], 1E6] for i in range(1000)],
+            columns=['Date', 'Open', 'Close', 'Volume'])
+        fake_history.set_index('Date', inplace=True)
+        self.patch_yf = mock.patch.object(yf.Ticker, 'history', return_value=fake_history)
+        self.patch_yf.start()
         self.trading = realtime.TradingRealTime(self.alpaca)
 
     def tearDown(self):
@@ -60,6 +65,8 @@ class TradingRealTimeTest(unittest.TestCase):
         self.patch_mkdirs.stop()
         self.patch_sleep.stop()
         self.patch_to_csv.stop()
+        self.patch_get_price.stop()
+        self.patch_yf.stop()
 
     def test_trade_clock_watcher(self):
         with mock.patch.object(realtime.TradingRealTime, 'trade') as trade, \
@@ -69,10 +76,11 @@ class TradingRealTimeTest(unittest.TestCase):
             self.assertEqual(self.mock_sleep.call_count, 11)
 
     def test_get_realtime_price_accumulate_error(self):
-        self.alpaca.get_last_trade.side_effect = requests.exceptions.RequestException('Test error')
-        self.assertEqual(len(self.trading.errors), 0)
-        self.trading.get_realtime_price('SYMA')
-        self.assertEqual(len(self.trading.errors), 1)
+        with mock.patch.object(Stock, 'get_price',
+                               side_effect=requests.exceptions.RequestException('Test error')):
+            self.assertEqual(len(self.trading.errors), 0)
+            self.trading.get_realtime_price('SYMA')
+            self.assertEqual(len(self.trading.errors), 1)
 
     def test_update_trading_list(self):
         with mock.patch.object(time, 'time', side_effect=itertools.count(500, 50)):
@@ -85,9 +93,9 @@ class TradingRealTimeTest(unittest.TestCase):
         self.assertEqual(self.trading.prices['SYMA'], 69)
 
     def test_update_all_prices(self):
-        self.alpaca.get_last_trade.return_value = LastTrade(666)
-        with mock.patch.object(time, 'time', side_effect=itertools.count(999)):
-            self.trading.update_all_prices()
+        with mock.patch.object(Stock, 'get_price', return_value='666'), \
+             mock.patch.object(time, 'time', side_effect=itertools.count(999)):
+                self.trading.update_all_prices()
         self.assertEqual(self.trading.prices['SYMA'], 666)
         self.assertEqual(self.trading.prices['SPY'], 666)
         self.assertEqual(self.trading.prices['TQQQ'], 666)
@@ -152,9 +160,10 @@ class TradingRealTimeTest(unittest.TestCase):
         mock_trade.assert_called_once()
 
     def test_run_fail(self):
-        self.alpaca.get_last_trade.side_effect = requests.exceptions.HTTPError('Test error')
-        with mock.patch.object(time, 'time', side_effect=itertools.repeat(800)), \
-                mock.patch.object(realtime.TradingRealTime, 'update_all_prices') as mock_update_all_prices, \
+        with mock.patch.object(Stock, 'get_price',
+                               side_effect=requests.exceptions.HTTPError('Test error')), \
+             mock.patch.object(time, 'time', side_effect=itertools.repeat(800)), \
+             mock.patch.object(realtime.TradingRealTime, 'update_all_prices') as mock_update_all_prices, \
                 mock.patch.object(realtime.TradingRealTime, 'trade_clock_watcher') as trade_clock_watcher, \
                 self.assertRaises(requests.exceptions.HTTPError):
             self.trading.run()

@@ -7,6 +7,7 @@ from concurrent import futures
 import numpy as np
 import pandas as pd
 import retrying
+import yfinance as yf
 from tqdm import tqdm
 
 from exclusions import EXCLUSIONS
@@ -124,12 +125,8 @@ class TradingBase(object):
         if os.path.isfile(cache_name):
             hist = pd.read_csv(cache_name, index_col=0, parse_dates=True)
         else:
-            aggs = self.alpaca.get_aggs(symbol, 1, 'day',
-                                        self.history_start_date, self.history_end_date)
-            hist = pd.DataFrame(
-                [[pd.to_datetime(agg.timestamp.date()), agg.open, agg.close, agg.volume] for agg in aggs],
-                columns=['Date', 'Open', 'Close', 'Volume'])
-            hist.set_index('Date', inplace=True)
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(start=self.history_start_date, end=self.history_end_date, interval='1d')
             drop_key = datetime.datetime.today().date()
             if (self.is_market_open or not self.is_trading_day) and drop_key in hist.index:
                 hist.drop(drop_key, inplace=True)

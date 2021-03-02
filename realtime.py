@@ -11,6 +11,7 @@ import time
 import requests
 import retrying
 import utils
+from iexfinance.stocks import Stock
 from concurrent import futures
 from tabulate import tabulate
 from tqdm import tqdm
@@ -133,8 +134,8 @@ class TradingRealTime(utils.TradingBase):
 
         @retrying.retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
         def _get_realtime_price_impl(sym):
-            p = self.alpaca.get_last_trade(sym).price
-            return p
+            p = Stock(sym, output_format='json').get_price()
+            return float(p)
 
         try:
             price = _get_realtime_price_impl(symbol)
