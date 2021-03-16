@@ -206,20 +206,23 @@ class TradingBase(object):
             buy_symbols = self.get_buy_symbols(cutoff)
         buy_symbols.sort(key=lambda s: s[1], reverse=True)
         trading_list = []
-        global_proportion = self.get_market_proportion(cutoff)
+        market_proportion = self.get_market_proportion(cutoff)
         for i in range(len(buy_symbols)):
             symbol, weight, side = buy_symbols[i]
             proportion = min(1 / min(len(buy_symbols), MAX_STOCK_PICK),
                              MAX_PROPORTION) if i < MAX_STOCK_PICK else 0
             trading_list.append((symbol, proportion, side))
-        if len(buy_symbols) < 1 / MAX_PROPORTION:
+        if len(buy_symbols) < 1 / MAX_PROPORTION and market_proportion > 0:
             trading_list.append(
-                ('TQQQ', (1 - len(buy_symbols) * MAX_PROPORTION) * global_proportion, 'long'))
+                ('TQQQ', (1 - len(buy_symbols) * MAX_PROPORTION) * market_proportion, 'long'))
         return trading_list
 
     def get_market_proportion(self, cutoff=-1):
-        monthly_gain = self.closes['QQQ'][cutoff] / self.closes['QQQ'][cutoff - DAYS_IN_A_MONTH] - 1
-        quarterly_gain = self.closes['QQQ'][cutoff] / self.closes['QQQ'][cutoff - DAYS_IN_A_QUARTER] - 1
+        qqq = self.closes['QQQ']
+        monthly_gain = qqq[cutoff] / qqq[cutoff - DAYS_IN_A_MONTH] - 1
+        quarterly_gain = qqq[cutoff] / qqq[cutoff - DAYS_IN_A_QUARTER] - 1
+        if np.log(qqq[cutoff] / qqq[cutoff - 1]) > 0.025 and np.log(qqq[cutoff - 1] / qqq[cutoff - 6]) < -0.05:
+            return 0
         return np.clip(1 - 8 * quarterly_gain ** 2 - 20 * monthly_gain ** 2, 0.2, 1)
 
 
