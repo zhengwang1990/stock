@@ -132,7 +132,7 @@ class TradingRealTime(utils.TradingBase):
     def get_realtime_price(self, symbol):
         """Obtains realtime price for a symbol."""
 
-        @retrying.retry(stop_max_attempt_number=3, wait_exponential_multiplier=1000)
+        @retrying.retry(stop_max_attempt_number=5, wait_exponential_multiplier=5000)
         def _get_realtime_price_impl(sym):
             p = Stock(sym, output_format='json').get_price()
             return float(p)
@@ -153,7 +153,8 @@ class TradingRealTime(utils.TradingBase):
         """Updates realtime prices for a list of symbols."""
         threads = []
         start_time = time.time()
-        logging.info('Updating realtime prices for [%d] symbols', len(symbols))
+        if len(symbols) > 100:
+            logging.info('Updating realtime prices for [%d] symbols', len(symbols))
         with futures.ThreadPoolExecutor(max_workers=5) as pool:
             for symbol in symbols:
                 if not self.active:
@@ -169,8 +170,9 @@ class TradingRealTime(utils.TradingBase):
             with open(self.price_cache_file, 'w') as f:
                 f.write(json.dumps(self.prices))
         elapsed_time = time.time() - start_time
-        logging.info('Finish updating prices for [%d] symbols. Time elapsed: [%d] seconds',
-                     len(symbols), elapsed_time)
+        if len(symbols) > 100:
+            logging.info('Finish updating prices for [%d] symbols. Time elapsed: [%d] seconds',
+                         len(symbols), elapsed_time)
 
 
     @retrying.retry(stop_max_attempt_number=10, wait_exponential_multiplier=1000)
