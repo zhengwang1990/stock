@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
+import retrying
 import smtplib
 import textwrap
 import utils
@@ -49,6 +50,12 @@ def _get_trade_info(orders, side):
             new_price = new_value / new_qty
             trade_info[symbol] = Order(new_price, new_qty, new_value)
     return trade_info
+
+
+@retrying.retry(stop_max_attempt_number=5, wait_exponential_multiplier=5000)
+def _get_realtime_price(sym):
+    p = Stock(sym, output_format='json').get_price()
+    return float(p)
 
 
 def send_summary(sender, receiver, bcc, user, password, force, alpaca):
@@ -156,7 +163,7 @@ def send_summary(sender, receiver, bcc, user, password, force, alpaca):
         ref_historical_value = yf.Ticker(symbol).history(start=open_dates[history_length].strftime('%F'),
                                                          end=open_dates[0].strftime('%F'),
                                                          interval='1d').get('Close')
-        last_prices[symbol] = float(Stock(symbol, output_format='json').get_price())
+        last_prices[symbol] = _get_realtime_price(symbol)
         ref_historical_value = np.append(np.array(ref_historical_value),
                                          last_prices[symbol])
         for i in range(len(ref_historical_value) - 1, -1, -1):
