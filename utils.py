@@ -36,6 +36,10 @@ class NotFoundError(Exception):
     """Content not found."""
 
 
+class EssentialSymbolLoadError(Exception):
+    """Essential symbols can not be loaded."""
+
+
 class TradingBase(object):
     """Basic trade utils."""
 
@@ -101,6 +105,8 @@ class TradingBase(object):
             for t in iterator:
                 try:
                     t.result()
+                except EssentialSymbolLoadError as e:
+                    raise e
                 except Exception as e:
                     logging.error('Error occurred in load_histories: %s', e)
                     self.errors.append(sys.exc_info())
@@ -138,8 +144,9 @@ class TradingBase(object):
             self.hists[symbol] = hist
         elif symbol in ESSENTIAL_SYMBOLS:
             os.remove(cache_name)
-            raise Exception('Error loading %s: expect length %d, but got %d.' % (
-                symbol, self.history_length, len(hist)))
+            raise EssentialSymbolLoadError(
+                'Error loading %s: expect length %d, but got %d.' % (
+                    symbol, self.history_length, len(hist)))
 
     def get_history_length(self):
         """Get the number of trading days in the period of interest."""
