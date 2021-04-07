@@ -133,7 +133,7 @@ class TradingBase(object):
         else:
             ticker = yf.Ticker(symbol)
             hist = ticker.history(start=self.history_start_date, end=self.history_end_date, interval='1d')
-            drop_key = datetime.datetime.today().date()
+            drop_key = pd.Timestamp(datetime.datetime.today().date())
             if (self.is_market_open or not self.is_trading_day) and drop_key in hist.index:
                 hist.drop(drop_key, inplace=True)
             if len(hist):
